@@ -1,4 +1,4 @@
-
+from ImageData import ImageData
 
 class ImagePositioningController:
     def __init__(self, x_resolution=0.00025, z_resolution=0.00027):
@@ -6,8 +6,8 @@ class ImagePositioningController:
         self.z_resolution = z_resolution  # m/pixel
 
     @staticmethod
-    def calculate_error_in_pixels(centroids, image_size):
-        half_image_width = round(image_size[0] / 2)
+    def calculate_error_in_pixels(centroids, image_size_x):
+        half_image_width = round(image_size_x / 2)
 
         position_errors = []
         for centroid in centroids:
@@ -16,8 +16,8 @@ class ImagePositioningController:
 
         return position_errors
 
-    def calculate_error_in_meters(self, centroids, image_size):
-        pixel_errors = self.calculate_error_in_pixels(centroids, image_size)
+    def calculate_error_in_meters(self, image_data: ImageData):
+        pixel_errors = self.calculate_error_in_pixels(image_data.contour_centroids, image_data.image_size_x)
 
         distance_errors = []
         for error in pixel_errors:

@@ -16,12 +16,14 @@ class ImageData:
         self.blurred_image = None
         self.image_mask = None"""
 
-    def __init__(self, image_data=None, image_filepath=None):
+    def __init__(self, image_data=None, image_filepath=None, image_size_x=0, image_size_y=0):
         self.image_array = None
         self.image_title = None
         self.blur_kernel = None
         self.mask_lower_limit = None
         self.mask_upper_limit = None
+        self.image_size_x = image_size_x
+        self.image_size_y = image_size_y
 
         # If the image is only given as a filepath, read the image from the file
         if image_filepath is not None and image_data is None:
@@ -31,7 +33,7 @@ class ImageData:
             self.original_image = cv2.imread(image_filepath)
             print(self.original_image)
 
-        # Else if the image is given as an array, upack the array into a multidimensional object
+        # Else if the image is given as an array, unpack the array into a multidimensional object
         elif image_data is not None:
             self.image_filepath = None
             self.original_image = self.unpack_single_dimensional_array(image_data)
