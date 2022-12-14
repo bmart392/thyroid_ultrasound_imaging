@@ -40,6 +40,7 @@ class ImageFilter:
         elif self.filter_color == FC.ColorOptions.GRAY:
             color = cv2.COLOR_BGR2GRAY
         image_data.set_colorized_image(cv2.cvtColor(image_data.get_original_image(), color))
+        return image_data
 
     def blur_image(self, image_data: ImageData):
         need_to_recolor = False
@@ -63,7 +64,7 @@ class ImageFilter:
                     cv2.cvtColor(image_data.get_blurred_image(),
                                  color)
                 )
-            return
+            return image_data
         elif self.blur_type == FC.BlurTypes.MEAN_FILTER:
             image_data.set_blurred_image(
                 cv2.pyrMeanShiftFiltering(image_data.get_original_image(),
@@ -76,9 +77,10 @@ class ImageFilter:
                     cv2.cvtColor(image_data.get_blurred_image(),
                                  color)
                 )
-            return
+            return image_data
         else:
             image_data.set_blurred_image(image_data.get_colorized_image())
+            return image_data
 
     def create_image_mask(self, image_data: ImageData):
         if self.thresholding_type == FC.ThresholdOptions.BASIC:
@@ -88,7 +90,7 @@ class ImageFilter:
                             self.thresholding_parameters[1]
                             )
             )
-            return
+            return image_data
         elif self.thresholding_type == FC.ThresholdOptions.ADAPTIVE:
             image_data.set_image_mask(
                 cv2.adaptiveThreshold(image_data.get_blurred_image(),
@@ -97,7 +99,7 @@ class ImageFilter:
                                       75, 1
                                       )
             )
-            return
+            return image_data
 
     def modify_image_mask(self, image_data: ImageData):
         for modification in self.mask_manipulation_sequence:
@@ -117,9 +119,33 @@ class ImageFilter:
                                  iterations=modification[2]
                                  )
             )
+        return image_data
 
     def fully_filter_image(self, image_data: ImageData):
-        self.colorize_image(image_data)
-        self.blur_image(image_data)
-        self.create_image_mask(image_data)
-        self.modify_image_mask(image_data)
+        image_data = self.colorize_image(image_data)
+        image_data = self.blur_image(image_data)
+        image_data = self.create_image_mask(image_data)
+        image_data = self.modify_image_mask(image_data)
+        image_data.generate_contours_in_image()
+        image_data.calculate_image_centroids()
+        return image_data
+
+
+if __name__ == '__main__':
+
+    # Create test data using example picture from computer
+    test_image_data = ImageData(image_data=None, image_filepath='/home/ben/Pictures/thyroid_ultrasound.png')
+
+    # Create a temporary image filter
+    image_filter = ImageFilter()
+
+    # Filter the image
+    test_image_data = image_filter.fully_filter_image(test_image_data)
+
+    # Show the filtered images
+    test_image_data.plot_images()
+
+    print(test_image_data.contour_centroids)
+
+    print("hi")
+

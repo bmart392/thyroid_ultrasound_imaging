@@ -1,5 +1,6 @@
 import cv2
 import matplotlib.pyplot as plt
+from numpy import array
 import os
 
 
@@ -31,12 +32,16 @@ class ImageData:
             # assert os.path.exists(self.image_filepath)
             self.image_filepath = image_filepath
             self.original_image = cv2.imread(image_filepath)
-            print(self.original_image)
+            self.image_size_x = self.original_image.shape[1]
+            self.image_size_y = self.original_image.shape[0]
+            # print(self.original_image)
 
         # Else if the image is given as an array, unpack the array into a multidimensional object
         elif image_data is not None:
             self.image_filepath = None
             self.original_image = self.unpack_single_dimensional_array(image_data)
+            self.image_size_x = self.original_image.shape[1]
+            self.image_size_y = self.original_image.shape[0]
 
         # Otherwise initialize an empty object
         else:
