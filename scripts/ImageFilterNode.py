@@ -63,8 +63,7 @@ class ImageFilterNode:
 
         # Publish if the thyroid is in the image
         self.is_thyroid_in_image_status_publisher.publish(
-            Bool(
-                len(self.image_data.contour_centroids) > 0))
+            Bool(len(self.image_data.contour_centroids) > 0))
 
         # Analyze the centroid location to determine the needed control input, current thyroid position error, and
         # if the thyroid is in the center of the image
