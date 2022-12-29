@@ -4,15 +4,17 @@ from geometry_msgs.msg import TwistStamped
 
 
 class ImagePositioningController:
-    def __init__(self, x_resolution=0.00025, z_resolution=0.00027):
-        self.x_resolution = x_resolution  # m/pixel
-        self.z_resolution = z_resolution  # m/pixel
-        self.acceptable_error = [0.05, 0.05, 0.05, radians(10), radians(10), radians(10)]  # [m, m, m, rads, rads, rads]
+    def __init__(self):  # , x_resolution=0.00021875, z_resolution=0.00021875):
+        imaging_depth = 6  # cm
+        resolution = (imaging_depth / 100) / 480
+        self.x_resolution = resolution  # m/pixel
+        self.z_resolution = resolution  # m/pixel
+        self.acceptable_error = [0.01, .01, 1.01, radians(10), radians(10), radians(10)]  # [m, m, m, rads, rads, rads]
 
         self.control_input_gains = [
             # [k_p, k_d]
             [1, 0],  # x
-            [1, 0],  # y
+            [100, 0],  # y
             [1, 0],  # z
             [1, 0],  # roll
             [1, 0],  # pitch
@@ -43,9 +45,12 @@ class ImagePositioningController:
 
         # Calculate position errors using centroid location in pixels and image size
         position_errors = [0,
-                           (image_data.contour_centroids[0][0] - image_data.image_size_x) * self.x_resolution,
-                           -(image_data.contour_centroids[0][1] - image_data.image_size_y) * self.z_resolution,
+                           (image_data.contour_centroids[0][0] - (image_data.image_size_x / 2)) * self.x_resolution,
+                           0,  # -(image_data.contour_centroids[0][1] - (image_data.image_size_y / 2)) * self.z_resolution,
                            0, 0, 0]
+
+        print("Y pixel error = ", position_errors[1]/self.x_resolution)
+        # print("Z pixel error = ", position_errors[2]/self.z_resolution)
 
         # Define array to store the new control inputs
         control_inputs = []
@@ -56,7 +61,13 @@ class ImagePositioningController:
         # Calculate control inputs from centroid positions and check if error is too large
         for current_error, gains, error_limit in zip(position_errors, self.control_input_gains, self.acceptable_error):
             control_inputs.append(-current_error * gains[0])
-            is_error_acceptable = is_error_acceptable + (error_limit >= abs(current_error))
+            # print("Current centroid error = ", current_error)
+            # print("Error Limit = ", error_limit)
+            # print(error_limit >= abs(current_error))
+            is_error_acceptable = is_error_acceptable * (error_limit >= abs(current_error))
+
+        print("Y control input = ", control_inputs[1])
+        # print("Z control input = ", control_inputs[2])
 
         # Generate twist message to send control inputs
         control_inputs_msg = TwistStamped()

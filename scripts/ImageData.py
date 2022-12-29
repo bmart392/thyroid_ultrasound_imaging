@@ -1,11 +1,10 @@
 import cv2
 import matplotlib.pyplot as plt
-from numpy import array
+from numpy import array, zeros, sum, uint8
 import os
 
 
 class ImageData:
-
     """def __init__(self, src_image, image_title, lower_limit, upper_limit):
         self.image_array = src_image
         self.image_title = image_title
@@ -39,7 +38,19 @@ class ImageData:
         # Else if the image is given as an array, unpack the array into a multidimensional object
         elif image_data is not None:
             self.image_filepath = None
-            self.original_image = self.unpack_single_dimensional_array(image_data)
+            """if len(image_data.shape) < 3:
+                three_channel_image_data = cv2.cvtColor(image_data, cv2.COLOR_GRAY2BGR)
+                """
+            """three_channel_image_data = zeros((image_data.shape[0], image_data.shape[1], 3))
+                for row_index in range(three_channel_image_data.shape[0]):
+                    for column_index in range(three_channel_image_data.shape[1]):
+                        for channel_index in range(three_channel_image_data.shape[2]):
+                            three_channel_image_data[row_index][channel_index][channel_index] = three_channel_image_data[row_index][column_index][channel_index] + image_data[row_index][column_index]"""
+            """
+            else:
+                three_channel_image_data = image_data
+            self.original_image = three_channel_image_data  # self.unpack_single_dimensional_array(image_data)"""
+            self.original_image = image_data
             self.image_size_x = self.original_image.shape[1]
             self.image_size_y = self.original_image.shape[0]
 
@@ -47,14 +58,14 @@ class ImageData:
         else:
             self.image_filepath = None
             self.original_image = None
-    
+
         self.colorized_image = None
         self.blurred_image = None
         self.image_mask = None
         self.contours_in_image = None
         self.contour_centroids = []
         self.image_figure = None
-        
+
     def unpack_single_dimensional_array(self, data):
         return data
 
@@ -66,31 +77,42 @@ class ImageData:
         self.mask_upper_limit = upper_limit
 
     def generate_contours_in_image(self):
-        if self.image_mask is not None:
+        self.contours_in_image = []
+        if self.image_mask is not None and not sum(self.image_mask) == 0:
             contours_in_image, hierarchy = cv2.findContours(
-                self.image_mask,
+                self.image_mask.astype(uint8),
                 cv2.RETR_EXTERNAL,
                 cv2.CHAIN_APPROX_NONE
             )
-            self.contours_in_image = sorted(contours_in_image,
-                                            key=cv2.contourArea,
-                                            reverse=True)
+            temp_contours = sorted(contours_in_image,
+                                   key=cv2.contourArea,
+                                   reverse=True)
+            for contour in temp_contours:
+                if cv2.contourArea(contour) > 10:
+                    self.contours_in_image.append(contour)
 
     def calculate_image_centroids(self):
-        if self.contours_in_image is not None:
-            for contour in self.contours_in_image:
-                temp_moments = cv2.moments(contour)
-                temp_centroid_x = int(temp_moments["m10"] / temp_moments["m00"])
-                temp_centroid_y = int(temp_moments["m01"] / temp_moments["m00"])
-                self.contour_centroids.append((temp_centroid_x, temp_centroid_y))
 
-            result = [(self.contours_in_image[0], self.contour_centroids[0])]
+        # create empty array to return when no centroids are found
+        result = []
 
+        # calculate the centroid of each contour
+        for contour in self.contours_in_image:
+            temp_moments = cv2.moments(contour)
+            temp_centroid_x = int(temp_moments["m10"] / temp_moments["m00"])
+            temp_centroid_y = int(temp_moments["m01"] / temp_moments["m00"])
+            self.contour_centroids.append((temp_centroid_x, temp_centroid_y))
+
+        # append the centroid of the largest contour found
+        result.append((self.contours_in_image[0], self.contour_centroids[0]))
+
+        # if 2 or more contours were found and the second contour also big, include it
+        if len(self.contour_centroids) >= 2:
             if (cv2.contourArea(self.contours_in_image[1]) >=
                     0.9 * cv2.contourArea(self.contours_in_image[0])):
                 result.append((self.contours_in_image[1], self.contour_centroids[1]))
 
-            return result
+        return result
 
     def get_original_image(self):
         return self.original_image
@@ -117,10 +139,11 @@ class ImageData:
         pass
 
     def plot_images(self, figure=None):
-        if figure is None:
+        if figure is None and self.image_figure is None:
             figure_dimensions = (4, 12)
             figure = plt.figure(figsize=figure_dimensions)
-        self.image_figure = figure
+        if self.image_figure is None:
+            self.image_figure = figure
 
         num_image_rows = 5
         num_image_cols = 1
