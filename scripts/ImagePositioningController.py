@@ -4,53 +4,67 @@ from geometry_msgs.msg import TwistStamped
 
 
 class ImagePositioningController:
-    def __init__(self):  # , x_resolution=0.00021875, z_resolution=0.00021875):
-        imaging_depth = 6  # cm
+    def __init__(self, imaging_depth=6, debug_mode=False, analysis_mode=False):
+        """
+        Create a class for generating a control input using a filtered ultrasound image.
+
+        Parameters
+        ----------
+        imaging_depth: float
+            the imaging depth of the filtered image in centimeters.
+
+        debug_mode: bool
+            display graphics and additional print statements helpful in the debugging process.
+
+        analysis_mode: bool
+            display the time key processes take to occur.
+
+        """
+        self.debug_mode = debug_mode
+        self.analysis_mode = analysis_mode
+
+        imaging_depth = imaging_depth  # cm
+
+        # Calculate the resolution of the image
         resolution = (imaging_depth / 100) / 480
+
+        # Set the image resolution in each direction
         self.x_resolution = resolution  # m/pixel
         self.z_resolution = resolution  # m/pixel
-        self.acceptable_error = [0.01, .01, 1.01, radians(10), radians(10), radians(10)]  # [m, m, m, rads, rads, rads]
 
+        # Define the acceptable position error of the centroid in the image for each dimension in the probe's space
+        self.acceptable_error = [0.005,  # meters in x
+                                 1.01,  # meters in y
+                                 1.01,  # meters in z
+                                 radians(10),  # rads
+                                 radians(10),  # rads
+                                 radians(10)]  # rads
+
+        # Define the control input gains for each dimension
         self.control_input_gains = [
             # [k_p, k_d]
-            [1, 0],  # x
-            [100, 0],  # y
-            [1, 0],  # z
-            [1, 0],  # roll
-            [1, 0],  # pitch
-            [1, 0],  # yaw
+            [0.5, 0.0],  # x
+            [1.0, 0.0],  # y
+            [1.0, 0.0],  # z
+            [1.0, 0.0],  # roll
+            [1.0, 0.0],  # pitch
+            [1.0, 0.0],  # yaw
         ]
-
-    @staticmethod
-    def calculate_error_in_pixels(centroids, image_size_x):
-        half_image_width = round(image_size_x / 2)
-
-        position_errors = []
-        for centroid in centroids:
-            current_error = half_image_width - centroid[0]
-            position_errors.append(current_error)
-
-        return position_errors
-
-    def calculate_error_in_meters(self, image_data: ImageData):
-        pixel_errors = self.calculate_error_in_pixels(image_data.contour_centroids, image_data.image_size_x)
-
-        distance_errors = []
-        for error in pixel_errors:
-            distance_errors.append(error * self.x_resolution)
-
-        return distance_errors
 
     def calculate_control_input(self, image_data: ImageData):
 
         # Calculate position errors using centroid location in pixels and image size
-        position_errors = [0,
-                           (image_data.contour_centroids[0][0] - (image_data.image_size_x / 2)) * self.x_resolution,
+        position_errors = [(image_data.contour_centroids[0][0] - (image_data.image_size_x / 2)) * self.x_resolution,  # 0
+                           0,  # (image_data.contour_centroids[0][0] - (image_data.image_size_x / 2)) * self.x_resolution,
                            0,  # -(image_data.contour_centroids[0][1] - (image_data.image_size_y / 2)) * self.z_resolution,
                            0, 0, 0]
 
-        print("Y pixel error = ", position_errors[1]/self.x_resolution)
-        # print("Z pixel error = ", position_errors[2]/self.z_resolution)
+        if self.debug_mode:
+            print("X error - meters = ", position_errors[0])
+            print("X error - pixels = ", position_errors[0]/self.x_resolution)
+            print("X error - limit = ", self.acceptable_error[0])
+            print("X error - is acceptable? = ", self.acceptable_error[0] >= abs(position_errors[0]))
+            print("X control input = ", position_errors[0] * self.control_input_gains[0][0])
 
         # Define array to store the new control inputs
         control_inputs = []
@@ -60,14 +74,8 @@ class ImagePositioningController:
 
         # Calculate control inputs from centroid positions and check if error is too large
         for current_error, gains, error_limit in zip(position_errors, self.control_input_gains, self.acceptable_error):
-            control_inputs.append(-current_error * gains[0])
-            # print("Current centroid error = ", current_error)
-            # print("Error Limit = ", error_limit)
-            # print(error_limit >= abs(current_error))
+            control_inputs.append(current_error * gains[0])
             is_error_acceptable = is_error_acceptable * (error_limit >= abs(current_error))
-
-        print("Y control input = ", control_inputs[1])
-        # print("Z control input = ", control_inputs[2])
 
         # Generate twist message to send control inputs
         control_inputs_msg = TwistStamped()

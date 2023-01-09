@@ -17,13 +17,31 @@ from display_processor_time import display_process_timer
 
 class ImageFilterNode:
     """
-    A class for defining an ROS node to filter ultrasound images.
+    A class for defining a ROS node to filter ultrasound images.
     """
 
-    def __init__(self):
+    def __init__(self, filtering_rate=100, debug_mode=False, analysis_mode=False):
+        """
+        Create a ROS node to filter raw ultrasound images and publish data about them.
+
+        Parameters
+        ----------
+        filtering_rate: float
+            rate at which the image filter will attempt to filter images. Defaults to 100 hz.
+
+        debug_mode: bool
+            display graphics and additional print statements helpful in the debugging process.
+
+        analysis_mode: bool
+            display the time key processes take to occur.
+        """
+
+        # set parameters assisting in measuring and debugging code
+        self.debug_mode = debug_mode
+        self.analysis_mode = analysis_mode
 
         # set rate of message filtering
-        self.filtering_rate = 20  # hz
+        self.filtering_rate = filtering_rate  # hz
 
         # initialize ros node
         rospy.init_node('image_filtering')
@@ -63,22 +81,17 @@ class ImageFilterNode:
         self.image_data = None
 
         # store the image filter used in the node
-        self.image_filter = ImageFilter()
-
-        # turn on interactive mode
-        # plt.ion()
-
-        # generate a figure to plot images in
-        # self.image_plot = plt.figure()
+        self.image_filter = ImageFilter(debug_mode=False, analysis_mode=analysis_mode)
 
         # store an image positioning controller object to calculate the image centroid error
-        self.image_positioning_controller = ImagePositioningController()
+        self.image_positioning_controller = ImagePositioningController(debug_mode=False,
+                                                                       analysis_mode=False)
 
         # store the time when the last image sample was filtered
         self.time_of_last_image_filtered = time()
 
         # store current image filtering status
-        self.filter_images = False
+        self.filter_images = True
 
     # Filter the new image data, calculate the error of the centroid, and publish it
     def analyze_image(self):
@@ -95,13 +108,11 @@ class ImageFilterNode:
         self.image_data = self.image_filter.fully_filter_image(self.image_data)
 
         # note the time required to fully filter the image
-        start_of_process_time = display_process_timer(start_of_process_time, "Time to fully filter")
+        start_of_process_time = display_process_timer(start_of_process_time, "Time to fully filter", self.analysis_mode)
 
         # Display the image mask generated from filtering process
         # cv2.imshow("generated mask", self.image_data.image_mask)
         # cv2.waitKey(1)
-
-        print("Image filtered.")
 
         # Determine if the thyroid is present in the image
         thyroid_in_image = (len(self.image_data.contours_in_image) > 0 and
@@ -111,7 +122,8 @@ class ImageFilterNode:
         self.is_thyroid_in_image_status_publisher.publish(Bool(thyroid_in_image))
 
         # note the time required to determine and publish the status of the thyroid in the image
-        start_of_process_time = display_process_timer(start_of_process_time, "Thyroid status check time")
+        start_of_process_time = display_process_timer(start_of_process_time, "Thyroid status check time",
+                                                      self.analysis_mode)
 
         # If the thyroid is present in the image, publish data about it
         if thyroid_in_image:
@@ -123,29 +135,34 @@ class ImageFilterNode:
 
             # note the time required to calculate the image based control input
             start_of_process_time = display_process_timer(start_of_process_time,
-                                                          "Image based control input calculation")
+                                                          "Image based control input calculation",
+                                                          self.analysis_mode)
 
-            # Add mask to original image
-            temp_masked_result = cv2.drawContours(self.image_data.original_image, self.image_data.contours_in_image[0],
-                                                  -1, (0, 255, 0), -1)
+            if self.debug_mode:
+                # Create a temporary recolored image for debugging purposes
+                temp_masked_result = cv2.cvtColor(self.image_data.original_image, cv2.COLOR_GRAY2RGB)
 
-            # Add centroid to masked image
-            temp_masked_result = cv2.circle(temp_masked_result, self.image_data.contour_centroids[0], 6, (255, 0, 0),
-                                            -1)
+                # Add mask to original image
+                temp_masked_result = cv2.drawContours(temp_masked_result, self.image_data.contours_in_image[0],
+                                                      -1, (0, 255, 0), -1)
 
-            # Add lines showing where centroid should be
-            temp_masked_result = cv2.line(temp_masked_result, (0, 240), (640, 240), (0, 0, 255), 2)
-            temp_masked_result = cv2.line(temp_masked_result, (320, 0), (320, 480), (0, 165, 255), 2)
+                # Add centroid to masked image
+                temp_masked_result = cv2.circle(temp_masked_result, self.image_data.contour_centroids[0], 6, (255, 0, 0),
+                                                -1)
 
-            # note the time required to mark up the original image for display
-            start_of_process_time = display_process_timer(start_of_process_time, "Markup Time")
+                # Add lines showing where centroid should be
+                temp_masked_result = cv2.line(temp_masked_result, (0, 240), (640, 240), (0, 0, 255), 2)
+                temp_masked_result = cv2.line(temp_masked_result, (320, 0), (320, 480), (0, 165, 255), 2)
 
-            # Show masked image
-            cv2.imshow("Marked-up image", temp_masked_result)
-            cv2.waitKey(1)
+                # note the time required to mark up the original image for display
+                start_of_process_time = display_process_timer(start_of_process_time, "Markup Time", self.analysis_mode)
 
-            # note the time required to update the visualization
-            display_process_timer(start_of_process_time, "Display Time")
+                # Show masked image
+                cv2.imshow("Marked-up image", temp_masked_result)
+                cv2.waitKey(1)
+
+                # note the time required to update the visualization
+                display_process_timer(start_of_process_time, "Display Time", self.analysis_mode)
 
             # Publish if the thyroid is centered
             self.is_thyroid_centered_status_publisher.publish(Bool(is_thyroid_centered))
@@ -192,7 +209,8 @@ class ImageFilterNode:
                 cv_image = reshape(cv_image, (data.height, data.width))
 
                 # note the amount of time required to convert the image
-                start_of_process_time = display_process_timer(start_of_process_time, "Image conversion time")
+                start_of_process_time = display_process_timer(start_of_process_time, "Image conversion time",
+                                                              self.analysis_mode)
 
                 # Show original image received from the ROS topic
                 # cv2.imshow("original image", cv_image)
@@ -207,18 +225,17 @@ class ImageFilterNode:
             self.image_data = ImageData(image_data=cv_image)
 
             # note the amount of time required to create an image data object
-            start_of_process_time = display_process_timer(start_of_process_time, "Image_data object creation time")
+            start_of_process_time = display_process_timer(start_of_process_time, "Image_data object creation time",
+                                                          self.analysis_mode)
 
             # mark that a new image is available
             self.is_new_image_available = True
-
-            print("Image converted")
 
             # analyze the new image
             self.analyze_image()
 
             # note the amount of time required to analyze the image
-            display_process_timer(start_of_process_time, "Image analysis time")
+            display_process_timer(start_of_process_time, "Image analysis time", self.analysis_mode)
 
     # Define callback for updating filter images command
     def filter_images_callback(self, data: Bool):
@@ -230,9 +247,10 @@ class ImageFilterNode:
 
 if __name__ == '__main__':
     # create node object
-    filter_node = ImageFilterNode()
+    filter_node = ImageFilterNode(filtering_rate=30, debug_mode=True, analysis_mode=False)
 
     print("Node initialized.")
+    print("Press ctrl+c to terminate.")
 
     # spin until node is terminated
     # callback function handles image analysis

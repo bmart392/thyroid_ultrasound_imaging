@@ -18,8 +18,12 @@ class ImageFilter:
                  thresholding_type=FC.ThresholdOptions.BASIC,
                  thresholding_parameters=None,
                  mask_manipulation_sequence=None,
-                 filter_name=None):
+                 filter_name=None,
+                 debug_mode=False,
+                 analysis_mode=False):
         """
+        Create a class for defining image filters for images in the GRAY color scheme using standard processes.
+
         Parameters
         ----------
         filter_color: int
@@ -43,6 +47,12 @@ class ImageFilter:
             (manipulation_type, parameters, num_iterations) where manipulation_type is
             defined in FilterConstants file.
             Defaults to CLOSE then ERODE.
+
+        debug_mode: bool
+            display graphics and additional print statements helpful in the debugging process.
+
+        analysis_mode: bool
+            display the time key processes take to occur.
         """
 
         # Filter object parameters
@@ -58,7 +68,7 @@ class ImageFilter:
         # Thresholding parameters
         self.thresholding_type = thresholding_type
         if thresholding_parameters is None:
-            thresholding_parameters = (55, 110)
+            thresholding_parameters = (55, 100)
         self.thresholding_parameters = thresholding_parameters
 
         # Mask manipulation parameters
@@ -67,15 +77,13 @@ class ImageFilter:
             mask_manipulation_sequence = [
                 # (FC.MaskManipulationOptions.RECT, (4, 4), 2),
                 (FC.MaskManipulationOptions.CLOSE, (10, 10), 1),  # (10, 10, 1)
-                (FC.MaskManipulationOptions.ERODE, (5, 5), 2),  # (10, 10, 1)
+                (FC.MaskManipulationOptions.ERODE, (6, 6), 2),  # (10, 10, 1)
                 # (FC.MaskManipulationOptions.OPEN, (5, 5), 1),
             ]
         self.mask_manipulation_sequence = mask_manipulation_sequence
         self.image_cutoff = np.concatenate((np.zeros((140, 640)), np.ones((340, 640))))
-
-    """def remove_top_of_image(self, image_data: ImageData):
-        image_data.set_colorized_image(image_data.get_colorized_image() * self.image_cutoff)
-        return image_data"""
+        self.debug_mode = debug_mode
+        self.analysis_mode = analysis_mode
 
     def colorize_image(self, image_data: ImageData) -> ImageData:
         """
@@ -203,33 +211,35 @@ class ImageFilter:
 
         # Recolor the image
         image_data = self.colorize_image(image_data)
-        # cv2.imshow("recolored image", image_data.colorized_image)
-        # cv2.waitKey(1)
-        start_of_process_time = display_process_timer(start_of_process_time, "Recolor image time")
+        if self.debug_mode:
+            cv2.imshow("recolored image", image_data.colorized_image)
+            cv2.waitKey(1)
+        start_of_process_time = display_process_timer(start_of_process_time, "Recolor image time", self.analysis_mode)
 
         # Blur the image
         image_data = self.blur_image(image_data)
-        # cv2.imshow("blurred image", image_data.blurred_image)
-        # cv2.waitKey(1)
-        start_of_process_time = display_process_timer(start_of_process_time, "Blur image time")
+        if self.debug_mode:
+            cv2.imshow("blurred image", image_data.blurred_image)
+            cv2.waitKey(1)
+        start_of_process_time = display_process_timer(start_of_process_time, "Blur image time", self.analysis_mode)
 
         # Segment the image
         image_data = self.create_image_mask(image_data)
         image_data = self.modify_image_mask(image_data)
-        # cv2.imshow("image mask", image_data.image_mask)
-        # cv2.waitKey(1)
-        start_of_process_time = display_process_timer(start_of_process_time, "Image mask creation time")
+        if self.debug_mode:
+            cv2.imshow("image mask", image_data.image_mask)
+            cv2.waitKey(1)
+        start_of_process_time = display_process_timer(start_of_process_time, "Image mask creation time",
+                                                      self.analysis_mode)
 
         # Find the contours in the image
         image_data.generate_contours_in_image()
-        # cv2.imshow("contours", image_data.contours_in_image)
-        # cv2.waitKey(1)
-        start_of_process_time = display_process_timer(start_of_process_time, "Contour generation time")
+        start_of_process_time = display_process_timer(start_of_process_time, "Contour generation time", self.analysis_mode)
 
         # If there are contours in the image, find their centroids
         if len(image_data.contours_in_image) > 0:
             image_data.calculate_image_centroids()
-        display_process_timer(start_of_process_time, "Centroid calculation")
+        display_process_timer(start_of_process_time, "Centroid calculation", self.analysis_mode)
 
         return image_data
 
