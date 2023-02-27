@@ -18,6 +18,7 @@ class ImageData:
 
     def __init__(self, image_data=None, image_filepath=None, image_size_x=0, image_size_y=0):
         self.image_array = None
+        self.image_color = None
         self.image_title = None
         self.blur_kernel = None
         self.mask_lower_limit = None
@@ -59,9 +60,11 @@ class ImageData:
             self.image_filepath = None
             self.original_image = None
 
+        self.cropped_image = None
         self.colorized_image = None
         self.blurred_image = None
         self.image_mask = None
+        self.expanded_image_mask = None
         self.contours_in_image = None
         self.contour_centroids = []
         self.image_figure = None

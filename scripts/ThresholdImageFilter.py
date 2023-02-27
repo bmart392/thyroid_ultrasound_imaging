@@ -5,9 +5,10 @@ from ImageData import *
 import FilterConstants as FC
 from time import time
 from display_processor_time import display_process_timer
+from ImageFilterInterface import ImageFilterInterface
 
 
-class ImageFilter:
+class ThresholdImageFilter(ImageFilterInterface):
     """
     A class for defining image filters for images in the GRAY color scheme using standard processes.
     """
@@ -249,7 +250,7 @@ if __name__ == '__main__':
     test_image_data = ImageData(image_data=None, image_filepath='/home/ben/Pictures/thyroid_ultrasound.png')
 
     # Create a temporary image filter
-    image_filter = ImageFilter()
+    image_filter = ThresholdImageFilter()
 
     # Filter the image
     test_image_data = image_filter.fully_filter_image(test_image_data)

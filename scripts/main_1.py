@@ -8,7 +8,7 @@ from matplotlib.colors import hsv_to_rgb, rgb_to_hsv
 from matplotlib import colors
 import numpy as np
 from ImageData import ImageData
-from ImageFilter import ImageFilter
+from ThresholdImageFilter import ThresholdImageFilter
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
