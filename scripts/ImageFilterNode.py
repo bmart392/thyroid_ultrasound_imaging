@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
 # import cv2
+# from cv_bridge.boost.cv_bridge_boost import getCvType
+
+from numpy import frombuffer, reshape  # , ones, sign
+
 import rospy
-from geometry_msgs.msg import TwistStamped  # , Twist
-from std_msgs.msg import Bool  # ,Float64, String, UInt32MultiArray
-from sensor_msgs.msg import Image
-from numpy import frombuffer, uint8, reshape  # , ones, sign
-from ImageFilter import *
-from ImagePositioningController import ImagePositioningController
 # from math import sin
 # import timeit
 from cv_bridge import CvBridgeError  # , CvBridge
-# from cv_bridge.boost.cv_bridge_boost import getCvType
-from time import time
-from display_processor_time import display_process_timer
+from geometry_msgs.msg import TwistStamped  # , Twist
+from scripts.Filters.ImageFilterThreshold import *
+from scripts.ImagePositioningController import ImagePositioningController
+from sensor_msgs.msg import Image
+from std_msgs.msg import Bool  # ,Float64, String, UInt32MultiArray
+from scripts.Filters.FilterHelper import display_process_timer
 
 
 class ImageFilterNode:
@@ -20,14 +21,14 @@ class ImageFilterNode:
     A class for defining a ROS node to filter ultrasound images.
     """
 
-    def __init__(self, filtering_rate=100, debug_mode=False, analysis_mode=False):
+    def __init__(self, filtering_rate=-1, debug_mode=False, analysis_mode=False):
         """
         Create a ROS node to filter raw ultrasound images and publish data about them.
 
         Parameters
         ----------
         filtering_rate: float
-            rate at which the image filter will attempt to filter images. Defaults to 100 hz.
+            rate at which the image filter will attempt to filter images. Defaults to as fast as possible.
 
         debug_mode: bool
             display graphics and additional print statements helpful in the debugging process.
@@ -41,6 +42,9 @@ class ImageFilterNode:
         self.analysis_mode = analysis_mode
 
         # set rate of message filtering
+        # if the filtering rate is 0, filter images as fast as possible
+        if filtering_rate == 0:
+            filtering_rate = -1
         self.filtering_rate = filtering_rate  # hz
 
         # initialize ros node
@@ -81,7 +85,7 @@ class ImageFilterNode:
         self.image_data = None
 
         # store the image filter used in the node
-        self.image_filter = ImageFilter(debug_mode=False, analysis_mode=analysis_mode)
+        self.image_filter = ImageFilterThreshold(debug_mode=False, analysis_mode=False)
 
         # store an image positioning controller object to calculate the image centroid error
         self.image_positioning_controller = ImagePositioningController(debug_mode=False,
@@ -247,7 +251,7 @@ class ImageFilterNode:
 
 if __name__ == '__main__':
     # create node object
-    filter_node = ImageFilterNode(filtering_rate=30, debug_mode=True, analysis_mode=False)
+    filter_node = ImageFilterNode(filtering_rate=10, debug_mode=True, analysis_mode=True)
 
     print("Node initialized.")
     print("Press ctrl+c to terminate.")

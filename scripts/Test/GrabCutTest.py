@@ -1,10 +1,11 @@
+from enum import Enum
+from time import time
+
 import cv2
-import numpy as np
 import cv2 as cv
-import io
+import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib.patches import Rectangle, Circle
-from enum import Enum
 
 
 class ShapeTypes(Enum):
@@ -98,7 +99,7 @@ if __name__ == "__main__":
 
     # TODO - Some logic should be use UserInput on first segmentation and previous mask on later iterations
     # Choose to use the mask generated from the previous segmentation
-    use_previous_image_mask = True
+    use_previous_image_mask = False
 
     # Choose the type of segmentation style
     use_mask = True
@@ -181,8 +182,8 @@ if __name__ == "__main__":
 
         # Define corners of the rectangle relative to the size of the image
         # Coordinates are defined in the form of (x_origin, y_origin, width, height)
-        initialized_rectangle_cords = (fractional_image_width * 2, fractional_image_height * 2,
-                                       fractional_image_width * 16, fractional_image_height * 15, 'red')
+        initialized_rectangle_cords = (fractional_image_width * 0, 0,
+                                       fractional_image_width * 20, fractional_image_height * 20, 'red')
 
         # Define each of the rectangles in the mask
         # Add the rectangle coordinates to the list of rectangles
@@ -261,12 +262,15 @@ if __name__ == "__main__":
     if previous_image_mask is not None and use_previous_image_mask:
         mask_to_use = previous_image_mask
 
+    starting_time = time()
+
     # TODO - Check how number of iterations affects segmentation time
     # TODO - First segmentation needs less iterations than later segmentations
     # Segment the image RGB image (Image must be three channel image)
     cv.grabCut(img=raw_image, mask=mask_to_use, rect=initialized_rectangle_cords[:4], bgdModel=bgdModel,
-               fgdModel=fgdModel, iterCount=10, mode=method)
+               fgdModel=fgdModel, iterCount=1, mode=method)
 
+    print((time() - starting_time)*1000)
     # Convert the mask to a true binary masking
     clean_mask = np.where((mask_to_use == cv2.GC_PR_BGD) | (mask_to_use == cv2.GC_BGD), 0, 1).astype('uint8')
 
