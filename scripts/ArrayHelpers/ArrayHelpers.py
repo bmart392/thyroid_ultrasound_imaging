@@ -1,3 +1,4 @@
+import cv2
 import numpy as np
 
 RECTANGLE_2_PT_CORNER: int = 1
@@ -46,9 +47,61 @@ def draw_circle(origin, radius, value, array_to_modify):
     return array_to_modify
 
 
-class LinePrimitive:
+def create_mask_array_from_triangles(list_of_background_triangles: list, list_of_foreground_triangles: list,
+                                     image_shape: tuple):
+    # Create blank mask array and assign it all as probable background
+    initial_mask = np.ones(image_shape, np.uint8) * cv2.GC_PR_BGD
 
-    def __init__(self, first_vertex, second_vertex):
+    # Define two variables to store the bounding sets within
+    background_bounding_sets = []
+    foreground_bounding_sets = []
+
+    # Create all background bounding sets from their equivalent triangle
+    for background_triangle in list_of_background_triangles:
+        background_bounding_sets.append(BoundingSet(background_triangle))
+
+    # Create all foreground bounding sets from their equivalent triangle
+    for foreground_triangle in list_of_foreground_triangles:
+        foreground_bounding_sets.append(BoundingSet(foreground_triangle))
+
+    # Iterate through each element of the mask
+    for y in range(initial_mask.shape[0]):
+        for x in range(initial_mask.shape[1]):
+
+            # Add flag to skip checking foreground if the location was in the background
+            was_location_background = False
+
+            # Check if the given element is contained within the background, foreground, or neither
+            for background_set in background_bounding_sets:
+                if background_set.is_point_within_set((x, y)):
+
+                    # Note that the location was found in a boundary
+                    was_location_background = True
+
+                    # Update the mask value accordingly
+                    initial_mask[y][x] = cv2.GC_BGD
+
+                    # Stop looping once it has been found in one boundary
+                    break
+
+            if not was_location_background:
+                # Check if the given element is contained within the background, foreground, or neither
+                for foreground_set in foreground_bounding_sets:
+                    if foreground_set.is_point_within_set((x, y)):
+
+                        # Update the mask value accordingly
+                        initial_mask[y][x] = cv2.GC_FGD
+
+                        # Stop looping once it has been found in one boundary
+                        break
+
+    # Return the resulting mask
+    return initial_mask
+
+
+class BoundaryPrimitive:
+
+    def __init__(self, first_vertex, second_vertex, reference_vertex, set_directionality=False):
         self.vertices = [first_vertex, second_vertex]
         first_x = first_vertex[0]
         second_x = second_vertex[0]
@@ -58,82 +111,86 @@ class LinePrimitive:
             self.a_constant = 0
             self.b_constant = 1
             self.c_constant = -second_y
-            if second_x - first_x < 0:
-                self.directionality = True
+            """if second_x - first_x < 0:
+                self.directionality = False # True
             else:
-                self.directionality = False
+                self.directionality = True # False"""
         elif second_x - first_x == 0:
             self.a_constant = 1
             self.b_constant = 0
             self.c_constant = -second_x
-            if second_y - first_y < 0:
-                self.directionality = False
+            """if second_y - first_y < 0:
+                self.directionality = True # False
             else:
-                self.directionality = True
+                self.directionality = False # True"""
         else:
-            self.a_constant = -(second_vertex[1] - first_vertex[1]) / (second_vertex[0] - first_vertex[0])
+            self.a_constant = -(second_y - first_y) / (second_x - first_x)
             self.b_constant = 1
-            self.c_constant = first_vertex[1] + self.a_constant * first_vertex[0]
+            self.c_constant = -(first_y + self.a_constant * first_x)
 
-            if self.a_constant < 0 and second_x - first_x < 0:
-                self.directionality = False
+            """if self.a_constant < 0 and second_x - first_x < 0:
+                self.directionality = True # False
             else:
-                self.directionality = True
+                self.directionality = False # True"""
+
+        self.directionality = np.sign(self.a_constant * reference_vertex[0] +
+                                      self.b_constant * reference_vertex[1] + self.c_constant)
 
         # 0 = ax + by + c
         # directionality = True = point is in set when primitive is positive
         # directionality = False = point is in set when primitive is negative
 
 
-class CirclePrimitive:
+class BoundingSet:
 
-    def __init__(self, circle_type: int, circle_parameters: list, directionality: bool = False):
+    def __init__(self, vertices, set_type=True, directionality=True):
 
-        self.directionality = directionality
+        self.set_type = set_type  # True is inclusive of the edges
+        self.set_directionality = directionality  # True means a point inside is in the set
+        self.primitives = []
 
-        if circle_type == CIRCLE_1_PT_RADIUS:
-            self.a_constant = circle_parameters[0][0]
-            self.b_constant = circle_parameters[0][1]
-            self.radius = circle_parameters[1]
-
-            self.directionality = directionality
-
-        if circle_type == CIRCLE_3_PT:
-            if len(circle_parameters) == 3:
-                point_0 = circle_parameters[0]
-                point_1 = circle_parameters[1]
-                point_2 = circle_parameters[2]
+        for index in range(len(vertices)):
+            if index == len(vertices) - 1:
+                second_index = 0
             else:
-                raise Exception("Incorrect number of parameters given.")
+                second_index = index + 1
 
-            determinant_minor_1 = np.linalg.det(np.array([
-                [point_0[0], point_0[1], 1],
-                [point_1[0], point_1[1], 1],
-                [point_2[0], point_2[1], 1],
-            ]))
+            if second_index == len(vertices) - 1:
+                third_index = 0
+            else:
+                third_index = second_index + 1
 
-            if determinant_minor_1 == 0:
-                raise Exception("Circle cannot be constructed.")
+            self.primitives.append(
+                BoundaryPrimitive(vertices[index], vertices[second_index], vertices[third_index]))
 
-            determinant_minor_2 = np.linalg.det(np.array([
-                [point_0[0] ** 2 + point_0[1] ** 2, point_0[1], 1],
-                [point_1[0] ** 2 + point_1[1] ** 2, point_1[1], 1],
-                [point_2[0] ** 2 + point_2[1] ** 2, point_2[1], 1],
-            ]))
+        self.vertices = vertices
 
-            determinant_minor_3 = np.linalg.det(np.array([
-                [point_0[0] ** 2 + point_0[1] ** 2, point_0[0], 1],
-                [point_1[0] ** 2 + point_1[1] ** 2, point_1[0], 1],
-                [point_2[0] ** 2 + point_2[1] ** 2, point_2[0], 1],
-            ]))
+    def is_point_within_set(self, point):
 
-            determinant_minor_4 = np.linalg.det(np.array([
-                [point_0[0] ** 2 + point_0[1] ** 2, point_0[0], point_0[1]],
-                [point_1[0] ** 2 + point_1[1] ** 2, point_1[0], point_1[1]],
-                [point_2[0] ** 2 + point_2[1] ** 2, point_2[0], point_2[1]],
-            ]))
+        # For each edge in the bounding set
+        for primitive in self.primitives:
 
-            self.a_constant = 0.5 * determinant_minor_2 / determinant_minor_1
-            self.b_constant = -0.5 * determinant_minor_3 / determinant_minor_1
-            self.radius = (self.a_constant ** 2 + self.b_constant ** 2 +
-                           determinant_minor_4 / determinant_minor_1) ** 0.5
+            # Check to see what the result of the equation for a line is
+            result = primitive.a_constant * point[0] + primitive.b_constant * point[1] + primitive.c_constant
+
+            # Check if the point is in the set
+            if (np.sign(result) != primitive.directionality and result != 0 and self.set_directionality) or (
+                    result == 0 and not self.set_type):
+
+                # Return false if it is not in the set of a single primitive
+                return False
+
+        # Return true only if the point is in each primitive's set
+        return True
+
+
+if __name__ == "__main__":
+    list_of_background_triangles = [[[1, 1], [3, 1], [3, 3], [1, 3]]]
+    list_of_foreground_triangles = [[[5, 1], [7, 1], [7, 3], [5, 3]]]
+
+    image_shape = (5, 9)
+
+    a = create_mask_array_from_triangles(list_of_background_triangles, list_of_foreground_triangles, image_shape)
+
+    print("hello")
+

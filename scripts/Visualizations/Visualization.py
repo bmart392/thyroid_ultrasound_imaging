@@ -236,6 +236,7 @@ class Visualization:
                 image_title = visualization_title + " - " + image_title
 
             cv2.imshow(image_title, image_array)
+            cv2.waitKey(1)
 
         else:
             raise Exception("Image mode not recognized.")
@@ -250,232 +251,248 @@ class Visualization:
     def create_mask_display_array(mask: np.array, multiplier: int = 255):
         return np.uint8(mask * multiplier)
 
-    def user_input_crop_coordinates(self, image_data: ImageData, image_filter: ImageFilterGrabCut,
-                                    crop_coordinates: list = None, ):
-        """
-        Prompt the user to select coordinates to crop the image.
-        """
 
-        # Do nothing if the user chooses not to crop the image.
-        if crop_coordinates is None:
+def user_input_crop_coordinates(image_data: ImageData, crop_coordinates: list = None, ):
+    """
+    Prompt the user to select coordinates to crop the image.
+    """
 
-            # Define window name
-            window_name = "Image Crop Selection"
+    # Do nothing if the user chooses not to crop the image.
+    if crop_coordinates is None:
 
-            # Ask the user if they would like to crop the image.
-            # crop_input = input("Would you like to crop the image? (y/n)\n")
+        # Define window name
+        window_name = "Image Crop Selection"
 
-            # Define characteristics of the shapes to show on the image
-            text_color = (128, 0, 128)
-            point_color = (0, 0, 255)
-            point_radius = 3
-            line_color = (0, 255, 0)
-            line_thickness = 1
-            box_color = (0, 255, 0)
-            box_thickness = 1
+        # Ask the user if they would like to crop the image.
+        # crop_input = input("Would you like to crop the image? (y/n)\n")
 
-            # Create a copy of the original image to prevent damaging the original object
-            temp_image_array = copy(image_data.original_image)
+        # Define characteristics of the shapes to show on the image
+        text_color = (128, 0, 128)
+        point_color = (0, 0, 255)
+        point_radius = 3
+        line_color = (0, 255, 0)
+        line_thickness = 1
+        box_color = (0, 255, 0)
+        box_thickness = 1
 
-            # Add text to the image informing the user
-            temp_image_array = display_text_on_image(temp_image_array,
-                                                     "Select the upper left-hand crop corner." +
-                                                     " Press any key to continue.")
+        # Create a copy of the original image to prevent damaging the original object
+        temp_image_array = copy(image_data.original_image)
 
-            # Display the image for the user
-            cv2.imshow(window_name, temp_image_array)
+        # Add text to the image informing the user
+        temp_image_array = display_text_on_image(temp_image_array,
+                                                 "Select the upper left-hand crop corner." +
+                                                 " Press any key to continue.")
 
-            # Define a variable to store the result of the user's click
-            first_corner = [int(0), int(0)]
+        # Display the image for the user
+        cv2.imshow(window_name, temp_image_array)
 
-            # Ask user to select the first corner to use to crop the image
-            cv2.setMouseCallback(window_name, self.click_event, first_corner)
-            cv2.waitKey(0)
+        # Define a variable to store the result of the user's click
+        first_corner = [int(0), int(0)]
 
-            # Recopy the original image to clear the previous text
-            temp_image_array = copy(image_data.original_image)
+        # Ask user to select the first corner to use to crop the image
+        cv2.setMouseCallback(window_name, click_event, first_corner)
+        cv2.waitKey(0)
 
-            # Display a circle at the point selected to assist the user
-            temp_image_array = cv2.circle(temp_image_array, first_corner, point_radius,
-                                          point_color, -1)
+        # Recopy the original image to clear the previous text
+        temp_image_array = copy(image_data.original_image)
 
-            # Display two lines to show how the image has been cropped so far
-            temp_image_array = cv2.line(temp_image_array, (first_corner[0], first_corner[1]),
-                                        (first_corner[0], temp_image_array.shape[0]),
-                                        line_color, line_thickness)
-            temp_image_array = cv2.line(temp_image_array, (first_corner[0], first_corner[1]),
-                                        (temp_image_array.shape[1], first_corner[1]),
-                                        line_color, line_thickness)
+        # Display a circle at the point selected to assist the user
+        temp_image_array = cv2.circle(temp_image_array, first_corner, point_radius,
+                                      point_color, -1)
 
-            # Display text to assist the user
-            temp_image_array = display_text_on_image(temp_image_array,
-                                                     "Select the lower right-hand crop corner." +
-                                                     " Press any key to continue.")
-            # Show the new image to the user
-            cv2.imshow(window_name, temp_image_array)
+        # Display two lines to show how the image has been cropped so far
+        temp_image_array = cv2.line(temp_image_array, (first_corner[0], first_corner[1]),
+                                    (first_corner[0], temp_image_array.shape[0]),
+                                    line_color, line_thickness)
+        temp_image_array = cv2.line(temp_image_array, (first_corner[0], first_corner[1]),
+                                    (temp_image_array.shape[1], first_corner[1]),
+                                    line_color, line_thickness)
 
-            # Define a variable to store the result of the user's click
-            second_corner = [int(image_data.original_image.shape[1] - 1), int(image_data.original_image.shape[0] - 1)]
+        # Display text to assist the user
+        temp_image_array = display_text_on_image(temp_image_array,
+                                                 "Select the lower right-hand crop corner." +
+                                                 " Press any key to continue.")
+        # Show the new image to the user
+        cv2.imshow(window_name, temp_image_array)
 
-            # Ask the user to select the corner to use to crop the image
-            cv2.setMouseCallback(window_name, self.click_event, second_corner)
-            cv2.waitKey(0)
+        # Define a variable to store the result of the user's click
+        second_corner = [int(image_data.original_image.shape[1] - 1), int(image_data.original_image.shape[0] - 1)]
 
-            # Ensure that the second corner was chosen properly
-            if not (second_corner[0] > first_corner[0] and second_corner[1] > first_corner[1]):
-                raise Exception("Second corner was not selected below and to the right of the first.")
+        # Ask the user to select the corner to use to crop the image
+        cv2.setMouseCallback(window_name, click_event, second_corner)
+        cv2.waitKey(0)
 
-            # Recopy the original image to clear the previous annotations
-            temp_image_array = copy(image_data.original_image)
+        # Ensure that the second corner was chosen properly
+        if not (second_corner[0] > first_corner[0] and second_corner[1] > first_corner[1]):
+            raise Exception("Second corner was not selected below and to the right of the first.")
 
-            # Draw a rectangle to show how the image will be cropped
-            temp_image_array = cv2.rectangle(temp_image_array, first_corner, second_corner, box_color, box_thickness)
+        # Recopy the original image to clear the previous annotations
+        temp_image_array = copy(image_data.original_image)
 
-            # Display text to assist the user
-            temp_image_array = display_text_on_image(temp_image_array,
-                                                     "Preview of crop region." +
-                                                     " Press any key to continue.")
+        # Draw a rectangle to show how the image will be cropped
+        temp_image_array = cv2.rectangle(temp_image_array, first_corner, second_corner, box_color, box_thickness)
 
-            # Show the new image to the user
-            cv2.imshow(window_name, temp_image_array)
-            cv2.waitKey(0)
+        # Display text to assist the user
+        temp_image_array = display_text_on_image(temp_image_array,
+                                                 "Preview of crop region." +
+                                                 " Press any key to continue.")
 
-            # Destroy all windows when finished
-            cv2.destroyAllWindows()
+        # Show the new image to the user
+        cv2.imshow(window_name, temp_image_array)
+        cv2.waitKey(0)
 
-            # Display the points selected for the user
-            print("1st Corner: (" + str(first_corner[0]) + ", " + str(first_corner[1]) + ")\n" +
-                  "2nd Corner: (" + str(second_corner[0]) + ", " + str(second_corner[1]) + ")")
+        # Destroy all windows when finished
+        cv2.destroyAllWindows()
 
-            # Return the points selected
-            return [first_corner, second_corner]
+        # Display the points selected for the user
+        print("1st Corner: (" + str(first_corner[0]) + ", " + str(first_corner[1]) + ")\n" +
+              "2nd Corner: (" + str(second_corner[0]) + ", " + str(second_corner[1]) + ")")
 
-        else:
-            # Return the points passed in
-            return crop_coordinates
+        # Return the points selected
+        return [first_corner, second_corner]
 
-    def user_input_polygon_points(self, image_data: ImageData, image_filter: ImageFilterGrabCut,
-                                  list_of_points: list = None):
-
-        # Do nothing if the background points have been passed in
-        if list_of_points is None:
-            # Define a window name to display
-            window_name = 'Image Background Selection'
-
-            # Define colors to use for displaying information
-            text_color = (128, 0, 128)
-            point_color = (0, 0, 255)
-
-            # Create a copy of the image array so that the original is not changed
-            temp_image_array = copy(image_data.original_image)
-
-            # Add text to the image to inform the user what needs to happen.
-            temp_image_array = display_text_on_image(temp_image_array,
-                                                     'Select points to define the border of the sure background.',
-                                                     (15, 35))
-            temp_image_array = display_text_on_image(temp_image_array,
-                                                     'Press any key to continue.',
-                                                     (15, 55))
-            # Show the image in the properly named window
-            cv2.imshow(window_name, temp_image_array)
-
-            # Initialize the additional inputs needed for the mouseclick callback function
-            list_of_points = []
-            list_of_line_colors = []
-            callback_inputs = [temp_image_array, point_color, window_name, list_of_line_colors, list_of_points]
-
-            # Set the callback function
-            cv2.setMouseCallback(window_name, self.boundary_click_event, callback_inputs)
-
-            # Wait for the user to close the window
-            cv2.waitKey(0)
-
-            # Destroy the window when the input is complete
-            cv2.destroyWindow(window_name)
-
-            # Ensure that at least three points have been selected
-            if len(list_of_points) < 3:
-                raise Exception("Not enough points were selected to make a polygon." +
-                                " At least 3 points must be selected.")
-
-            # Return the list of points generated by the user
-            return list_of_points
-
-        else:
-            # Return points passed into the function
-            return list_of_points
-
-    @staticmethod
-    def boundary_click_event(event: int, x, y, flags, additional_inputs: list):
-        """
-        Mouse-click callback function to capture a mouse click, draw a dot, and connect previously selected points
-        together with a randomly colored line.
-        """
-
-        # Only do something when the left mouse button has been clicked
-        if event == cv2.EVENT_LBUTTONDOWN:
-
-            # Create a new copy of the image to annotate
-            temp_image_array = copy(additional_inputs[0])
-
-            # Rename the individual additional_inputs for clarity
-            list_of_points = additional_inputs[-1]
-            list_of_colors = additional_inputs[-2]
-            point_color = additional_inputs[1]
-            window_name = additional_inputs[2]
-
-            # Define attributes of the drawn elements
-            point_radius = 3
-            intermediate_line_width = 1
-            final_line_color = (255, 255, 255)
-            final_line_width = 2
-
-            # Add the newly selected point to the list of existing points
-            list_of_points.append((x, y))
-
-            # Iterate through the list of points to show them on the image
-            for point in list_of_points:
-                temp_image_array = cv2.circle(temp_image_array, point, point_radius, point_color, -1)
-
-            # Connect the points together with lines
-            # There must be at least 2 points for this to occur
-            if len(list_of_points) > 1:
-
-                # Create a new color to use for the line and save it for future use
-                list_of_colors.append(generate_random_color())
-
-                # Iterate through the list of points to draw each line using the appropriate color
-                for i in range(1, len(list_of_points)):
-                    temp_image_array = cv2.line(temp_image_array, list_of_points[i - 1], list_of_points[i],
-                                                list_of_colors[i - 1], intermediate_line_width)
-
-            # Connect the first and last point with a different line
-            # There must be at least three points selected for this to occur
-            if len(list_of_points) > 2:
-                temp_image_array = cv2.line(temp_image_array, list_of_points[0], list_of_points[-1],
-                                            final_line_color, final_line_width)
-
-            # Show the updated image
-            cv2.imshow(window_name, temp_image_array)
-
-    @staticmethod
-    def click_event(event: int, x, y, flags, additional_inputs: list):
-        """
-        Return the position selected on the click of a mouse.
-        """
-
-        # Do nothing until the left mouse button is clicked
-        if event == cv2.EVENT_LBUTTONDOWN:
-            # Save the click location
-            additional_inputs[0] = int(x)
-            additional_inputs[1] = int(y)
+    else:
+        # Return the points passed in
+        return crop_coordinates
 
 
-def display_text_on_image(image: np.array, text: str, text_origin: tuple = (15, 35), text_color: tuple = (128, 0, 128)):
+def user_input_polygon_points(image_data: ImageData, polygon_use: str, list_of_points: list = None):
+    # Do nothing if the background points have been passed in
+    if list_of_points is None:
+        # Define a window name to display
+        window_name = 'Image Background Selection'
+
+        # Define colors to use for displaying information
+        text_color = (128, 0, 128)
+        point_color = (0, 0, 255)
+
+        # Create a copy of the image array so that the original is not changed
+        temp_image_array = copy(image_data.cropped_image)
+
+        # Add text to the image to inform the user what needs to happen.
+        temp_image_array = display_text_on_image(temp_image_array,
+                                                 'Select points to define the border',
+                                                 text_origin=(5, 10), text_size=0.375)
+        temp_image_array = display_text_on_image(temp_image_array,
+                                                 'of the ' + polygon_use + ".",
+                                                 text_origin=(5, 20), text_size=0.375)
+        temp_image_array = display_text_on_image(temp_image_array,
+                                                 'Press any key to continue.',
+                                                 text_origin=(5, 30), text_size=0.375)
+        # Show the image in the properly named window
+        cv2.imshow(window_name, temp_image_array)
+
+        # Initialize the additional inputs needed for the mouseclick callback function
+        list_of_points = []
+        list_of_line_colors = []
+        callback_inputs = [temp_image_array, point_color, window_name, list_of_line_colors, list_of_points]
+
+        # Set the callback function
+        cv2.setMouseCallback(window_name, boundary_click_event, callback_inputs)
+
+        # Wait for the user to close the window
+        cv2.waitKey(0)
+
+        # Ensure that at least three points have been selected
+        if len(list_of_points) < 3:
+            raise Exception("Not enough points were selected to make a polygon." +
+                            " At least 3 points must be selected.")
+
+        """list_of_triangles = create_convex_triangles_from_points(list_of_points)
+
+        temp_image_array = copy(image_data.cropped_image)
+        temp_image_array = display_text_on_image(temp_image_array, "Preview of " + polygon_use + " triangles.",
+                                                 text_origin=(5, 10), text_size=0.375)
+        for triangle in list_of_triangles:
+            this_image_array = copy(temp_image_array)
+            this_image_array = cv2.polylines(this_image_array, [np.array(triangle).reshape((-1, 1, 2))], True,
+                                             (0, 0, 255), 2)
+            cv2.imshow(window_name, this_image_array)
+            cv2.waitKey(0)"""
+
+        # Destroy the window when the input is complete
+        cv2.destroyWindow(window_name)
+
+        # Return the list of points generated by the user
+        print(list_of_points)
+        return list_of_points
+
+    else:
+        # Return points passed into the function
+        return list_of_points
+
+
+def boundary_click_event(event: int, x, y, flags, additional_inputs: list):
+    """
+    Mouse-click callback function to capture a mouse click, draw a dot, and connect previously selected points
+    together with a randomly colored line.
+    """
+
+    # Only do something when the left mouse button has been clicked
+    if event == cv2.EVENT_LBUTTONDOWN:
+
+        # Create a new copy of the image to annotate
+        temp_image_array = copy(additional_inputs[0])
+
+        # Rename the individual additional_inputs for clarity
+        list_of_points = additional_inputs[-1]
+        list_of_colors = additional_inputs[-2]
+        point_color = additional_inputs[1]
+        window_name = additional_inputs[2]
+
+        # Define attributes of the drawn elements
+        point_radius = 3
+        intermediate_line_width = 1
+        final_line_color = (255, 255, 255)
+        final_line_width = 2
+
+        # Add the newly selected point to the list of existing points
+        list_of_points.append((x, y))
+
+        # Iterate through the list of points to show them on the image
+        for point in list_of_points:
+            temp_image_array = cv2.circle(temp_image_array, point, point_radius, point_color, -1)
+
+        # Connect the points together with lines
+        # There must be at least 2 points for this to occur
+        if len(list_of_points) > 1:
+
+            # Create a new color to use for the line and save it for future use
+            list_of_colors.append(generate_random_color())
+
+            # Iterate through the list of points to draw each line using the appropriate color
+            for i in range(1, len(list_of_points)):
+                temp_image_array = cv2.line(temp_image_array, list_of_points[i - 1], list_of_points[i],
+                                            list_of_colors[i - 1], intermediate_line_width)
+
+        # Connect the first and last point with a different line
+        # There must be at least three points selected for this to occur
+        if len(list_of_points) > 2:
+            temp_image_array = cv2.line(temp_image_array, list_of_points[0], list_of_points[-1],
+                                        final_line_color, final_line_width)
+
+        # Show the updated image
+        cv2.imshow(window_name, temp_image_array)
+
+
+def click_event(event: int, x, y, flags, additional_inputs: list):
+    """
+    Return the position selected on the click of a mouse.
+    """
+
+    # Do nothing until the left mouse button is clicked
+    if event == cv2.EVENT_LBUTTONDOWN:
+        # Save the click location
+        additional_inputs[0] = int(x)
+        additional_inputs[1] = int(y)
+
+
+def display_text_on_image(image: np.array, text: str, text_origin: tuple = (15, 35), text_color: tuple = (128, 0, 128),
+                          text_size: float = 0.5):
     """
     Use the cv2 built-in method to add text to an image.
     """
-    return cv2.putText(image, text, text_origin, cv2.FONT_HERSHEY_SIMPLEX, 0.5, text_color, thickness=1,
+    return cv2.putText(image, text, text_origin, cv2.FONT_HERSHEY_SIMPLEX, text_size, text_color, thickness=1,
                        bottomLeftOrigin=False)
 
 
@@ -506,3 +523,39 @@ def generate_random_color(num_channels: int = 3, color_value_type: type = np.uin
 
     # Return a tuple as the color
     return tuple(color)
+
+
+def create_convex_triangles_from_points(list_of_points: list):
+    # Create a triangulator object
+    triangulator = Triangulator()
+
+    # Iterate through each point in the list
+    for point in list_of_points:
+        # Add each point to the pool of vertices and then to the current polygon
+        triangulator.addPolygonVertex(triangulator.addVertex(x=point[0], y=point[1]))
+
+    # Create the triangles of the polygons
+    triangulator.triangulate()
+
+    # Define list to store polygons
+    list_of_triangles = []
+
+    # Add the indices for each triangle to the list of triangle indices
+    for i in range(triangulator.getNumTriangles()):
+        list_of_triangles.append([triangulator.getTriangleV0(i),
+                                  triangulator.getTriangleV1(i),
+                                  triangulator.getTriangleV2(i)])
+        for j in range(len(list_of_triangles[-1])):
+            vertex = triangulator.getVertex(list_of_triangles[-1][j])
+            list_of_triangles[-1][j] = [int(vertex.x), int(vertex.y)]
+
+    # Replace the triangle indices with the points themselves
+    return list_of_triangles
+
+
+if __name__ == "__main__":
+    test_list_of_points = [[0, 0], [1, 0], [1, 1], [0, 1]]
+
+    create_convex_triangles_from_points(test_list_of_points)
+
+    print("done")

@@ -32,16 +32,16 @@ class ImageFilterGrabCut:
 
     @staticmethod
     def pre_process_image(image_data: ImageData) -> ImageData:
-        if True:
+        if False:
             sigma_est = np.mean(estimate_sigma(image_data.colorized_image, channel_axis=2))
             patch_kw = dict(patch_size=10,
                             patch_distance=2,
                             channel_axis=2)
             image_data.pre_processed_image = np.uint8(255 * copy(denoise_nl_means(image_data.colorized_image,
-                                                                   h=0.6 * sigma_est,
-                                                                   sigma=sigma_est,
-                                                                   fast_mode=True,
-                                                                   **patch_kw)))
+                                                                                  h=0.6 * sigma_est,
+                                                                                  sigma=sigma_est,
+                                                                                  fast_mode=True,
+                                                                                  **patch_kw)))
         else:
             image_data.pre_processed_image = copy(image_data.colorized_image)
         return image_data
@@ -88,13 +88,13 @@ class ImageFilterGrabCut:
     def create_sure_background_mask(image_data: ImageData) -> ImageData:
         image_data.sure_background_mask = 1 - cv2.morphologyEx(
             image_data.expanded_image_mask, cv2.MORPH_DILATE,
-            np.ones(10, np.uint8), iterations=15
+            np.ones(3, np.uint8), iterations=30
         )
         return image_data
 
     @staticmethod
     def create_probable_foreground_mask(image_data: ImageData) -> ImageData:
         image_data.probable_foreground_mask = 1 - (
-            image_data.sure_foreground_mask + image_data.sure_background_mask
+                image_data.sure_foreground_mask + image_data.sure_background_mask
         )
         return image_data
