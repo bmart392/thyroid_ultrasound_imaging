@@ -3,9 +3,10 @@ Define object class for threshold-based image filters.
 """
 # Import constants and image statements used in all filter objects
 from scripts.Filters.FilterHelper import *
+from scripts.Filters.ImageFilter import ImageFilter
 
 
-class ImageFilterThreshold:
+class ImageFilterThreshold(ImageFilter):
     """
     A class for defining image filters for images in the GRAY color scheme using standard processes.
     """
@@ -21,6 +22,7 @@ class ImageFilterThreshold:
                  analysis_mode=False,
                  image_crop_included=False,
                  image_crop_coordinates=None):
+
         """
         Create a class for defining image filters for images in the GRAY color scheme using standard processes.
 
@@ -54,7 +56,7 @@ class ImageFilterThreshold:
         analysis_mode: bool
             display the time key processes take to occur.
         """
-
+        super(ImageFilterThreshold, self).__init__()
         # Filter object parameters
         self.filter_name = filter_name
         self.filter_color = filter_color

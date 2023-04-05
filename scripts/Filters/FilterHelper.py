@@ -173,6 +173,10 @@ def display_process_timer(start_of_process_time, message, print_time=True) -> fl
 
 
 def fully_filter_image(image_filter, image_data: ImageData):
+    """
+    Fully filter an ImageData object using the process defined in the ImageFilter
+    """
+
     # record the current time for timing each process
     start_of_process_time = time()
 
