@@ -1,3 +1,8 @@
+"""
+Contains code for ImageData class.
+"""
+
+# Import standard libraries
 import cv2
 import matplotlib.pyplot as plt
 from numpy import sum, uint8

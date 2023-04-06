@@ -16,6 +16,7 @@ class ImageFilterGrabCut(ImageFilter):
 
     def __init__(self, user_created_mask_array: np.array, image_crop_coordinates: iter,
                  image_crop_included: bool = False, include_pre_blurring: bool = False,
+                 increase_contrast = False,
                  debug_mode: bool = False, analysis_mode: bool = False):
 
         """
@@ -55,6 +56,7 @@ class ImageFilterGrabCut(ImageFilter):
         self.include_pre_blurring = include_pre_blurring
         self.debug_mode = debug_mode
         self.analysis_mode = analysis_mode
+        self.increase_contrast = increase_contrast
 
         # Define characteristics of all GrabCut filters
         self.filter_color = COLOR_BGR
@@ -87,6 +89,10 @@ class ImageFilterGrabCut(ImageFilter):
         image_data
             the ImageData object containing the image to be pre-processed.
         """
+        temp_image = copy(image_data.colorized_image)
+        if self.increase_contrast:
+            temp_image = cv2.equalizeHist(temp_image)
+
 
         # If the filter includes a blurring affect
         if self.include_pre_blurring:
@@ -96,7 +102,7 @@ class ImageFilterGrabCut(ImageFilter):
             patch_kw = dict(patch_size=10,
                             patch_distance=2,
                             channel_axis=2)
-            image_data.pre_processed_image = np.uint8(255 * copy(denoise_nl_means(image_data.colorized_image,
+            image_data.pre_processed_image = np.uint8(255 * copy(denoise_nl_means(temp_image,
                                                                                   h=0.6 * sigma_est,
                                                                                   sigma=sigma_est,
                                                                                   fast_mode=True,
@@ -104,7 +110,7 @@ class ImageFilterGrabCut(ImageFilter):
         else:
 
             # Set the pre-processed image as a copy of the colorized image.
-            image_data.pre_processed_image = copy(image_data.colorized_image)
+            image_data.pre_processed_image = temp_image
 
         # Return the image_data object for future use
         return image_data

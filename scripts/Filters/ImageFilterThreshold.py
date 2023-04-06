@@ -21,7 +21,8 @@ class ImageFilterThreshold(ImageFilter):
                  debug_mode=False,
                  analysis_mode=False,
                  image_crop_included=False,
-                 image_crop_coordinates=None):
+                 image_crop_coordinates=None,
+                 increase_contrast=False):
 
         """
         Create a class for defining image filters for images in the GRAY color scheme using standard processes.
@@ -60,6 +61,8 @@ class ImageFilterThreshold(ImageFilter):
         # Filter object parameters
         self.filter_name = filter_name
         self.filter_color = filter_color
+
+        self.increase_contrast = increase_contrast
 
         # Blur parameters
         self.blur_type = blur_type
@@ -105,6 +108,11 @@ class ImageFilterThreshold(ImageFilter):
         need_to_recolor = False
         color = cv2.COLOR_BGR2GRAY
 
+        temp_image = copy(image_data.colorized_image)
+
+        if self.increase_contrast:
+            temp_image = cv2.equalizeHist(temp_image)
+
         if self.filter_color == COLOR_RGB:
             need_to_recolor = True
             color = cv2.COLOR_BGR2RGB
@@ -114,7 +122,7 @@ class ImageFilterThreshold(ImageFilter):
 
         if self.blur_type == BLUR_GAUSSIAN:
             image_data.pre_processed_image = (
-                cv2.GaussianBlur(image_data.colorized_image,
+                cv2.GaussianBlur(temp_image,
                                  (self.blur_parameters[0], self.blur_parameters[1]),
                                  self.blur_parameters[2]
                                  )
@@ -127,7 +135,7 @@ class ImageFilterThreshold(ImageFilter):
             return image_data
         elif self.blur_type == BLUR_MEAN_FILTER:
             image_data.pre_processed_image = (
-                cv2.pyrMeanShiftFiltering(image_data.original_image,
+                cv2.pyrMeanShiftFiltering(temp_image,
                                           self.blur_parameters[0],
                                           self.blur_parameters[1]
                                           )
@@ -148,7 +156,7 @@ class ImageFilterThreshold(ImageFilter):
                                                 self.thresholding_parameters[1]
                                                 )
 
-            #image_data.image_mask = image_data.image_mask * self.image_cutoff
+            image_data.image_mask = np.uint8(image_data.image_mask / 255)
             return image_data
         elif self.thresholding_type == THRESHOLD_ADAPTIVE:
             threshold_values, image_data.image_mask = cv2.adaptiveThreshold(image_data.pre_processed_image,
@@ -157,7 +165,7 @@ class ImageFilterThreshold(ImageFilter):
                                                                             75, 1
                                                                             )
 
-            #image_data.image_mask = image_data.image_mask * self.image_cutoff
+            image_data.image_mask = np.uint8(image_data.image_mask / 255)
             return image_data
 
     def image_mask_post_process(self, image_data: ImageData):
@@ -188,7 +196,7 @@ class ImageFilterThreshold(ImageFilter):
     def create_probable_foreground_mask(self, image_data: ImageData) -> ImageData:
         pass
 
-    def fully_filter_image(self, image_data: ImageData) -> ImageData:
+    def fully_filter_image(self, image_data: ImageData, previous_mask_array: np.array = None) -> ImageData:
         return fully_filter_image(self, image_data)
 
 

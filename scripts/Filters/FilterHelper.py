@@ -11,6 +11,7 @@ from skimage.restoration import denoise_nl_means, estimate_sigma
 
 # Import custom objects
 from scripts.ImageData.ImageData import ImageData
+from scripts.Filters.ImageFilter import ImageFilter
 
 # Define constants to be used by any image filter implementing this interface
 COLOR_BGR: int = 0
@@ -172,7 +173,7 @@ def display_process_timer(start_of_process_time, message, print_time=True) -> fl
     return time()
 
 
-def fully_filter_image(image_filter, image_data: ImageData):
+def fully_filter_image(image_filter: ImageFilter, image_data: ImageData):
     """
     Fully filter an ImageData object using the process defined in the ImageFilter
     """
@@ -218,34 +219,36 @@ def fully_filter_image(image_filter, image_data: ImageData):
                                                   "Mask expansion time",
                                                   image_filter.analysis_mode)
 
-    # Create sure foreground mask
-    image_data = image_filter.create_sure_foreground_mask(image_data)
-    start_of_process_time = display_process_timer(start_of_process_time,
-                                                  "Sure foreground mask creation time",
-                                                  image_filter.analysis_mode)
+    if image_filter.use_previous_image_mask:
 
-    # Create sure background mask
-    image_data = image_filter.create_sure_background_mask(image_data)
-    start_of_process_time = display_process_timer(start_of_process_time,
-                                                  "Sure background mask creation time",
-                                                  image_filter.analysis_mode)
+        # Create sure foreground mask
+        image_data = image_filter.create_sure_foreground_mask(image_data)
+        start_of_process_time = display_process_timer(start_of_process_time,
+                                                      "Sure foreground mask creation time",
+                                                      image_filter.analysis_mode)
 
-    # Create probable foreground mask
-    image_data = image_filter.create_probable_foreground_mask(image_data)
-    display_process_timer(start_of_process_time,
-                          "Probable foreground mask creation time",
-                          image_filter.analysis_mode)
+        # Create sure background mask
+        image_data = image_filter.create_sure_background_mask(image_data)
+        start_of_process_time = display_process_timer(start_of_process_time,
+                                                      "Sure background mask creation time",
+                                                      image_filter.analysis_mode)
 
-    # Set the image mask to use for the next iteration
-    image_filter.previous_image_mask_array = (np.zeros(image_data.original_image.shape[:2], np.uint8) +
-                                              image_data.sure_foreground_mask * cv2.GC_FGD +
-                                              image_data.sure_background_mask * cv2.GC_BGD +
-                                              image_data.probable_foreground_mask * cv2.GC_PR_FGD)
-    if image_filter.image_crop_included:
-        crop_x_0 = image_filter.image_crop_coordinates[0][0]
-        crop_y_0 = image_filter.image_crop_coordinates[0][1]
-        crop_x_1 = image_filter.image_crop_coordinates[1][0]
-        crop_y_1 = image_filter.image_crop_coordinates[1][1]
-        image_filter.previous_image_mask_array = image_filter.previous_image_mask_array[crop_y_0:crop_y_1, crop_x_0:crop_x_1]
+        # Create probable foreground mask
+        image_data = image_filter.create_probable_foreground_mask(image_data)
+        display_process_timer(start_of_process_time,
+                              "Probable foreground mask creation time",
+                              image_filter.analysis_mode)
+
+        # Set the image mask to use for the next iteration
+        image_filter.previous_image_mask_array = (np.zeros(image_data.original_image.shape[:2], np.uint8) +
+                                                  image_data.sure_foreground_mask * cv2.GC_FGD +
+                                                  image_data.sure_background_mask * cv2.GC_BGD +
+                                                  image_data.probable_foreground_mask * cv2.GC_PR_FGD)
+        if image_filter.image_crop_included:
+            crop_x_0 = image_filter.image_crop_coordinates[0][0]
+            crop_y_0 = image_filter.image_crop_coordinates[0][1]
+            crop_x_1 = image_filter.image_crop_coordinates[1][0]
+            crop_y_1 = image_filter.image_crop_coordinates[1][1]
+            image_filter.previous_image_mask_array = image_filter.previous_image_mask_array[crop_y_0:crop_y_1, crop_x_0:crop_x_1]
 
     return image_data

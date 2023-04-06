@@ -1,9 +1,7 @@
 # Import standard packages
 from math import ceil, floor
 from random import random
-import numpy as np
 import matplotlib.pyplot as plt
-import cv2
 from panda3d.core import Triangulator
 from copy import copy
 
@@ -15,9 +13,6 @@ from scripts.Visualizations.VisualizationConstants import *
 
 # Import array helper functions
 from scripts.ArrayHelpers.ArrayHelpers import *
-
-# Import ImageFilterGrabCut object
-from scripts.Filters.ImageFilterGrabCut import ImageFilterGrabCut
 
 
 class Visualization:
@@ -64,6 +59,7 @@ class Visualization:
 
         else:
 
+            visualization_fig = None
             # Create a None list of the correct length
             all_axes = [None] * num_visuals
 
@@ -72,142 +68,158 @@ class Visualization:
 
         for visual in self.visualizations:
             if visual == SHOW_ORIGINAL:
-                self.show_basic_image(image_data.original_image, "Original Image",
-                                      self.image_mode, all_axes[current_axis_number])
+                image_to_show = image_data.original_image
+                image_title = "Original Image"
+
             elif visual == SHOW_CROPPED:
-                self.show_basic_image(image_data.cropped_image, "Cropped Image",
-                                      self.image_mode, all_axes[current_axis_number])
+                image_to_show = image_data.cropped_image
+                image_title = "Cropped Image"
+
             elif visual == SHOW_RECOLOR:
-                self.show_basic_image(image_data.colorized_image, "Recolored Image",
-                                      self.image_mode, all_axes[current_axis_number])
+                image_to_show = image_data.colorized_image
+                image_title = "Recolored Image"
+
             elif visual == SHOW_BLUR:
-                self.show_basic_image(image_data.pre_processed_image, "Blurred Image",
-                                      self.image_mode, all_axes[current_axis_number])
+                image_to_show = image_data.pre_processed_image
+                image_title = "Blurred Image"
+
             elif visual == SHOW_MASK:
-                self.show_basic_image(self.create_mask_display_array(image_data.image_mask),
-                                      "Image Mask\nfrom Segmentation",
-                                      self.image_mode, all_axes[current_axis_number])
+                image_to_show = self.create_mask_display_array(image_data.image_mask)
+                image_title = "Image Mask\nfrom Segmentation"
+
             elif visual == SHOW_EXPANDED_MASK:
-                self.show_basic_image(self.create_mask_display_array(image_data.expanded_image_mask),
-                                      "Full Size Image Mask\nfrom Segmentation",
-                                      self.image_mode, all_axes[current_axis_number])
+                image_to_show = self.create_mask_display_array(image_data.expanded_image_mask)
+                image_title = "Full Size Image Mask\nfrom Segmentation"
+
             elif visual == SHOW_FOREGROUND:
-                self.show_basic_image(self.create_mask_overlay_array(image_data.original_image,
-                                                                     image_data.expanded_image_mask),
-                                      "Foreground of the Image",
-                                      self.image_mode, all_axes[current_axis_number])
+                image_to_show = self.create_mask_overlay_array(image_data.original_image,
+                                                               image_data.expanded_image_mask)
+                image_title = "Foreground of the Image"
+
             elif visual == SHOW_SURE_FOREGROUND:
-                self.show_basic_image(self.create_mask_overlay_array(image_data.original_image,
-                                                                     image_data.sure_foreground_mask),
-                                      "Sure Foreground of Image",
-                                      self.image_mode, all_axes[current_axis_number])
+                image_to_show = self.create_mask_overlay_array(image_data.original_image,
+                                                               image_data.sure_foreground_mask),
+                image_title = "Sure Foreground of Image"
+
             elif visual == SHOW_SURE_BACKGROUND:
-                self.show_basic_image(self.create_mask_overlay_array(image_data.original_image,
-                                                                     image_data.sure_background_mask),
-                                      "Sure Background of Image",
-                                      self.image_mode, all_axes[current_axis_number])
+                image_to_show = self.create_mask_overlay_array(image_data.original_image,
+                                                               image_data.sure_background_mask)
+                image_title = "Sure Background of Image"
+
             elif visual == SHOW_PROBABLE_FOREGROUND:
-                self.show_basic_image(self.create_mask_overlay_array(image_data.original_image,
-                                                                     image_data.probable_foreground_mask),
-                                      "Probable Foreground of Image",
-                                      self.image_mode, all_axes[current_axis_number])
+                image_to_show = self.create_mask_overlay_array(image_data.original_image,
+                                                               image_data.probable_foreground_mask)
+                image_title = "Probable Foreground of Image"
+
             elif visual == SHOW_INITIALIZED_MASK:
                 if image_data.segmentation_initialization_mask is not None:
-                    self.show_basic_image(self.create_mask_display_array(image_data.segmentation_initialization_mask,
-                                                                         multiplier=INITIALIZED_MASK_MULTIPLIER),
-                                          "Mask for Initializing\nSegmentation",
-                                          self.image_mode, all_axes[current_axis_number])
+                    image_to_show = self.create_mask_display_array(image_data.segmentation_initialization_mask,
+                                                                   multiplier=INITIALIZED_MASK_MULTIPLIER)
+                    image_title = "Mask for Initializing\nSegmentation"
+
+                else:
+                    image_to_show = self.create_mask_display_array(np.ones(image_data.image_mask.shape, np.uint8), 255)
+                    image_title = "No Initialization Mask\nProvided"
+
             elif visual == SHOW_GRABCUT_USER_INITIALIZATION_0:
                 initialization_mask = image_data.segmentation_initialization_mask[:, :, np.newaxis]
-                self.show_basic_image(image_data.cropped_image *
-                                      np.where((initialization_mask == cv2.GC_BGD) |
-                                               (initialization_mask == cv2.GC_PR_BGD), 0, 1),
-                                      "Initialized Region of Image",
-                                      self.image_mode, all_axes[current_axis_number])
+                image_to_show = image_data.cropped_image * np.where((initialization_mask == cv2.GC_BGD) |
+                                                                    (initialization_mask == cv2.GC_PR_BGD), 0, 1)
+                image_title = "Initialized Region of Image"
+
             elif visual == SHOW_CENTROIDS_ONLY:
 
                 # Create an empty mask
-                temp_image_array = np.zeros(image_data.original_image.shape, np.uint8)
+                image_to_show = np.zeros(image_data.original_image.shape, np.uint8)
 
                 # Draw each centroid from the image
                 for centroid in image_data.contour_centroids:
-                    temp_image_array = draw_circle(centroid, 10, 127, temp_image_array)
+                    image_to_show = draw_circle(centroid, 10, 127, image_to_show)
 
-                self.show_basic_image(temp_image_array, "Image Centroids.",
-                                      self.image_mode, all_axes[current_axis_number])
+                image_title = "Image Centroids"
+
             elif visual == SHOW_CENTROIDS_CROSS_ONLY:
 
                 # Create an empty mask
-                temp_image_array = np.zeros(image_data.original_image.shape, np.uint8)
+                image_to_show = np.zeros(image_data.original_image.shape, np.uint8)
 
                 # Define line width
                 line_width = 4
 
                 # Draw each centroid from the image
                 for centroid in image_data.contour_centroids:
-                    temp_image_array = draw_circle(centroid, 10, 127, temp_image_array)
+                    image_to_show = draw_circle(centroid, 10, 127, image_to_show)
 
                 # Draw vertical line
-                temp_image_array = draw_rectangle("corner",
-                                                  (floor((image_data.image_size_x / 2) - ceil(line_width / 2)), 0),
-                                                  line_width, image_data.image_size_y, FULL_VALUE_RGB_MULTIPLIER,
-                                                  temp_image_array)
+                image_to_show = draw_rectangle("corner",
+                                               (floor((image_data.image_size_x / 2) - ceil(line_width / 2)), 0),
+                                               line_width, image_data.image_size_y, FULL_VALUE_RGB_MULTIPLIER,
+                                               image_to_show)
 
                 # Draw horizontal line
-                temp_image_array = draw_rectangle("corner",
-                                                  (0, floor((image_data.image_size_y / 2) - ceil(line_width / 2))),
-                                                  image_data.image_size_x, line_width, FULL_VALUE_RGB_MULTIPLIER,
-                                                  temp_image_array)
+                image_to_show = draw_rectangle("corner",
+                                               (0, floor((image_data.image_size_y / 2) - ceil(line_width / 2))),
+                                               image_data.image_size_x, line_width, FULL_VALUE_RGB_MULTIPLIER,
+                                               image_to_show)
 
-                self.show_basic_image(temp_image_array, "Image Centroids with Crosshair.",
-                                      self.image_mode, all_axes[current_axis_number])
+                image_title = "Image Centroids with Crosshair."
+
             elif visual == SHOW_MASK_OVERLAY:
 
                 # Copy the original image
-                temp_image_array = image_data.original_image
+                image_to_show = image_data.original_image
 
                 # Define line width
                 line_width = 4
 
                 # Draw each centroid from the image
                 for centroid in image_data.contour_centroids:
-                    temp_image_array = draw_circle(centroid, 10, 127, temp_image_array)
+                    image_to_show = draw_circle(centroid, 10, 127, image_to_show)
 
                 # Draw vertical line
-                temp_image_array = draw_rectangle("corner",
-                                                  (floor((image_data.image_size_x / 2) - ceil(line_width / 2)), 0),
-                                                  line_width, image_data.image_size_y, FULL_VALUE_RGB_MULTIPLIER,
-                                                  temp_image_array)
+                image_to_show = draw_rectangle("corner",
+                                               (floor((image_data.image_size_x / 2) - ceil(line_width / 2)), 0),
+                                               line_width, image_data.image_size_y, FULL_VALUE_RGB_MULTIPLIER,
+                                               image_to_show)
 
                 # Draw horizontal line
-                temp_image_array = draw_rectangle("corner",
-                                                  (0, floor((image_data.image_size_y / 2) - ceil(line_width / 2))),
-                                                  image_data.image_size_x, line_width, FULL_VALUE_RGB_MULTIPLIER,
-                                                  temp_image_array)
+                image_to_show = draw_rectangle("corner",
+                                               (0, floor((image_data.image_size_y / 2) - ceil(line_width / 2))),
+                                               image_data.image_size_x, line_width, FULL_VALUE_RGB_MULTIPLIER,
+                                               image_to_show)
 
-                self.show_basic_image(temp_image_array, "Mask Overlaid\non Original Image.",
-                                      self.image_mode, all_axes[current_axis_number])
+                image_title = "Mask Overlaid\non Original Image."
+
             elif visual == SHOW_CENTROIDS_CROSS_OVERLAY:
 
                 # Copy the original image
-                temp_image_array = image_data.original_image
+                image_to_show = image_data.original_image
 
-                self.show_basic_image(temp_image_array, "Centroids Overlaid\non Original Image.",
-                                      self.image_mode, all_axes[current_axis_number])
+                image_title = "Centroids Overlaid\non Original Image."
+
             elif visual == SHOW_MASK_CENTROIDS_CROSS_OVERLAY:
 
                 # Copy the original image
-                temp_image_array = image_data.original_image
+                image_to_show = image_data.original_image
 
-                self.show_basic_image(temp_image_array, "Mask, Centroids, and Cross\nOverlaid on Original Image.",
-                                      self.image_mode, all_axes[current_axis_number])
+                image_title = "Mask, Centroids, and Cross\nOverlaid on Original Image."
+
             else:
                 raise Exception("Visualization type not recognized.")
+
+            # Remove carriage return if continuous images are shown
+            if self.image_mode == IMG_CONTINUOUS:
+                image_title = image_title.replace("\n", " ")
+
+            # Show the image using the parameters determined above
+            self.show_basic_image(image_to_show, image_title, self.image_mode,
+                                  all_axes[current_axis_number],
+                                  self.visualization_title)
 
             # Increment the current axis number for the next loop
             current_axis_number = current_axis_number + 1
 
-        if self.image_mode == IMG_SINGLE:
+        if self.image_mode == IMG_SINGLE and visualization_fig is not None:
             visualization_fig.tight_layout()
             plt.show()
 
@@ -267,7 +279,6 @@ def user_input_crop_coordinates(image_data: ImageData, crop_coordinates: list = 
         # crop_input = input("Would you like to crop the image? (y/n)\n")
 
         # Define characteristics of the shapes to show on the image
-        text_color = (128, 0, 128)
         point_color = (0, 0, 255)
         point_radius = 3
         line_color = (0, 255, 0)
@@ -363,7 +374,6 @@ def user_input_polygon_points(image_data: ImageData, polygon_use: str, list_of_p
         window_name = 'Image Background Selection'
 
         # Define colors to use for displaying information
-        text_color = (128, 0, 128)
         point_color = (0, 0, 255)
 
         # Create a copy of the image array so that the original is not changed

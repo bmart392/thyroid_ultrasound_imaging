@@ -47,6 +47,29 @@ def draw_circle(origin, radius, value, array_to_modify):
     return array_to_modify
 
 
+def get_average_value_from_triangles(list_of_triangles: list, image: np.array):
+    lowest_number = 255
+    highest_number = 0
+
+    bounding_sets = []
+
+    for triangle in list_of_triangles:
+        bounding_sets.append(BoundingSet(triangle))
+
+    for y in range(image.shape[0]):
+        for x in range(image.shape[1]):
+
+            for bounding_set in bounding_sets:
+                if bounding_set.is_point_within_set((x, y)):
+                    a = image[y][x][0]
+                    if image[y][x][0] > highest_number:
+                        highest_number = image[y][x][0]
+                    elif image[y][x][0] < lowest_number:
+                        lowest_number = image[y][x][0]
+                    break
+
+    return lowest_number, highest_number
+
 def create_mask_array_from_triangles(list_of_background_triangles: list, list_of_foreground_triangles: list,
                                      image_shape: tuple):
     # Create blank mask array and assign it all as probable background
@@ -183,14 +206,4 @@ class BoundingSet:
         # Return true only if the point is in each primitive's set
         return True
 
-
-if __name__ == "__main__":
-    list_of_background_triangles = [[[1, 1], [3, 1], [3, 3], [1, 3]]]
-    list_of_foreground_triangles = [[[5, 1], [7, 1], [7, 3], [5, 3]]]
-
-    image_shape = (5, 9)
-
-    a = create_mask_array_from_triangles(list_of_background_triangles, list_of_foreground_triangles, image_shape)
-
-    print("hello")
 
