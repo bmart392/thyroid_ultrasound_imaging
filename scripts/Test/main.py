@@ -3,23 +3,23 @@ import numpy as np
 from scripts.ImageData.ImageData import ImageData, import_images_as_image_data_objects
 from scripts.Filters.ImageFilterThreshold import ImageFilterThreshold
 from scripts.Filters.ImageFilterGrabCut import ImageFilterGrabCut
+from scripts.Filters.ImageFilter import ImageFilter
 from scripts.Visualizations.Visualization import Visualization, user_input_polygon_points, user_input_crop_coordinates, \
     create_convex_triangles_from_points
-from scripts.Filters.FilterHelper import COLOR_BGR
+from scripts.Filters.FilterConstants import COLOR_BGR
 from scripts.Visualizations.VisualizationConstants import *
 from scripts.ArrayHelpers.create_mask_array import create_mask_array, ShapeTypes, RectangleTypes
 from scripts.ArrayHelpers.ArrayHelpers import create_mask_array_from_triangles, get_average_value_from_triangles
-from scripts.Filters.FilterHelper import crop_image
 import cv2
 from copy import copy
 import matplotlib.pyplot as plt
 
 if __name__ == '__main__':
-    input = True  # True = define input, false = use values
+    input = False  # True = define input, false = use values
 
-    series = True  # False = series 2, True = series 1
+    series = False  # False = series 2, True = series 1
 
-    image_type = IMG_SINGLE
+    image_type = IMG_CONTINUOUS
 
     # Read in images as array of images
     if series:
@@ -80,8 +80,11 @@ if __name__ == '__main__':
         else:
             image_crop_coordinates = [[198, 197], [538, 494]]  # Series 2 - Slice 30
 
+    image_filter = ImageFilter()
+    image_filter.image_crop_included = True
+    image_filter.image_crop_coordinates = image_crop_coordinates
     # Crop the test image
-    test_image = crop_image(True, image_crop_coordinates, test_image)
+    test_image = image_filter.crop_image(test_image)
 
     # Select the background points -> then save the coordinates
     #
@@ -191,7 +194,6 @@ if __name__ == '__main__':
 
             if type(image_filter) is ImageFilterGrabCut:
                 confidence_map = confidence_map + 0.375 * temp_image_data.expanded_image_mask
-                print(confidence_map.max)
             if image_filter is ImageFilterThreshold:
                 confidence_map = confidence_map + 0.375 * temp_image_data.expanded_image_mask
 

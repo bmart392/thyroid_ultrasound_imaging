@@ -2,8 +2,7 @@
 Define object class for threshold-based image filters.
 """
 # Import constants and image statements used in all filter objects
-from scripts.Filters.FilterHelper import *
-from scripts.Filters.ImageFilter import ImageFilter
+from scripts.Filters.ImageFilter import *
 
 
 class ImageFilterThreshold(ImageFilter):
@@ -150,6 +149,14 @@ class ImageFilterThreshold(ImageFilter):
             return image_data
 
     def create_image_mask(self, image_data: ImageData):
+        """
+        Segment the image using a thresholding method. Overrides the super-class definition.
+
+        Parameters
+        ----------
+        image_data
+            the ImageData object containing the image to be segmented.
+        """
         if self.thresholding_type == THRESHOLD_BASIC:
             image_data.image_mask = cv2.inRange(image_data.pre_processed_image,
                                                 self.thresholding_parameters[0],
@@ -166,9 +173,19 @@ class ImageFilterThreshold(ImageFilter):
                                                                             )
 
             image_data.image_mask = np.uint8(image_data.image_mask / 255)
-            return image_data
 
     def image_mask_post_process(self, image_data: ImageData):
+        """
+        Conduct morphological operations on the final mask to improve the segmentation result.
+        Overrides the super-class definition.
+
+        Parameters
+        ----------
+        image_data
+            the ImageData object containing the image.
+        """
+
+        # Conduct the segmentation modifications listed in the filter
         for modification in self.mask_manipulation_sequence:
             modification_type = modification[0]
             if modification_type == MASK_RECT:
@@ -185,34 +202,19 @@ class ImageFilterThreshold(ImageFilter):
                                                      iterations=modification[2]
                                                      )
 
-        return image_data
+    @staticmethod
+    def create_sure_foreground_mask(image_data: ImageData):
+        # TODO - Implement this function properly
+        image_data.sure_foreground_mask = np.zeros(image_data.expanded_image_mask.shape[:2], np.uint8)
 
-    def create_sure_foreground_mask(self, image_data: ImageData) -> ImageData:
-        pass
+    @staticmethod
+    def create_sure_background_mask(image_data: ImageData):
+        # TODO - Implement this function properly
+        image_data.sure_background_mask = np.zeros(image_data.expanded_image_mask.shape[:2], np.uint8)
 
-    def create_sure_background_mask(self, image_data: ImageData) -> ImageData:
-        pass
-
-    def create_probable_foreground_mask(self, image_data: ImageData) -> ImageData:
-        pass
-
-    def fully_filter_image(self, image_data: ImageData, previous_mask_array: np.array = None) -> ImageData:
-        return fully_filter_image(self, image_data)
+    @staticmethod
+    def create_probable_foreground_mask(image_data: ImageData):
+        # TODO - Implement this function properly
+        image_data.probable_foreground_mask = np.ones(image_data.expanded_image_mask.shape[:2], np.uint8)
 
 
-if __name__ == '__main__':
-    # Create test data using example picture from computer
-    test_image_data = ImageData(image_data=None, image_filepath='/home/ben/Pictures/thyroid_ultrasound.png')
-
-    # Create a temporary image filter
-    image_filter = ImageFilterThreshold()
-
-    # Filter the image
-    test_image_data = image_filter.fully_filter_image(test_image_data)
-
-    # Show the filtered images
-    test_image_data.plot_images()
-
-    print(test_image_data.contour_centroids)
-
-    print("hi")

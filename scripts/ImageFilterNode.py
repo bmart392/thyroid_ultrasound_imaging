@@ -13,7 +13,7 @@ from scripts.Filters.ImageFilterThreshold import *
 from scripts.ImagePositioningController import ImagePositioningController
 from sensor_msgs.msg import Image
 from std_msgs.msg import Bool  # ,Float64, String, UInt32MultiArray
-from scripts.Filters.FilterHelper import display_process_timer
+from scripts.Filters.FilterConstants import display_process_timer
 
 
 class ImageFilterNode:

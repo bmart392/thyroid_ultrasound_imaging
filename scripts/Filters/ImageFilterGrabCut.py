@@ -2,11 +2,8 @@
 Define object class for GrabCut based image filters.
 """
 
-# Import constants and image statements used in all filter objects
-from scripts.Filters.FilterHelper import *
-
 # Import the super-class for all image filters
-from scripts.Filters.ImageFilter import ImageFilter
+from scripts.Filters.ImageFilter import *
 
 
 class ImageFilterGrabCut(ImageFilter):
@@ -16,7 +13,7 @@ class ImageFilterGrabCut(ImageFilter):
 
     def __init__(self, user_created_mask_array: np.array, image_crop_coordinates: iter,
                  image_crop_included: bool = False, include_pre_blurring: bool = False,
-                 increase_contrast = False,
+                 increase_contrast=False,
                  debug_mode: bool = False, analysis_mode: bool = False):
 
         """
@@ -49,8 +46,7 @@ class ImageFilterGrabCut(ImageFilter):
         super(ImageFilterGrabCut, self).__init__()
 
         # Update the parameters passed in on object creation
-        self.user_created_mask_array = user_created_mask_array
-        self.user_created_mask_array = user_created_mask_array
+        self.user_created_mask = user_created_mask_array
         self.image_crop_included = image_crop_included
         self.image_crop_coordinates = image_crop_coordinates
         self.include_pre_blurring = include_pre_blurring
@@ -63,36 +59,21 @@ class ImageFilterGrabCut(ImageFilter):
         self.use_previous_image_mask = False
         self.previous_image_mask_array = None
 
-    def fully_filter_image(self, image_data: ImageData, previous_image_mask_array: np.array = None) -> ImageData:
+    def pre_process_image(self, image_data: ImageData):
         """
-        Fully filter the given ImageData using the stored previous_image_mask. If a previous_image_mask is given,
-        use that one instead.
-
-        Parameters
-        ----------
-        image_data
-            the ImageData object containing the image to be segmented.
-        previous_image_mask_array
-            the mask to use to segment the image when one is available.
-        """
-
-        if previous_image_mask_array is not None:
-            self.previous_image_mask_array = previous_image_mask_array
-        return fully_filter_image(self, image_data)
-
-    def pre_process_image(self, image_data: ImageData) -> ImageData:
-        """
-        Pre-process the given ImageData object.
+        Increase contrast and blur, if included, the given ImageData object. Overrides the super-class definition.
 
         Parameters
         ----------
         image_data
             the ImageData object containing the image to be pre-processed.
         """
+        # Create a temporary copy of the image
         temp_image = copy(image_data.colorized_image)
+
+        # Increase the contrast of the image, if required
         if self.increase_contrast:
             temp_image = cv2.equalizeHist(temp_image)
-
 
         # If the filter includes a blurring affect
         if self.include_pre_blurring:
@@ -112,23 +93,28 @@ class ImageFilterGrabCut(ImageFilter):
             # Set the pre-processed image as a copy of the colorized image.
             image_data.pre_processed_image = temp_image
 
-        # Return the image_data object for future use
-        return image_data
+    def create_image_mask(self, image_data: ImageData):
+        """
+        Segment the image using the GrabCut method. Overrides the super-class definition.
 
-    def create_image_mask(self, image_data: ImageData) -> ImageData:
+        Parameters
+        ----------
+        image_data
+            the ImageData object containing the image to be segmented.
+        """
 
+        # Save the size of the image
         image_size = image_data.pre_processed_image.shape
 
+        # Define the initialized rectangle of the image for the GrabCut algorithm
         initialized_rectangle_cords = (0, 0, image_size[0], image_size[1])
-        if self.use_previous_image_mask and self.previous_image_mask_array is not None:
-            initialization_mask_to_use = self.previous_image_mask_array
-        else:
-            initialization_mask_to_use = np.copy(self.user_created_mask_array)
 
-        image_data.segmentation_initialization_mask = copy(initialization_mask_to_use)
+        # Set the mask to use to segment the image as a copy of the previous image mask
+        image_data.segmentation_initialization_mask = copy(self.previous_image_mask_array)
 
+        # Segment the image
         cv2.grabCut(img=image_data.pre_processed_image,
-                    mask=initialization_mask_to_use,
+                    mask=image_data.segmentation_initialization_mask,
                     rect=initialized_rectangle_cords,
                     bgdModel=np.zeros((1, 65), np.float64),
                     fgdModel=np.zeros((1, 65), np.float64),
@@ -136,33 +122,65 @@ class ImageFilterGrabCut(ImageFilter):
                     mode=cv2.GC_INIT_WITH_MASK
                     )
 
-        image_data.image_mask = np.where((initialization_mask_to_use == cv2.GC_PR_BGD) |
-                                         (initialization_mask_to_use == cv2.GC_BGD), 0, 1).astype('uint8')
+        # Modify the image mask to a binary result
+        image_data.image_mask = np.where(
+            (image_data.segmentation_initialization_mask == cv2.GC_PR_BGD) |
+            (image_data.segmentation_initialization_mask == cv2.GC_BGD), 0, 1).astype('uint8')
 
-        return image_data
+    def image_mask_post_process(self, image_data: ImageData):
+        """
+        Do nothing to post-process the image. Overrides the super-class definition.
 
-    def image_mask_post_process(self, image_data: ImageData) -> ImageData:
-        return image_data
+        Parameters
+        ----------
+        image_data
+            the ImageData object containing the image.
+        """
+        pass
 
     @staticmethod
-    def create_sure_foreground_mask(image_data: ImageData) -> ImageData:
+    def create_sure_foreground_mask(image_data: ImageData):
+        """
+        Create a mask representing the area of the image that is surely the foreground by
+        shrinking the segmentation result.
+
+        Parameters
+        ----------
+        image_data
+            the ImageData object containing the image mask.
+        """
         image_data.sure_foreground_mask = cv2.morphologyEx(
             image_data.expanded_image_mask, cv2.MORPH_ERODE,
             np.ones(10, np.uint8), iterations=2
         )
-        return image_data
 
     @staticmethod
-    def create_sure_background_mask(image_data: ImageData) -> ImageData:
+    def create_sure_background_mask(image_data: ImageData):
+        """
+        Create a mask representing the area of the image that is surely the background by
+        expanding the segmentation result and inverting the mask.
+
+        Parameters
+        ----------
+        image_data
+            the ImageData object containing the image mask.
+        """
         image_data.sure_background_mask = 1 - cv2.morphologyEx(
             image_data.expanded_image_mask, cv2.MORPH_DILATE,
             np.ones(3, np.uint8), iterations=30
         )
-        return image_data
 
     @staticmethod
-    def create_probable_foreground_mask(image_data: ImageData) -> ImageData:
+    def create_probable_foreground_mask(image_data: ImageData):
+        """
+        Create a mask representing the area of the image that is probably the foreground by
+        including the area that is not in the sure foreground or sure background.
+
+        Parameters
+        ----------
+        image_data
+            the ImageData object containing the image mask.
+        """
         image_data.probable_foreground_mask = 1 - (
                 image_data.sure_foreground_mask + image_data.sure_background_mask
         )
-        return image_data
