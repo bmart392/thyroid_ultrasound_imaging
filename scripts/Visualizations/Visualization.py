@@ -4,6 +4,8 @@ from random import random
 import matplotlib.pyplot as plt
 from panda3d.core import Triangulator
 from copy import copy
+import numpy as np
+import cv2 as cv2
 
 # Import ImageData object
 from scripts.ImageData.ImageData import ImageData

@@ -3,7 +3,7 @@ Contains get_threshold_values_from_triangle function.
 """
 # Import from standard packages
 from numpy import array
-from BoundingSet import BoundingSet
+from scripts.Boundaries.BoundingSet import BoundingSet
 
 
 def get_threshold_values_from_triangles(list_of_triangles: list, image: array):
