@@ -12,9 +12,10 @@ from scripts.ImageData.ImageData import ImageData
 from scripts.Visualizations.VisualizationConstants import *
 
 # Import array helper functions
-from scripts.ArrayHelpers.ArrayHelpers import *
+from scripts.Boundaries.get_average_value_from_triangles import *
 
 
+# TODO Document and refactor this class
 class Visualization:
 
     def __init__(self, image_mode: int, visualizations: list, visualization_title: str = None,
@@ -133,8 +134,7 @@ class Visualization:
                 image_to_show = np.zeros(image_data.original_image.shape, np.uint8)
 
                 # Draw each centroid from the image
-                for centroid in image_data.contour_centroids:
-                    image_to_show = draw_circle(centroid, 10, 127, image_to_show)
+                image_to_show = self.add_centroids_on_image(image_to_show, image_data)
 
                 image_title = "Image Centroids"
 
@@ -143,24 +143,8 @@ class Visualization:
                 # Create an empty mask
                 image_to_show = np.zeros(image_data.original_image.shape, np.uint8)
 
-                # Define line width
-                line_width = 4
-
-                # Draw each centroid from the image
-                for centroid in image_data.contour_centroids:
-                    image_to_show = draw_circle(centroid, 10, 127, image_to_show)
-
-                # Draw vertical line
-                image_to_show = draw_rectangle("corner",
-                                               (floor((image_data.image_size_x / 2) - ceil(line_width / 2)), 0),
-                                               line_width, image_data.image_size_y, FULL_VALUE_RGB_MULTIPLIER,
-                                               image_to_show)
-
-                # Draw horizontal line
-                image_to_show = draw_rectangle("corner",
-                                               (0, floor((image_data.image_size_y / 2) - ceil(line_width / 2))),
-                                               image_data.image_size_x, line_width, FULL_VALUE_RGB_MULTIPLIER,
-                                               image_to_show)
+                # Draw each centroid from the image and a cross
+                image_to_show = self.add_cross_and_centroids_on_image(image_to_show, image_data)
 
                 image_title = "Image Centroids with Crosshair."
 
@@ -168,25 +152,6 @@ class Visualization:
 
                 # Copy the original image
                 image_to_show = image_data.original_image
-
-                # Define line width
-                line_width = 4
-
-                # Draw each centroid from the image
-                for centroid in image_data.contour_centroids:
-                    image_to_show = draw_circle(centroid, 10, 127, image_to_show)
-
-                # Draw vertical line
-                image_to_show = draw_rectangle("corner",
-                                               (floor((image_data.image_size_x / 2) - ceil(line_width / 2)), 0),
-                                               line_width, image_data.image_size_y, FULL_VALUE_RGB_MULTIPLIER,
-                                               image_to_show)
-
-                # Draw horizontal line
-                image_to_show = draw_rectangle("corner",
-                                               (0, floor((image_data.image_size_y / 2) - ceil(line_width / 2))),
-                                               image_data.image_size_x, line_width, FULL_VALUE_RGB_MULTIPLIER,
-                                               image_to_show)
 
                 image_title = "Mask Overlaid\non Original Image."
 
@@ -201,6 +166,8 @@ class Visualization:
 
                 # Copy the original image
                 image_to_show = image_data.original_image
+
+
 
                 image_title = "Mask, Centroids, and Cross\nOverlaid on Original Image."
 
@@ -258,6 +225,42 @@ class Visualization:
         return base_image * mask[:, :, np.newaxis] + np.uint8(
             base_image * (1 - mask)[:, :, np.newaxis] * fade_rate
         )
+
+    @staticmethod
+    def add_cross_to_image(image_to_show: np.array):
+
+        # Draw vertical line
+        image_to_show = cv2.line(image_to_show,
+                                 (int(image_to_show.shape[1] / 2), 0),
+                                 (int(image_to_show.shape[1] / 2), image_to_show.shape[0]),
+                                 color=(255, 255, 255),
+                                 thickness=1
+                                 )
+
+        # Draw horizontal line
+        image_to_show = cv2.line(image_to_show,
+                                 (0, int(image_to_show.shape[0] / 2)),
+                                 (image_to_show.shape[1], int(image_to_show.shape[0] / 2),),
+                                 color=(255, 255, 255),
+                                 thickness=3
+                                 )
+        return image_to_show
+
+    @staticmethod
+    def add_centroids_on_image(image_to_show: np.array, image_data: ImageData):
+
+        # Draw each centroid from the image
+        for centroid in image_data.contour_centroids:
+            image_to_show = cv2.circle(image_to_show,
+                                       centroid,
+                                       radius=6,
+                                       color=(255, 0, 0),
+                                       thickness=-1)
+        return image_to_show
+
+    def add_cross_and_centroids_on_image(self, image_to_show: np.array, image_data: ImageData):
+        return self.add_cross_to_image(self.add_centroids_on_image(image_to_show, image_data))
+
 
     @staticmethod
     def create_mask_display_array(mask: np.array, multiplier: int = 255):

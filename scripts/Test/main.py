@@ -8,8 +8,8 @@ from scripts.Visualizations.Visualization import Visualization, user_input_polyg
     create_convex_triangles_from_points
 from scripts.Filters.FilterConstants import COLOR_BGR
 from scripts.Visualizations.VisualizationConstants import *
-from scripts.ArrayHelpers.create_mask_array import create_mask_array, ShapeTypes, RectangleTypes
-from scripts.ArrayHelpers.ArrayHelpers import create_mask_array_from_triangles, get_average_value_from_triangles
+from scripts.Boundaries.get_average_value_from_triangles import get_threshold_values_from_triangles
+from scripts.Boundaries.create_mask_array_from_triangles import create_mask_array_from_triangles
 import cv2
 from copy import copy
 import matplotlib.pyplot as plt
@@ -36,11 +36,11 @@ if __name__ == '__main__':
             # SHOW_INITIALIZED_MASK,
             # SHOW_GRABCUT_USER_INITIALIZATION_0,
             # SHOW_EXPANDED_MASK,
-            SHOW_FOREGROUND,
+            # SHOW_FOREGROUND,
             # SHOW_SURE_FOREGROUND,
             # SHOW_SURE_BACKGROUND,
             # SHOW_PROBABLE_FOREGROUND
-            # SHOW_CENTROIDS_CROSS_ONLY,
+            SHOW_CENTROIDS_CROSS_ONLY,
             # SHOW_MASK_OVERLAY
         ],
         [
