@@ -21,10 +21,20 @@ class ImageFilter:
     A parent class for all image filters to extend. Defines basic function calls
     """
 
-    def __init__(self):
+    def __init__(self, image_crop_included: bool = True, image_crop_coordinates: list = None):
+        """
+        Initialization function for an ImageFilter object.
 
-        self.image_crop_included: bool = False
-        self.image_crop_coordinates: np.array = None
+        Parameters
+        ----------
+        image_crop_included
+            a flag to indicate if the image needs to be cropped.
+
+        image_crop_coordinates
+            an iterable containing two points defining the rectangle with which to crop the image.
+        """
+        self.image_crop_included: bool = image_crop_included
+        self.image_crop_coordinates: np.array = image_crop_coordinates
         self.filter_color = None
         self.use_previous_image_mask = False
         self.previous_image_mask_array = None

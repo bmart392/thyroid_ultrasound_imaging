@@ -1,27 +1,43 @@
+"""
+Contains Visualization object and associated function.
+"""
 # Import standard packages
-from math import ceil, floor
-from random import random
-import matplotlib.pyplot as plt
-from panda3d.core import Triangulator
-from copy import copy
-import numpy as np
-import cv2 as cv2
-
-# Import ImageData object
-from scripts.ImageData.ImageData import ImageData
+from math import ceil
+from matplotlib.pyplot import axes, figure, show
+from numpy import array, zeros, ones, uint8, newaxis, where, repeat
+from cv2 import GC_BGD, GC_PR_BGD, imshow, waitKey, line, circle
 
 # Import custom constants
 from scripts.Visualizations.VisualizationConstants import *
 
-# Import array helper functions
-from scripts.Boundaries.get_average_value_from_triangles import *
+# Import custom objects
+from scripts.ImageData.ImageData import ImageData
+
+# TODO Fill in missing visualization schemes
 
 
-# TODO Document and refactor this class
 class Visualization:
+    """
+    A class to define a visualization object.
+    """
 
     def __init__(self, image_mode: int, visualizations: list, visualization_title: str = None,
                  num_cols_in_fig: int = 2):
+        """
+        Create a Visualization object.
+
+        Parameters
+        ----------
+        image_mode
+            a selector for the imaging mode being shown. Options are single or continuous.
+        visualizations
+            a list of integers specifying which visualizations will be created.
+            Acceptable options are contained in the VisualizationConstants file.
+        visualization_title
+            the message to display as the title of the visualization.
+        num_cols_in_fig
+            an integer determining how many columns of visualizations will be shown when visualizing a single image.
+        """
         self.image_mode = image_mode
         self.visualizations = visualizations
         self.visualization_title = visualization_title
@@ -47,7 +63,7 @@ class Visualization:
             num_rows_in_fig = ceil(num_visuals / self.num_cols_in_fig)
 
             # Create an empty figure to hold the visualizations
-            visualization_fig = plt.figure(dpi=300)
+            visualization_fig = figure(dpi=300)
 
             # Add title to overall figure.
             if self.visualization_title is not None:
@@ -62,13 +78,17 @@ class Visualization:
 
         else:
 
+            # Define the visualization figure as None
             visualization_fig = None
+
             # Create a None list of the correct length
             all_axes = [None] * num_visuals
 
         # Create a variable to store which axis is being used for the visualization
         current_axis_number = 0
 
+        # Iterate through each visualization type
+        # Define the image to display and the image title
         for visual in self.visualizations:
             if visual == SHOW_ORIGINAL:
                 image_to_show = image_data.original_image
@@ -121,19 +141,19 @@ class Visualization:
                     image_title = "Mask for Initializing\nSegmentation"
 
                 else:
-                    image_to_show = self.create_mask_display_array(np.ones(image_data.image_mask.shape, np.uint8), 255)
+                    image_to_show = self.create_mask_display_array(ones(image_data.image_mask.shape, uint8), 255)
                     image_title = "No Initialization Mask\nProvided"
 
             elif visual == SHOW_GRABCUT_USER_INITIALIZATION_0:
-                initialization_mask = image_data.segmentation_initialization_mask[:, :, np.newaxis]
-                image_to_show = image_data.cropped_image * np.where((initialization_mask == cv2.GC_BGD) |
-                                                                    (initialization_mask == cv2.GC_PR_BGD), 0, 1)
+                initialization_mask = image_data.segmentation_initialization_mask[:, :, newaxis]
+                image_to_show = image_data.cropped_image * where((initialization_mask == GC_BGD) |
+                                                                 (initialization_mask == GC_PR_BGD), 0, 1)
                 image_title = "Initialized Region of Image"
 
             elif visual == SHOW_CENTROIDS_ONLY:
 
                 # Create an empty mask
-                image_to_show = np.zeros(image_data.original_image.shape, np.uint8)
+                image_to_show = zeros(image_data.original_image.shape, uint8)
 
                 # Draw each centroid from the image
                 image_to_show = self.add_centroids_on_image(image_to_show, image_data)
@@ -143,7 +163,7 @@ class Visualization:
             elif visual == SHOW_CENTROIDS_CROSS_ONLY:
 
                 # Create an empty mask
-                image_to_show = np.zeros(image_data.original_image.shape, np.uint8)
+                image_to_show = zeros(image_data.original_image.shape, uint8)
 
                 # Draw each centroid from the image and a cross
                 image_to_show = self.add_cross_and_centroids_on_image(image_to_show, image_data)
@@ -169,8 +189,6 @@ class Visualization:
                 # Copy the original image
                 image_to_show = image_data.original_image
 
-
-
                 image_title = "Mask, Centroids, and Cross\nOverlaid on Original Image."
 
             else:
@@ -181,25 +199,41 @@ class Visualization:
                 image_title = image_title.replace("\n", " ")
 
             # Show the image using the parameters determined above
-            self.show_basic_image(image_to_show, image_title, self.image_mode,
-                                  all_axes[current_axis_number],
-                                  self.visualization_title)
+            self.show_basic_image(image_to_show, image_title,
+                                  all_axes[current_axis_number])
 
             # Increment the current axis number for the next loop
             current_axis_number = current_axis_number + 1
 
+        # If displaying a single image, adjust the layout of the figure and show it
         if self.image_mode == IMG_SINGLE and visualization_fig is not None:
             visualization_fig.tight_layout()
-            plt.show()
+            show()
 
-    @staticmethod
-    def show_basic_image(image_array: np.array, image_title: str, image_mode: int, image_axes: plt.axes,
-                         visualization_title: str = None, x_axis_label: str = "X", y_axis_label: str = "Y"):
+    def show_basic_image(self, image_array: array, image_title: str, image_axes: axes,
+                         x_axis_label: str = "X", y_axis_label: str = "Y"):
+        """
+        Display a given image array using standard options.
 
-        if image_mode == IMG_SINGLE:
+        Parameters
+        ----------
+        image_array
+            a numpy array containing the image to be visualized.
+        image_title
+            the title describing the image.
+        image_axes
+            for single images displayed using matplotlib, this is the axis that the image
+            will be displayed on.
+        x_axis_label
+            a label to display for the x-axis.
+        y_axis_label
+            a label to display for the y-axis.
+        """
+
+        if self.image_mode == IMG_SINGLE:
 
             if len(image_array.shape) == 2:
-                image_array = np.repeat(image_array[:, :, np.newaxis], 3, axis=2)
+                image_array = repeat(image_array[:, :, newaxis], 3, axis=2)
 
             # Plot the image array
             image_axes.imshow(image_array)
@@ -210,367 +244,119 @@ class Visualization:
             image_axes.set_ylabel(y_axis_label, fontsize=6)
             image_axes.tick_params(axis='both', which='major', labelsize=4)
 
-        elif image_mode == IMG_CONTINUOUS:
+        elif self.image_mode == IMG_CONTINUOUS:
 
             # Prepend the visualization title on to the image title if necessary.
-            if visualization_title is not None:
-                image_title = visualization_title + " - " + image_title
+            if self.visualization_title is not None:
+                image_title = self.visualization_title + " - " + image_title
 
-            cv2.imshow(image_title, image_array)
-            cv2.waitKey(1)
+            # Show the image
+            imshow(image_title, image_array)
+            waitKey(1)
 
+        # Raise an exception if an incorrect imaging mode is passed in.
         else:
             raise Exception("Image mode not recognized.")
 
     @staticmethod
-    def create_mask_overlay_array(base_image: np.array, mask: np.array, fade_rate: float = 0.5):
-        return base_image * mask[:, :, np.newaxis] + np.uint8(
-            base_image * (1 - mask)[:, :, np.newaxis] * fade_rate
+    def create_mask_overlay_array(base_image: array, mask: array, fade_rate: float = 0.5):
+        """
+        Returns an array that overlays a binary mask over an image array.
+
+        Parameters
+        ----------
+        base_image
+            a numpy array containing the base image.
+        mask
+            a numpy array representing the mask to be overlaid.
+        fade_rate
+            the fade ratio to apply to the inverse of the mask.
+            A smaller number darkens the remainder of the image.
+        """
+        return base_image * mask[:, :, newaxis] + uint8(
+            base_image * (1 - mask)[:, :, newaxis] * fade_rate
         )
 
     @staticmethod
-    def add_cross_to_image(image_to_show: np.array):
+    def add_cross_to_image(image_to_show: array, vertical_line_color: tuple = (255, 255, 255),
+                           horizontal_line_color: tuple = (255, 255, 255), line_thickness: int = 1):
+        """
+        Add two lines to a given image to form a cross centered on the image. Returns the input image array.
+
+        Parameters
+        ----------
+        image_to_show
+            a numpy array representing the image to show.
+        vertical_line_color
+            the color of the vertical line.
+        horizontal_line_color
+            the color of the horizontal line.
+        line_thickness
+            the thickness of the lines drawn.
+        """
 
         # Draw vertical line
-        image_to_show = cv2.line(image_to_show,
-                                 (int(image_to_show.shape[1] / 2), 0),
-                                 (int(image_to_show.shape[1] / 2), image_to_show.shape[0]),
-                                 color=(255, 255, 255),
-                                 thickness=1
-                                 )
+        image_to_show = line(image_to_show,
+                             (int(image_to_show.shape[1] / 2), 0),
+                             (int(image_to_show.shape[1] / 2), image_to_show.shape[0]),
+                             color=vertical_line_color, thickness=line_thickness)
 
         # Draw horizontal line
-        image_to_show = cv2.line(image_to_show,
-                                 (0, int(image_to_show.shape[0] / 2)),
-                                 (image_to_show.shape[1], int(image_to_show.shape[0] / 2),),
-                                 color=(255, 255, 255),
-                                 thickness=3
-                                 )
-        return image_to_show
+        return line(image_to_show,
+                    (0, int(image_to_show.shape[0] / 2)),
+                    (image_to_show.shape[1], int(image_to_show.shape[0] / 2),),
+                    color=horizontal_line_color, thickness=line_thickness)
 
     @staticmethod
-    def add_centroids_on_image(image_to_show: np.array, image_data: ImageData):
+    def add_centroids_on_image(image_to_show: array, image_data: ImageData,
+                               dot_radius: int = 6, dot_color: tuple = (255, 0, 0)):
+        """
+        Draw a dot for each centroid from a given ImageData object on a given image. Returns the input image array.
 
+        Parameters
+        ----------
+        image_to_show
+            a numpy array representing the image to show.
+        image_data
+            the ImageData object that contains the centroids to show.
+        dot_radius
+            the size of the dot.
+        dot_color
+            the color of each dot.
+        """
         # Draw each centroid from the image
         for centroid in image_data.contour_centroids:
-            image_to_show = cv2.circle(image_to_show,
-                                       centroid,
-                                       radius=6,
-                                       color=(255, 0, 0),
-                                       thickness=-1)
+            image_to_show = circle(image_to_show,
+                                   centroid,
+                                   radius=dot_radius,
+                                   color=dot_color,
+                                   thickness=-1)
         return image_to_show
 
-    def add_cross_and_centroids_on_image(self, image_to_show: np.array, image_data: ImageData):
+    def add_cross_and_centroids_on_image(self, image_to_show: array, image_data: ImageData):
+        """
+        Add both a cross and the centroids from a given ImageData object to a given image array.
+        This function draws the centroids, then the cross. Returns the input image array.
+
+        Parameters
+        ----------
+        image_to_show
+            a numpy array representing the image to show.
+        image_data
+            the ImageData object that contains the centroids to show.
+        """
         return self.add_cross_to_image(self.add_centroids_on_image(image_to_show, image_data))
 
-
     @staticmethod
-    def create_mask_display_array(mask: np.array, multiplier: int = 255):
-        return np.uint8(mask * multiplier)
-
-
-def user_input_crop_coordinates(image_data: ImageData, crop_coordinates: list = None, ):
-    """
-    Prompt the user to select coordinates to crop the image.
-    """
-
-    # Do nothing if the user chooses not to crop the image.
-    if crop_coordinates is None:
-
-        # Define window name
-        window_name = "Image Crop Selection"
-
-        # Ask the user if they would like to crop the image.
-        # crop_input = input("Would you like to crop the image? (y/n)\n")
-
-        # Define characteristics of the shapes to show on the image
-        point_color = (0, 0, 255)
-        point_radius = 3
-        line_color = (0, 255, 0)
-        line_thickness = 1
-        box_color = (0, 255, 0)
-        box_thickness = 1
-
-        # Create a copy of the original image to prevent damaging the original object
-        temp_image_array = copy(image_data.original_image)
-
-        # Add text to the image informing the user
-        temp_image_array = display_text_on_image(temp_image_array,
-                                                 "Select the upper left-hand crop corner." +
-                                                 " Press any key to continue.")
-
-        # Display the image for the user
-        cv2.imshow(window_name, temp_image_array)
-
-        # Define a variable to store the result of the user's click
-        first_corner = [int(0), int(0)]
-
-        # Ask user to select the first corner to use to crop the image
-        cv2.setMouseCallback(window_name, click_event, first_corner)
-        cv2.waitKey(0)
-
-        # Recopy the original image to clear the previous text
-        temp_image_array = copy(image_data.original_image)
-
-        # Display a circle at the point selected to assist the user
-        temp_image_array = cv2.circle(temp_image_array, first_corner, point_radius,
-                                      point_color, -1)
-
-        # Display two lines to show how the image has been cropped so far
-        temp_image_array = cv2.line(temp_image_array, (first_corner[0], first_corner[1]),
-                                    (first_corner[0], temp_image_array.shape[0]),
-                                    line_color, line_thickness)
-        temp_image_array = cv2.line(temp_image_array, (first_corner[0], first_corner[1]),
-                                    (temp_image_array.shape[1], first_corner[1]),
-                                    line_color, line_thickness)
-
-        # Display text to assist the user
-        temp_image_array = display_text_on_image(temp_image_array,
-                                                 "Select the lower right-hand crop corner." +
-                                                 " Press any key to continue.")
-        # Show the new image to the user
-        cv2.imshow(window_name, temp_image_array)
-
-        # Define a variable to store the result of the user's click
-        second_corner = [int(image_data.original_image.shape[1] - 1), int(image_data.original_image.shape[0] - 1)]
-
-        # Ask the user to select the corner to use to crop the image
-        cv2.setMouseCallback(window_name, click_event, second_corner)
-        cv2.waitKey(0)
-
-        # Ensure that the second corner was chosen properly
-        if not (second_corner[0] > first_corner[0] and second_corner[1] > first_corner[1]):
-            raise Exception("Second corner was not selected below and to the right of the first.")
-
-        # Recopy the original image to clear the previous annotations
-        temp_image_array = copy(image_data.original_image)
-
-        # Draw a rectangle to show how the image will be cropped
-        temp_image_array = cv2.rectangle(temp_image_array, first_corner, second_corner, box_color, box_thickness)
-
-        # Display text to assist the user
-        temp_image_array = display_text_on_image(temp_image_array,
-                                                 "Preview of crop region." +
-                                                 " Press any key to continue.")
-
-        # Show the new image to the user
-        cv2.imshow(window_name, temp_image_array)
-        cv2.waitKey(0)
-
-        # Destroy all windows when finished
-        cv2.destroyAllWindows()
-
-        # Display the points selected for the user
-        print("1st Corner: (" + str(first_corner[0]) + ", " + str(first_corner[1]) + ")\n" +
-              "2nd Corner: (" + str(second_corner[0]) + ", " + str(second_corner[1]) + ")")
-
-        # Return the points selected
-        return [first_corner, second_corner]
-
-    else:
-        # Return the points passed in
-        return crop_coordinates
-
-
-def user_input_polygon_points(image_data: ImageData, polygon_use: str, list_of_points: list = None):
-    # Do nothing if the background points have been passed in
-    if list_of_points is None:
-        # Define a window name to display
-        window_name = 'Image Background Selection'
-
-        # Define colors to use for displaying information
-        point_color = (0, 0, 255)
-
-        # Create a copy of the image array so that the original is not changed
-        temp_image_array = copy(image_data.cropped_image)
-
-        # Add text to the image to inform the user what needs to happen.
-        temp_image_array = display_text_on_image(temp_image_array,
-                                                 'Select points to define the border',
-                                                 text_origin=(5, 10), text_size=0.375)
-        temp_image_array = display_text_on_image(temp_image_array,
-                                                 'of the ' + polygon_use + ".",
-                                                 text_origin=(5, 20), text_size=0.375)
-        temp_image_array = display_text_on_image(temp_image_array,
-                                                 'Press any key to continue.',
-                                                 text_origin=(5, 30), text_size=0.375)
-        # Show the image in the properly named window
-        cv2.imshow(window_name, temp_image_array)
-
-        # Initialize the additional inputs needed for the mouseclick callback function
-        list_of_points = []
-        list_of_line_colors = []
-        callback_inputs = [temp_image_array, point_color, window_name, list_of_line_colors, list_of_points]
-
-        # Set the callback function
-        cv2.setMouseCallback(window_name, boundary_click_event, callback_inputs)
-
-        # Wait for the user to close the window
-        cv2.waitKey(0)
-
-        # Ensure that at least three points have been selected
-        if len(list_of_points) < 3:
-            raise Exception("Not enough points were selected to make a polygon." +
-                            " At least 3 points must be selected.")
-
-        """list_of_triangles = create_convex_triangles_from_points(list_of_points)
-
-        temp_image_array = copy(image_data.cropped_image)
-        temp_image_array = display_text_on_image(temp_image_array, "Preview of " + polygon_use + " triangles.",
-                                                 text_origin=(5, 10), text_size=0.375)
-        for triangle in list_of_triangles:
-            this_image_array = copy(temp_image_array)
-            this_image_array = cv2.polylines(this_image_array, [np.array(triangle).reshape((-1, 1, 2))], True,
-                                             (0, 0, 255), 2)
-            cv2.imshow(window_name, this_image_array)
-            cv2.waitKey(0)"""
-
-        # Destroy the window when the input is complete
-        cv2.destroyWindow(window_name)
-
-        # Return the list of points generated by the user
-        print(list_of_points)
-        return list_of_points
-
-    else:
-        # Return points passed into the function
-        return list_of_points
-
-
-def boundary_click_event(event: int, x, y, flags, additional_inputs: list):
-    """
-    Mouse-click callback function to capture a mouse click, draw a dot, and connect previously selected points
-    together with a randomly colored line.
-    """
-
-    # Only do something when the left mouse button has been clicked
-    if event == cv2.EVENT_LBUTTONDOWN:
-
-        # Create a new copy of the image to annotate
-        temp_image_array = copy(additional_inputs[0])
-
-        # Rename the individual additional_inputs for clarity
-        list_of_points = additional_inputs[-1]
-        list_of_colors = additional_inputs[-2]
-        point_color = additional_inputs[1]
-        window_name = additional_inputs[2]
-
-        # Define attributes of the drawn elements
-        point_radius = 3
-        intermediate_line_width = 1
-        final_line_color = (255, 255, 255)
-        final_line_width = 2
-
-        # Add the newly selected point to the list of existing points
-        list_of_points.append((x, y))
-
-        # Iterate through the list of points to show them on the image
-        for point in list_of_points:
-            temp_image_array = cv2.circle(temp_image_array, point, point_radius, point_color, -1)
-
-        # Connect the points together with lines
-        # There must be at least 2 points for this to occur
-        if len(list_of_points) > 1:
-
-            # Create a new color to use for the line and save it for future use
-            list_of_colors.append(generate_random_color())
-
-            # Iterate through the list of points to draw each line using the appropriate color
-            for i in range(1, len(list_of_points)):
-                temp_image_array = cv2.line(temp_image_array, list_of_points[i - 1], list_of_points[i],
-                                            list_of_colors[i - 1], intermediate_line_width)
-
-        # Connect the first and last point with a different line
-        # There must be at least three points selected for this to occur
-        if len(list_of_points) > 2:
-            temp_image_array = cv2.line(temp_image_array, list_of_points[0], list_of_points[-1],
-                                        final_line_color, final_line_width)
-
-        # Show the updated image
-        cv2.imshow(window_name, temp_image_array)
-
-
-def click_event(event: int, x, y, flags, additional_inputs: list):
-    """
-    Return the position selected on the click of a mouse.
-    """
-
-    # Do nothing until the left mouse button is clicked
-    if event == cv2.EVENT_LBUTTONDOWN:
-        # Save the click location
-        additional_inputs[0] = int(x)
-        additional_inputs[1] = int(y)
-
-
-def display_text_on_image(image: np.array, text: str, text_origin: tuple = (15, 35), text_color: tuple = (128, 0, 128),
-                          text_size: float = 0.5):
-    """
-    Use the cv2 built-in method to add text to an image.
-    """
-    return cv2.putText(image, text, text_origin, cv2.FONT_HERSHEY_SIMPLEX, text_size, text_color, thickness=1,
-                       bottomLeftOrigin=False)
-
-
-def generate_random_color(num_channels: int = 3, color_value_type: type = np.uint8):
-    """
-    Generate a random color.
-    """
-
-    # Select the maximum color value based on the color value type
-    # Raise an exception if the color value type is not recognized
-    if color_value_type == np.uint8:
-        max_value = 255
-    elif color_value_type == float:
-        max_value = 1
-    else:
-        raise Exception("Image value type not recognized. Only float or uint8 accepted.")
-
-    # Create a color based on the number of channels in the image and the maximum color value selected above
-    # Raise an exception if the number of channels in the image is not recognized
-    if num_channels == 3:
-        color = [1, 1, 1]
-        for i in range(len(color)):
-            color[i] = round(color[i] * random() * max_value)
-    elif num_channels == 1:
-        color = random() * max_value
-    else:
-        raise Exception('Number of channels not recognized. Only 1 or 3 channel images accepted.')
-
-    # Return a tuple as the color
-    return tuple(color)
-
-
-def create_convex_triangles_from_points(list_of_points: list):
-    # Create a triangulator object
-    triangulator = Triangulator()
-
-    # Iterate through each point in the list
-    for point in list_of_points:
-        # Add each point to the pool of vertices and then to the current polygon
-        triangulator.addPolygonVertex(triangulator.addVertex(x=point[0], y=point[1]))
-
-    # Create the triangles of the polygons
-    triangulator.triangulate()
-
-    # Define list to store polygons
-    list_of_triangles = []
-
-    # Add the indices for each triangle to the list of triangle indices
-    for i in range(triangulator.getNumTriangles()):
-        list_of_triangles.append([triangulator.getTriangleV0(i),
-                                  triangulator.getTriangleV1(i),
-                                  triangulator.getTriangleV2(i)])
-        for j in range(len(list_of_triangles[-1])):
-            vertex = triangulator.getVertex(list_of_triangles[-1][j])
-            list_of_triangles[-1][j] = [int(vertex.x), int(vertex.y)]
-
-    # Replace the triangle indices with the points themselves
-    return list_of_triangles
-
-
-if __name__ == "__main__":
-    test_list_of_points = [[0, 0], [1, 0], [1, 1], [0, 1]]
-
-    create_convex_triangles_from_points(test_list_of_points)
-
-    print("done")
+    def create_mask_display_array(mask: array, multiplier: int = 255):
+        """
+        Modifies a mask array so that it can be properly displayed.
+
+        Parameters
+        ----------
+        mask
+            a numpy array of the mask to display
+        multiplier
+            the value that all values in the mask will be multiplied by.
+        """
+        return uint8(mask * multiplier)

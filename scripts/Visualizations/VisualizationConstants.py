@@ -1,4 +1,6 @@
-
+"""
+Contains constants used to define visualizations.
+"""
 # Define a constant for each type of image stream
 IMG_SINGLE: int = 0
 IMG_CONTINUOUS: int = 1

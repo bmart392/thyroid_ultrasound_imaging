@@ -1,33 +1,41 @@
+"""
+A script to test image filters and visualization methods.
+"""
+# Import standard packages
 import numpy as np
+import cv2
+from copy import copy
 
+# Import custom packages and functions
 from scripts.ImageData.ImageData import ImageData, import_images_as_image_data_objects
+
 from scripts.Filters.ImageFilterThreshold import ImageFilterThreshold
 from scripts.Filters.ImageFilterGrabCut import ImageFilterGrabCut
 from scripts.Filters.ImageFilter import ImageFilter
-from scripts.Visualizations.Visualization import Visualization, user_input_polygon_points, user_input_crop_coordinates, \
-    create_convex_triangles_from_points
 from scripts.Filters.FilterConstants import COLOR_BGR
+
+from scripts.Visualizations.Visualization import Visualization
 from scripts.Visualizations.VisualizationConstants import *
-from scripts.Boundaries.get_average_value_from_triangles import get_threshold_values_from_triangles
+
+from scripts.UI.user_input_crop_coordinates import user_input_crop_coordinates
+from scripts.UI.user_input_polygon_points import user_input_polygon_points
+from scripts.UI.get_threshold_values_from_triangles import get_threshold_values_from_triangles
+
+from scripts.Boundaries.create_convex_triangles_from_points import create_convex_triangles_from_points
 from scripts.Boundaries.create_mask_array_from_triangles import create_mask_array_from_triangles
-import cv2
-from copy import copy
-import matplotlib.pyplot as plt
+
+# Define image series names
+SERIES_1: int = 1
+SERIES_2: int = 2
 
 if __name__ == '__main__':
-    input = False  # True = define input, false = use values
 
-    series = False  # False = series 2, True = series 1
+    # Define several controls to ease testing
+    capture_user_input = False  # True = define input, false = use values
+    image_series_to_use = SERIES_2  # See above for options
+    imaging_mode = IMG_CONTINUOUS  # Single or continuous
 
-    image_type = IMG_CONTINUOUS
-
-    # Read in images as array of images
-    if series:
-        images = import_images_as_image_data_objects('Images/Series1', COLOR_BGR, 30)  # Read images from Series 1
-    else:
-        images = import_images_as_image_data_objects('Images/Series2', COLOR_BGR, 20)  # Read images from Series 2
-
-    # Define list of visualizations to show
+    # Define the visualizations to display for each filter
     list_of_visualizations = [
         [
             # SHOW_ORIGINAL,
@@ -61,52 +69,59 @@ if __name__ == '__main__':
     ]
 
     # Create the visualization objects
-    visualizations = [Visualization(image_type, list_of_visualizations[0],
+    visualizations = [Visualization(imaging_mode, list_of_visualizations[0],
                                     visualization_title="Grabcut Filter", num_cols_in_fig=3),
-                      Visualization(image_type, list_of_visualizations[1],
+                      Visualization(imaging_mode, list_of_visualizations[1],
                                     visualization_title="Threshold Filter", num_cols_in_fig=3),
                       ]
 
-    # Save a test image
-    # test_image = ImageData(image_filepath='Images/Series2/Slice_30.png', image_color=COLOR_BGR)  # For Testing
-    test_image = images[0]  # For Running
+    # Read in images from the image series as arrays of image data objects
+    # Define saved image parameters for each series
+    if image_series_to_use == SERIES_1:
 
-    # Use GUI to find the crop coordinates for the image -> then save coordinates
-    if input:
-        image_crop_coordinates = user_input_crop_coordinates(test_image)
+        images = import_images_as_image_data_objects('Images/Series1', COLOR_BGR, 30)  # Read images from Series 1
+
+        image_crop_coordinates = [[328, 67], [540, 578]]  # Series 1 - Slice 30
+        list_of_points_for_background_polygon = [(21, 52), (183, 58), (173, 252), (27, 236)]  # Series 1 - Slice 30
+        list_of_points_for_foreground_polygon = [(102, 292), (157, 318), (101, 345)]  # Series 1 - Slice 30
+
+        thresholding_parameters = (100, 120)  # Series 1 - Slice 30
+
+    elif image_series_to_use == SERIES_2:
+
+        images = import_images_as_image_data_objects('Images/Series2', COLOR_BGR, 20)  # Read images from Series 2
+
+        image_crop_coordinates = [[198, 197], [538, 494]]  # Series 2 - Slice 20
+        list_of_points_for_background_polygon = [(2, 2), (334, 6), (321, 131), (163, 134), (49, 142),
+                                                 (23, 179)]  # Series 2 - Slice 20
+        list_of_points_for_foreground_polygon = [(27, 212), (128, 157), (58, 259)]  # Series 2 - Slice 20
+
+        thresholding_parameters = (80, 110)  # Series 2 - Slice 20
+
     else:
-        if series:
-            image_crop_coordinates = [[328, 67], [540, 578]]  # Series 1 - Slice 30
-        else:
-            image_crop_coordinates = [[198, 197], [538, 494]]  # Series 2 - Slice 30
+        raise Exception("Series choice not recognized.")
 
-    image_filter = ImageFilter()
-    image_filter.image_crop_included = True
-    image_filter.image_crop_coordinates = image_crop_coordinates
+    # Save an image for the user to annotate and to create the initial mask
+    test_image = images[0]
+
+    # If user input is required, overwrite the saved parameters for the series
+    if capture_user_input:
+        # Capture the image crop coordinates from the user
+        image_crop_coordinates = user_input_crop_coordinates(test_image)
+
+        # Capture the background of the image from the user
+        list_of_points_for_background_polygon = user_input_polygon_points(test_image, "background")
+
+        # Capture the foreground of the image from the user
+        list_of_points_for_foreground_polygon = user_input_polygon_points(test_image, "foreground")
+
+    # Create an ImageFilter object to crop the image so that the initial mask can be generated
+    image_filter = ImageFilter(image_crop_coordinates=image_crop_coordinates)
+
     # Crop the test image
     test_image = image_filter.crop_image(test_image)
 
-    # Select the background points -> then save the coordinates
-    #
-    if input:
-        list_of_points_for_background_polygon = user_input_polygon_points(test_image, "background")
-    else:
-        if series:
-            list_of_points_for_background_polygon = [(21, 52), (183, 58), (173, 252), (27, 236)]  # Series 1 - Slice 30
-        else:
-            list_of_points_for_background_polygon = [(2, 2), (334, 6), (321, 131), (163, 134), (49, 142),
-                                             (23, 179)]  # Series 1 - Slice 30
-
-    # Select the foreground points -> then save the coordinates
-    if input:
-        list_of_points_for_foreground_polygon = user_input_polygon_points(test_image, "foreground")
-    else:
-        if series:
-            list_of_points_for_foreground_polygon = [(102, 292), (157, 318), (101, 345)]  # Series 1 - Slice 30
-        else:
-            list_of_points_for_foreground_polygon = [(27, 212), (128, 157), (58, 259)]  # Series 1 - Slice 30
-
-    # Convert the points to triangles
+    # Convert the points of the background and foreground polygons to triangles
     list_of_background_triangles = create_convex_triangles_from_points(list_of_points_for_background_polygon)
     list_of_foreground_triangles = create_convex_triangles_from_points(list_of_points_for_foreground_polygon)
 
@@ -114,14 +129,11 @@ if __name__ == '__main__':
     initial_mask = create_mask_array_from_triangles(list_of_background_triangles, list_of_foreground_triangles,
                                                     test_image.cropped_image.shape[:2])
 
+    # Use the user input to generate the thresholding values for the threshold filter
     """list_of_points_for_thresholding = user_input_polygon_points(test_image, "Threshold Values")
     list_of_polygons_for_thresholding = create_convex_triangles_from_points(list_of_points_for_thresholding)
-    thresholding_parameters = get_average_value_from_triangles(list_of_polygons_for_thresholding, test_image.original_image)
-"""
-    if series:
-        thresholding_parameters = (100, 120)
-    else:
-        thresholding_parameters = (80, 110)
+    thresholding_parameters = get_threshold_values_from_triangles(list_of_polygons_for_thresholding,
+                                                                  test_image.original_image)"""
 
     # Create the image filters
     image_filters = [ImageFilterGrabCut(initial_mask,
@@ -137,43 +149,21 @@ if __name__ == '__main__':
                                           thresholding_parameters=thresholding_parameters),
                      ]
 
-    # Run the algorithm
-    # images = [test_image]
-
-    """user_created_mask_shapes = [
-        # (ShapeTypes.RECTANGLE, RectangleTypes.FLAT_CORNER, 170, 110, 300 - 170, 260 - 110, None, 'red', cv2.GC_BGD),
-        # (ShapeTypes.CIRCLE, None, 240, 150, None, None, 70, 'red', cv2.GC_BGD),
-        (ShapeTypes.CIRCLE, None, 110, 325, None, None, 50, 'green', cv2.GC_FGD),
-        (ShapeTypes.RECTANGLE, RectangleTypes.FLAT_CORNER, 0, 0, 200 - 0, 225 - 0, None, 'red', cv2.GC_BGD),
-        (ShapeTypes.RECTANGLE, RectangleTypes.FLAT_CORNER, 0, 420, 200 - 0, 490 - 420, None, 'red', cv2.GC_BGD),
-        (ShapeTypes.RECTANGLE, RectangleTypes.FLAT_CORNER, 0, 0, 25 - 0, 490 - 0, None, 'red', cv2.GC_BGD),
-        # (ShapeTypes.RECTANGLE, RectangleTypes.FLAT_CORNER, 70, 120, 120 - 70, 180 - 120, None, 'green', cv2.GC_FGD),
-        # (ShapeTypes.RECTANGLE, RectangleTypes.FLAT_CORNER, 335, 110, 385 - 335, 175 - 110, None, 'green', cv2.GC_FGD)
-    ]
-
-    image_crop_coordinates = [[330, 75], [530, 575]]
-    # image_crop_coordinates = [[150, 200], [550, 480]]
-
-    user_created_mask = create_mask_array(user_created_mask_shapes,
-                                          (image_crop_coordinates[1][1] - image_crop_coordinates[0][1],
-                                           image_crop_coordinates[1][0] - image_crop_coordinates[0][0]))"""
-
-    # a = input("Press Enter to Run.")
-
+    # Initialize an empty array to hold the confidence map
     confidence_map = np.zeros(test_image.original_image.shape[:2])
 
-    # Test with the first image
-    # for image_data in [ImageData(image_filepath='Images/Series1/Slice_30.png', image_color=COLOR_BGR)]:
-    # for image_data in [ImageData(image_filepath='Images/Series2/Slice_20.png', image_color=COLOR_BGR)]:
+    # Filter each image in the series
     for image_data in images:
 
-        confidence_map = confidence_map / 4
+        # Reduce the confidence of all cells in the map due to time having elapsed
+        # TODO the temporal confidence value will need tuning
+        confidence_map = confidence_map * .25  # This is the temporal confidence
 
+        # For each image filter and visualization pair, segment the image and show the results
         for image_filter, visualization in zip(image_filters, visualizations):
+
             # Create a temporary copy of the image data
             temp_image_data: ImageData = copy(image_data)
-
-            print(temp_image_data.image_title)
 
             # Fully filter the image data
             image_filter.fully_filter_image(temp_image_data)
@@ -187,20 +177,24 @@ if __name__ == '__main__':
             # Visualize the result
             visualization.visualize_images(temp_image_data)
 
+            # If using a grabcut filter, update the filter to use the previous_image_mask
+            # rather than the user_defined_mask.
             if type(image_filter) is ImageFilterGrabCut:
                 image_filter.use_previous_image_mask = True
 
-            # a = input("Press Enter to Continue.")
-
+            # Update the confidence map with the new data acquired by the segmentations
+            # TODO the confidence weights for each filter will need tuning
             if type(image_filter) is ImageFilterGrabCut:
                 confidence_map = confidence_map + 0.375 * temp_image_data.expanded_image_mask
-            if image_filter is ImageFilterThreshold:
+            if type(image_filter) is ImageFilterThreshold:
                 confidence_map = confidence_map + 0.375 * temp_image_data.expanded_image_mask
 
+        # Show the updated confidence map
         cv2.imshow("Confidence Map", np.uint8(confidence_map * 255))
         cv2.waitKey(1)
 
+        # Overlay the confidence map on to the original image
+        # TODO the confidence map should be overlaid onto the original image
         """cv2.imshow("Confidence Map Segmentation",
                    np.uint8(visualization.create_mask_overlay_array(temp_image_data.original_image,
                                                            confidence_map, 1)))"""
-    # Use this function to wait for user input
