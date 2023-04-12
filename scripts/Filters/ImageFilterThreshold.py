@@ -80,8 +80,8 @@ class ImageFilterThreshold(ImageFilter):
             # mask_manipulation_sequence = []
             mask_manipulation_sequence = [
                 # (MASK_RECT, (4, 4), 2),
-                (MASK_CLOSE, (10, 10), 1),  # (10, 10, 1)
-                (MASK_ERODE, (6, 6), 2),  # (10, 10, 1)
+                # (MASK_CLOSE, (10, 10), 1),  # (10, 10, 1)
+                # (MASK_ERODE, (6, 6), 2),  # (10, 10, 1)
                 # (MASK_OPEN, (5, 5), 1),
             ]
         self.mask_manipulation_sequence = mask_manipulation_sequence

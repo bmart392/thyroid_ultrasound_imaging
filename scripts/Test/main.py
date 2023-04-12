@@ -96,7 +96,7 @@ if __name__ == '__main__':
                                                  (23, 179)]  # Series 2 - Slice 20
         list_of_points_for_foreground_polygon = [(27, 212), (128, 157), (58, 259)]  # Series 2 - Slice 20
 
-        thresholding_parameters = (80, 110)  # Series 2 - Slice 20
+        thresholding_parameters = (69, 124)  # Series 2 - Slice 20
 
     else:
         raise Exception("Series choice not recognized.")
@@ -110,10 +110,20 @@ if __name__ == '__main__':
         image_crop_coordinates = user_input_crop_coordinates(test_image)
 
         # Capture the background of the image from the user
-        list_of_points_for_background_polygon = user_input_polygon_points(test_image, "background")
+        list_of_points_for_background_polygon = user_input_polygon_points(test_image, "background",
+                                                                          display_result=True)
 
         # Capture the foreground of the image from the user
-        list_of_points_for_foreground_polygon = user_input_polygon_points(test_image, "foreground")
+        list_of_points_for_foreground_polygon = user_input_polygon_points(test_image, "foreground",
+                                                                          display_result=True)
+
+        # Use the user input to generate the thresholding values for the threshold filter
+        list_of_points_for_thresholding = user_input_polygon_points(test_image, "threshold value generation area")
+        list_of_polygons_for_thresholding = create_convex_triangles_from_points(list_of_points_for_thresholding)
+        thresholding_parameters = get_threshold_values_from_triangles(list_of_polygons_for_thresholding,
+                                                                      test_image.cropped_image,
+                                                                      num_standard_deviations=1.75,
+                                                                      display_result=True)
 
     # Create an ImageFilter object to crop the image so that the initial mask can be generated
     image_filter = ImageFilter(image_crop_coordinates=image_crop_coordinates)
@@ -128,12 +138,6 @@ if __name__ == '__main__':
     # Use the polygons to generate the initial mask
     initial_mask = create_mask_array_from_triangles(list_of_background_triangles, list_of_foreground_triangles,
                                                     test_image.cropped_image.shape[:2])
-
-    # Use the user input to generate the thresholding values for the threshold filter
-    """list_of_points_for_thresholding = user_input_polygon_points(test_image, "Threshold Values")
-    list_of_polygons_for_thresholding = create_convex_triangles_from_points(list_of_points_for_thresholding)
-    thresholding_parameters = get_threshold_values_from_triangles(list_of_polygons_for_thresholding,
-                                                                  test_image.original_image)"""
 
     # Create the image filters
     image_filters = [ImageFilterGrabCut(initial_mask,
