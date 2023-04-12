@@ -19,7 +19,7 @@ from scripts.Visualizations.VisualizationConstants import *
 
 from scripts.UI.user_input_crop_coordinates import user_input_crop_coordinates
 from scripts.UI.user_input_polygon_points import user_input_polygon_points
-from scripts.UI.get_threshold_values_from_triangles import get_threshold_values_from_triangles
+from scripts.UI.get_threshold_values_user_input import get_threshold_values_from_user_input
 
 from scripts.Boundaries.create_convex_triangles_from_points import create_convex_triangles_from_points
 from scripts.Boundaries.create_mask_array_from_triangles import create_mask_array_from_triangles
@@ -118,12 +118,9 @@ if __name__ == '__main__':
                                                                           display_result=True)
 
         # Use the user input to generate the thresholding values for the threshold filter
-        list_of_points_for_thresholding = user_input_polygon_points(test_image, "threshold value generation area")
-        list_of_polygons_for_thresholding = create_convex_triangles_from_points(list_of_points_for_thresholding)
-        thresholding_parameters = get_threshold_values_from_triangles(list_of_polygons_for_thresholding,
-                                                                      test_image.cropped_image,
-                                                                      num_standard_deviations=1.75,
-                                                                      display_result=True)
+        thresholding_parameters = get_threshold_values_from_user_input(test_image,
+                                                                       num_standard_deviations=1.75,
+                                                                       display_result=True)
 
     # Create an ImageFilter object to crop the image so that the initial mask can be generated
     image_filter = ImageFilter(image_crop_coordinates=image_crop_coordinates)
