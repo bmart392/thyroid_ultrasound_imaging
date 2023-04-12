@@ -6,7 +6,7 @@ from numpy import uint8, ones
 from cv2 import GC_PR_BGD, GC_BGD, GC_FGD
 
 # Import custom objects
-from scripts.Boundaries.BoundingSet import BoundingSet
+from scripts.a_Boundaries.BoundingSet import BoundingSet
 
 
 def create_mask_array_from_triangles(list_of_background_triangles: list, list_of_foreground_triangles: list,

@@ -4,7 +4,7 @@ from ImagePositioningController import *
 
 if __name__ == '__main__':
 
-    # ROS node startup stuff
+    # f_ROS node startup stuff
     node_is_running = True
 
     # Set up to subscribe to the image size topic

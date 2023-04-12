@@ -8,10 +8,10 @@ from numpy import array, zeros, ones, uint8, newaxis, where, repeat
 from cv2 import GC_BGD, GC_PR_BGD, imshow, waitKey, line, circle
 
 # Import custom constants
-from scripts.Visualizations.VisualizationConstants import *
+from scripts.d_Visualizations.VisualizationConstants import *
 
 # Import custom objects
-from scripts.ImageData.ImageData import ImageData
+from scripts.b_ImageData.ImageData import ImageData
 
 # TODO Fill in missing visualization schemes
 

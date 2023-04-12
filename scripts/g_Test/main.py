@@ -7,22 +7,22 @@ import cv2
 from copy import copy
 
 # Import custom packages and functions
-from scripts.ImageData.ImageData import ImageData, import_images_as_image_data_objects
+from scripts.b_ImageData.ImageData import ImageData, import_images_as_image_data_objects
 
-from scripts.Filters.ImageFilterThreshold import ImageFilterThreshold
-from scripts.Filters.ImageFilterGrabCut import ImageFilterGrabCut
-from scripts.Filters.ImageFilter import ImageFilter
-from scripts.Filters.FilterConstants import COLOR_BGR
+from scripts.c_Filters.ImageFilterThreshold import ImageFilterThreshold
+from scripts.c_Filters.ImageFilterGrabCut import ImageFilterGrabCut
+from scripts.c_Filters.ImageFilter import ImageFilter
+from scripts.c_Filters.FilterConstants import COLOR_BGR
 
-from scripts.Visualizations.Visualization import Visualization
-from scripts.Visualizations.VisualizationConstants import *
+from scripts.d_Visualizations.Visualization import Visualization
+from scripts.d_Visualizations.VisualizationConstants import *
 
-from scripts.UI.user_input_crop_coordinates import user_input_crop_coordinates
-from scripts.UI.user_input_polygon_points import user_input_polygon_points
-from scripts.UI.get_threshold_values_user_input import get_threshold_values_from_user_input
+from scripts.e_UI.user_input_crop_coordinates import user_input_crop_coordinates
+from scripts.e_UI.user_input_polygon_points import user_input_polygon_points
+from scripts.e_UI.get_threshold_values_user_input import get_threshold_values_from_user_input
 
-from scripts.Boundaries.create_convex_triangles_from_points import create_convex_triangles_from_points
-from scripts.Boundaries.create_mask_array_from_triangles import create_mask_array_from_triangles
+from scripts.a_Boundaries.create_convex_triangles_from_points import create_convex_triangles_from_points
+from scripts.a_Boundaries.create_mask_array_from_triangles import create_mask_array_from_triangles
 
 # Define image series names
 SERIES_1: int = 1

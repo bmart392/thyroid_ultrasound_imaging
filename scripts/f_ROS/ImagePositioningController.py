@@ -1,7 +1,7 @@
 from numpy import radians
 
 from geometry_msgs.msg import TwistStamped
-from scripts.ImageData.ImageData import ImageData
+from scripts.b_ImageData.ImageData import ImageData
 
 
 class ImagePositioningController:

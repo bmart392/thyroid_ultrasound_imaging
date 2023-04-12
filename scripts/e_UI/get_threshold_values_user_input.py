@@ -5,12 +5,12 @@ Contains get_threshold_values_from_triangle function.
 from numpy import array, std, median
 
 # Import custom objects
-from scripts.Boundaries.BoundingSet import BoundingSet
-from scripts.ImageData.ImageData import ImageData
+from scripts.a_Boundaries.BoundingSet import BoundingSet
+from scripts.b_ImageData.ImageData import ImageData
 
 # Import custom functions
-from scripts.UI.user_input_polygon_points import user_input_polygon_points
-from scripts.Boundaries.create_convex_triangles_from_points import create_convex_triangles_from_points
+from scripts.e_UI.user_input_polygon_points import user_input_polygon_points
+from scripts.a_Boundaries.create_convex_triangles_from_points import create_convex_triangles_from_points
 
 
 def get_threshold_values_from_user_input(image_data: ImageData,

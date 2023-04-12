@@ -1,19 +1,25 @@
 #!/usr/bin/env python3
-# import cv2
-# from cv_bridge.boost.cv_bridge_boost import getCvType
 
-from numpy import frombuffer, reshape  # , ones, sign
+"""
+File containing ImageFiterNode class definition and ROS running code.
+"""
 
-import rospy
-# from math import sin
-# import timeit
+# Import standard packages
+from numpy import frombuffer, reshape, uint8  # , ones, sign
 from cv_bridge import CvBridgeError  # , CvBridge
+from time import time
+
+# Import f_ROS packages
+import rospy
 from geometry_msgs.msg import TwistStamped  # , Twist
-from scripts.Filters.ImageFilterThreshold import *
-from scripts.ImagePositioningController import ImagePositioningController
 from sensor_msgs.msg import Image
 from std_msgs.msg import Bool  # ,Float64, String, UInt32MultiArray
-from scripts.Filters.FilterConstants import display_process_timer
+
+# Import custom objects and functions
+from scripts.b_ImageData.ImageData import ImageData
+from scripts.c_Filters.ImageFilterThreshold import ImageFilterThreshold
+from scripts.f_ROS.ImagePositioningController import ImagePositioningController
+from scripts.c_Filters.ImageFilter import display_process_timer
 
 
 class ImageFilterNode:
@@ -216,7 +222,7 @@ class ImageFilterNode:
                 start_of_process_time = display_process_timer(start_of_process_time, "Image conversion time",
                                                               self.analysis_mode)
 
-                # Show original image received from the ROS topic
+                # Show original image received from the f_ROS topic
                 # cv2.imshow("original image", cv_image)
                 # cv2.waitKey(1)
 

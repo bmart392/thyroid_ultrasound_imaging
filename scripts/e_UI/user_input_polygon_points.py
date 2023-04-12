@@ -7,11 +7,11 @@ from cv2 import imshow, waitKey, destroyWindow, line, circle, \
     setMouseCallback, EVENT_LBUTTONDOWN
 
 # Import custom objects
-from scripts.ImageData.ImageData import ImageData
+from scripts.b_ImageData.ImageData import ImageData
 
 # Import custom functions
-from scripts.Visualizations.display_text_on_image import display_text_on_image
-from scripts.Visualizations.generate_random_color import generate_random_color
+from scripts.d_Visualizations.display_text_on_image import display_text_on_image
+from scripts.d_Visualizations.generate_random_color import generate_random_color
 
 
 def user_input_polygon_points(image_data: ImageData, polygon_use: str, list_of_points: list = None,

@@ -2,7 +2,7 @@
 Define object class for threshold-based image filters.
 """
 # Import constants and image statements used in all filter objects
-from scripts.Filters.ImageFilter import *
+from scripts.c_Filters.ImageFilter import *
 
 
 class ImageFilterThreshold(ImageFilter):

@@ -10,10 +10,10 @@ from copy import copy
 from skimage.restoration import denoise_nl_means, estimate_sigma
 
 # Import custom objects
-from scripts.ImageData.ImageData import ImageData
+from scripts.b_ImageData.ImageData import ImageData
 
 # Import custom constants
-from scripts.Filters.FilterConstants import *
+from scripts.c_Filters.FilterConstants import *
 
 
 class ImageFilter:

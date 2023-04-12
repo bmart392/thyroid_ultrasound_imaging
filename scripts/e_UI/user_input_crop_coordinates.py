@@ -7,10 +7,10 @@ from cv2 import imshow, waitKey, destroyAllWindows, \
     line, rectangle, setMouseCallback, EVENT_LBUTTONDOWN
 
 # Import custom objects
-from scripts.ImageData.ImageData import ImageData
+from scripts.b_ImageData.ImageData import ImageData
 
 # Import custom functions
-from scripts.Visualizations.display_text_on_image import display_text_on_image
+from scripts.d_Visualizations.display_text_on_image import display_text_on_image
 
 
 def user_input_crop_coordinates(image_data: ImageData, crop_coordinates: list = None):

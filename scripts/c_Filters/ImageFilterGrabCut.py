@@ -3,7 +3,7 @@ Define object class for GrabCut based image filters.
 """
 
 # Import the super-class for all image filters
-from scripts.Filters.ImageFilter import *
+from scripts.c_Filters.ImageFilter import *
 
 
 class ImageFilterGrabCut(ImageFilter):

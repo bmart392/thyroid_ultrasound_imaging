@@ -3,7 +3,7 @@ Contains the BoundingSet class.
 """
 # Import standard packages
 from numpy import sign
-from scripts.Boundaries.BoundaryPrimitive import BoundaryPrimitive
+from scripts.a_Boundaries.BoundaryPrimitive import BoundaryPrimitive
 
 
 class BoundingSet:
