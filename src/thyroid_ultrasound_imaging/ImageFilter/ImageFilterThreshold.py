@@ -2,7 +2,8 @@
 Define object class for threshold-based image filters.
 """
 # Import constants and image statements used in all filter objects
-from scripts.c_Filters.ImageFilter import *
+from thyroid_ultrasound_imaging.ImageFilter.ImageFilter import *
+from thyroid_ultrasound_imaging.UserInput.get_threshold_values_user_input import get_threshold_values_from_user_input
 
 
 class ImageFilterThreshold(ImageFilter):
@@ -217,4 +218,14 @@ class ImageFilterThreshold(ImageFilter):
         # TODO - Implement this function properly
         image_data.probable_foreground_mask = np.ones(image_data.expanded_image_mask.shape[:2], np.uint8)
 
+    def generate_threshold_parameters(self, image_data: ImageData):
+        """
+        Prompt the user to select the region of the image to use to generate the thresholding parameters.
 
+        Parameters
+        ----------
+        image_data
+            The ImageData object containing the image the user will annotate.
+        """
+        self.thresholding_parameters = get_threshold_values_from_user_input(image_data.cropped_image,
+                                                                            num_standard_deviations=1.75)

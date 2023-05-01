@@ -7,13 +7,16 @@ from time import time
 import numpy as np
 import cv2
 from copy import copy
-from skimage.restoration import denoise_nl_means, estimate_sigma
 
 # Import custom objects
-from scripts.b_ImageData.ImageData import ImageData
+from thyroid_ultrasound_imaging.ImageData.ImageData import ImageData
 
 # Import custom constants
-from scripts.c_Filters.FilterConstants import *
+from thyroid_ultrasound_imaging.ImageFilter.FilterConstants import *
+
+# Import custom functions
+from thyroid_ultrasound_imaging.Visualization.display_process_timer import display_process_timer
+from thyroid_ultrasound_imaging.UserInput.user_input_crop_coordinates import user_input_crop_coordinates
 
 
 class ImageFilter:
@@ -36,10 +39,7 @@ class ImageFilter:
         self.image_crop_included: bool = image_crop_included
         self.image_crop_coordinates: np.array = image_crop_coordinates
         self.filter_color = None
-        self.use_previous_image_mask = False
         self.previous_image_mask_array = None
-        self.user_created_mask = None
-        self.user_created_mask = None
         self.debug_mode: bool = False
         self.analysis_mode: bool = False
         self.increase_contrast: bool = False
@@ -57,10 +57,6 @@ class ImageFilter:
         image_data
             the ImageData object containing the image to be filtered.
         """
-
-        # If the previous image mask is not set, use the user_created_mask
-        if not self.use_previous_image_mask:
-            self.previous_image_mask_array = self.user_created_mask
 
         # record the current time for timing each process
         start_of_process_time = time()
@@ -256,7 +252,7 @@ class ImageFilter:
 
     def display_process_timer(self, start_of_process_time, message) -> float:
         """
-        Display the amount of time a process ran in milliseconds.
+        Display the amount of time a process ran in milliseconds. Returns the current time of the function call.
 
         Parameters
         ----------
@@ -266,6 +262,22 @@ class ImageFilter:
         message: str
             Description to display with the measured time.
         """
-        if self.analysis_mode:
-            print(message + " (ms): ", round((time() - start_of_process_time) * 1000, 4))
-        return time()
+        return display_process_timer(start_of_process_time, message, self.analysis_mode)
+
+    def generate_crop_coordinates(self, image_data: ImageData):
+        """
+        Prompt the user to crop the image correctly. Then crop the passed in image.
+
+        Parameters
+        ----------
+        image_data
+            The ImageData object containing the image to be cropped.
+        """
+        self.image_crop_coordinates = user_input_crop_coordinates(image_data.original_image)
+        self.crop_image(image_data)
+
+    def generate_previous_mask_from_user_input(self, image_data: ImageData):
+        raise Exception("This function was not overridden as expected.")
+
+    def generate_threshold_parameters(self, image_data: ImageData):
+        raise Exception("This function was not overridden as expected.")

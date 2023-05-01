@@ -6,7 +6,7 @@ from numpy import uint8, ones
 from cv2 import GC_PR_BGD, GC_BGD, GC_FGD
 
 # Import custom objects
-from scripts.a_Boundaries.BoundingSet import BoundingSet
+from thyroid_ultrasound_imaging.Boundaries.BoundingSet import BoundingSet
 
 
 def create_mask_array_from_triangles(list_of_background_triangles: list, list_of_foreground_triangles: list,
@@ -47,7 +47,7 @@ def create_mask_array_from_triangles(list_of_background_triangles: list, list_of
 
             # Check if the given element is contained within the background, foreground, or neither
             for background_set in background_bounding_sets:
-                if background_set.is_point_within_set((x, y)):
+                if background_set.is_point_within_set([x, y]):
 
                     # Note that the location was found in a boundary
                     was_location_background = True
@@ -61,7 +61,7 @@ def create_mask_array_from_triangles(list_of_background_triangles: list, list_of
             if not was_location_background:
                 # Check if the given element is contained within the background, foreground, or neither
                 for foreground_set in foreground_bounding_sets:
-                    if foreground_set.is_point_within_set((x, y)):
+                    if foreground_set.is_point_within_set([x, y]):
 
                         # Update the mask value accordingly
                         initial_mask[y][x] = GC_FGD

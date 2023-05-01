@@ -7,22 +7,22 @@ import cv2
 from copy import copy
 
 # Import custom packages and functions
-from scripts.b_ImageData.ImageData import ImageData, import_images_as_image_data_objects
+from scripts.ImageData import ImageData, import_images_as_image_data_objects
 
-from scripts.c_Filters.ImageFilterThreshold import ImageFilterThreshold
-from scripts.c_Filters.ImageFilterGrabCut import ImageFilterGrabCut
-from scripts.c_Filters.ImageFilter import ImageFilter
-from scripts.c_Filters.FilterConstants import COLOR_BGR
+from src.thyroid_ultrasound_imaging.ImageFilter.ImageFilterThreshold import ImageFilterThreshold
+from src.thyroid_ultrasound_imaging.ImageFilter.ImageFilterGrabCut import ImageFilterGrabCut
+from src.thyroid_ultrasound_imaging.ImageFilter.ImageFilter import ImageFilter
+from scripts.FilterConstants import COLOR_BGR
 
-from scripts.d_Visualizations.Visualization import Visualization
-from scripts.d_Visualizations.VisualizationConstants import *
+from scripts.Visualization import Visualization
+from scripts.VisualizationConstants import *
 
-from scripts.e_UI.user_input_crop_coordinates import user_input_crop_coordinates
-from scripts.e_UI.user_input_polygon_points import user_input_polygon_points
-from scripts.e_UI.get_threshold_values_user_input import get_threshold_values_from_user_input
+from scripts.user_input_crop_coordinates import user_input_crop_coordinates
+from scripts.user_input_polygon_points import user_input_polygon_points
+from scripts.get_threshold_values_user_input import get_threshold_values_from_user_input
 
-from scripts.a_Boundaries.create_convex_triangles_from_points import create_convex_triangles_from_points
-from scripts.a_Boundaries.create_mask_array_from_triangles import create_mask_array_from_triangles
+from src.thyroid_ultrasound_imaging.Boundaries.create_convex_triangles_from_points import create_convex_triangles_from_points
+from src.thyroid_ultrasound_imaging.Boundaries.create_mask_array_from_triangles import create_mask_array_from_triangles
 
 # Define image series names
 SERIES_1: int = 1
@@ -40,16 +40,26 @@ if __name__ == '__main__':
         [
             # SHOW_ORIGINAL,
             # SHOW_CROPPED,
+            # SHOW_RECOLOR,
             # SHOW_BLUR,
-            # SHOW_INITIALIZED_MASK,
-            # SHOW_GRABCUT_USER_INITIALIZATION_0,
+            # SHOW_MASK,
             # SHOW_EXPANDED_MASK,
-            # SHOW_FOREGROUND,
+            SHOW_FOREGROUND,
             # SHOW_SURE_FOREGROUND,
             # SHOW_SURE_BACKGROUND,
-            # SHOW_PROBABLE_FOREGROUND
-            SHOW_CENTROIDS_CROSS_ONLY,
-            # SHOW_MASK_OVERLAY
+            # SHOW_PROBABLE_FOREGROUND,
+            # SHOW_INITIALIZED_MASK,
+            # SHOW_CENTROIDS_ONLY,
+            # SHOW_CENTROIDS_CROSS_ONLY,
+
+            # TODO Implement following mode
+            # SHOW_MASK_OVERLAY,
+
+            # TODO Implement following mode,
+            # SHOW_CENTROIDS_CROSS_OVERLAY,
+
+            # TODO Implement following mode
+            # SHOW_MASK_CENTROIDS_CROSS_OVERLAY
         ],
         [
             # SHOW_ORIGINAL,
@@ -59,7 +69,7 @@ if __name__ == '__main__':
             # SHOW_INITIALIZED_MASK,
             # SHOW_GRABCUT_USER_INITIALIZATION_0,
             # SHOW_EXPANDED_MASK,
-            SHOW_FOREGROUND,
+            # SHOW_FOREGROUND,
             # SHOW_SURE_FOREGROUND,
             # SHOW_SURE_BACKGROUND,
             # SHOW_PROBABLE_FOREGROUND
@@ -137,7 +147,7 @@ if __name__ == '__main__':
                                                     test_image.cropped_image.shape[:2])
 
     # Create the image filters
-    image_filters = [ImageFilterGrabCut(initial_mask,
+    image_filters = [ImageFilterGrabCut(previous_mask_array=initial_mask,
                                         analysis_mode=False,
                                         image_crop_included=True,
                                         image_crop_coordinates=image_crop_coordinates,
@@ -177,11 +187,6 @@ if __name__ == '__main__':
 
             # Visualize the result
             visualization.visualize_images(temp_image_data)
-
-            # If using a grabcut filter, update the filter to use the previous_image_mask
-            # rather than the user_defined_mask.
-            if type(image_filter) is ImageFilterGrabCut:
-                image_filter.use_previous_image_mask = True
 
             # Update the confidence map with the new data acquired by the segmentations
             # TODO the confidence weights for each filter will need tuning

@@ -8,10 +8,10 @@ from numpy import array, zeros, ones, uint8, newaxis, where, repeat
 from cv2 import GC_BGD, GC_PR_BGD, imshow, waitKey, line, circle
 
 # Import custom constants
-from scripts.d_Visualizations.VisualizationConstants import *
+from thyroid_ultrasound_imaging.Visualization.VisualizationConstants import *
 
 # Import custom objects
-from scripts.b_ImageData.ImageData import ImageData
+from thyroid_ultrasound_imaging.ImageData.ImageData import ImageData
 
 # TODO Fill in missing visualization schemes
 
@@ -43,7 +43,7 @@ class Visualization:
         self.visualization_title = visualization_title
         self.num_cols_in_fig = num_cols_in_fig
 
-    def visualize_images(self, image_data: ImageData):
+    def visualize_images(self, image_data: ImageData, specific_visualizations: list = None):
         """
             Visualize the data within an image_data object as a single image or part of an image stream.
 
@@ -51,10 +51,18 @@ class Visualization:
             ----------
             image_data: ImageData
                 object containing the data to be visualized
+            specific_visualizations
+                list containing specific visualizations to show. If none are provided, shows visualizations found
+                in self.visualizations.
         """
 
+        if specific_visualizations is None:
+            visualizations_to_show = self.visualizations
+        else:
+            visualizations_to_show = specific_visualizations
+
         # Calculate the number of visualizations
-        num_visuals = len(self.visualizations)
+        num_visuals = len(visualizations_to_show)
 
         # Create figure and plots required for showing a single image
         if self.image_mode == IMG_SINGLE:
@@ -89,7 +97,7 @@ class Visualization:
 
         # Iterate through each visualization type
         # Define the image to display and the image title
-        for visual in self.visualizations:
+        for visual in visualizations_to_show:
             if visual == SHOW_ORIGINAL:
                 image_to_show = image_data.original_image
                 image_title = "Original Image"
@@ -121,7 +129,7 @@ class Visualization:
 
             elif visual == SHOW_SURE_FOREGROUND:
                 image_to_show = self.create_mask_overlay_array(image_data.original_image,
-                                                               image_data.sure_foreground_mask),
+                                                               image_data.sure_foreground_mask)
                 image_title = "Sure Foreground of Image"
 
             elif visual == SHOW_SURE_BACKGROUND:

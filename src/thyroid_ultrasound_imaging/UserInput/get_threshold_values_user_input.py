@@ -2,15 +2,16 @@
 Contains get_threshold_values_from_triangle function.
 """
 # Import from standard packages
-from numpy import array, std, median
+from numpy import std, median
 
 # Import custom objects
-from scripts.a_Boundaries.BoundingSet import BoundingSet
-from scripts.b_ImageData.ImageData import ImageData
+from thyroid_ultrasound_imaging.Boundaries.BoundingSet import BoundingSet
+from thyroid_ultrasound_imaging.ImageData.ImageData import ImageData
 
 # Import custom functions
-from scripts.e_UI.user_input_polygon_points import user_input_polygon_points
-from scripts.a_Boundaries.create_convex_triangles_from_points import create_convex_triangles_from_points
+from thyroid_ultrasound_imaging.UserInput.user_input_polygon_points import user_input_polygon_points
+from thyroid_ultrasound_imaging.Boundaries.create_convex_triangles_from_points import \
+    create_convex_triangles_from_points
 
 
 def get_threshold_values_from_user_input(image_data: ImageData,
@@ -55,7 +56,7 @@ def get_threshold_values_from_user_input(image_data: ImageData,
             # If the image is in one of the bounding sets
             for bounding_set in bounding_sets:
                 if bounding_set.is_point_within_set([x, y]):
-                    a = image[y][x][0]
+
                     # Save the value and move to the next pixel
                     values_list.append(image[y][x][0])
                     break

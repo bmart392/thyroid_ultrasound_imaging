@@ -7,11 +7,11 @@ from cv2 import imshow, waitKey, destroyWindow, line, circle, \
     setMouseCallback, EVENT_LBUTTONDOWN
 
 # Import custom objects
-from scripts.b_ImageData.ImageData import ImageData
+from thyroid_ultrasound_imaging.ImageData.ImageData import ImageData
 
 # Import custom functions
-from scripts.d_Visualizations.display_text_on_image import display_text_on_image
-from scripts.d_Visualizations.generate_random_color import generate_random_color
+from thyroid_ultrasound_imaging.UserInput.display_text_on_image import display_text_on_image
+from thyroid_ultrasound_imaging.UserInput.generate_random_color import generate_random_color
 
 
 def user_input_polygon_points(image_data: ImageData, polygon_use: str, list_of_points: list = None,

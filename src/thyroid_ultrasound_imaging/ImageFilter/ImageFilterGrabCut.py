@@ -3,7 +3,12 @@ Define object class for GrabCut based image filters.
 """
 
 # Import the super-class for all image filters
-from scripts.c_Filters.ImageFilter import *
+from thyroid_ultrasound_imaging.ImageFilter.ImageFilter import *
+
+from thyroid_ultrasound_imaging.Boundaries.create_convex_triangles_from_points import \
+    create_convex_triangles_from_points
+from thyroid_ultrasound_imaging.Boundaries.create_mask_array_from_triangles import create_mask_array_from_triangles
+from thyroid_ultrasound_imaging.UserInput.user_input_polygon_points import user_input_polygon_points
 
 
 class ImageFilterGrabCut(ImageFilter):
@@ -11,7 +16,7 @@ class ImageFilterGrabCut(ImageFilter):
     A class for filter objects that use the GrabCut segmentation technique.
     """
 
-    def __init__(self, user_created_mask_array: np.array, image_crop_coordinates: iter,
+    def __init__(self, previous_mask_array: np.array = None, image_crop_coordinates: iter = None,
                  image_crop_included: bool = False, include_pre_blurring: bool = False,
                  increase_contrast=False,
                  debug_mode: bool = False, analysis_mode: bool = False):
@@ -21,7 +26,7 @@ class ImageFilterGrabCut(ImageFilter):
 
         Parameters
         ----------
-        user_created_mask_array
+        previous_mask_array
             an array created by the user identifying the background, probable background,
             and the foreground of the image.
 
@@ -46,7 +51,6 @@ class ImageFilterGrabCut(ImageFilter):
         super(ImageFilterGrabCut, self).__init__()
 
         # Update the parameters passed in on object creation
-        self.user_created_mask = user_created_mask_array
         self.image_crop_included = image_crop_included
         self.image_crop_coordinates = image_crop_coordinates
         self.include_pre_blurring = include_pre_blurring
@@ -56,8 +60,7 @@ class ImageFilterGrabCut(ImageFilter):
 
         # Define characteristics of all GrabCut filters
         self.filter_color = COLOR_BGR
-        self.use_previous_image_mask = False
-        self.previous_image_mask_array = None
+        self.previous_image_mask_array = previous_mask_array
 
     def pre_process_image(self, image_data: ImageData):
         """
@@ -77,7 +80,7 @@ class ImageFilterGrabCut(ImageFilter):
 
         # If the filter includes a blurring affect
         if self.include_pre_blurring:
-
+            """
             # Blur the image
             sigma_est = np.mean(estimate_sigma(image_data.colorized_image, channel_axis=2))
             patch_kw = dict(patch_size=10,
@@ -88,6 +91,7 @@ class ImageFilterGrabCut(ImageFilter):
                                                                                   sigma=sigma_est,
                                                                                   fast_mode=True,
                                                                                   **patch_kw)))
+                                                                                  """
         else:
 
             # Set the pre-processed image as a copy of the colorized image.
@@ -109,7 +113,10 @@ class ImageFilterGrabCut(ImageFilter):
         # Define the initialized rectangle of the image for the GrabCut algorithm
         initialized_rectangle_cords = (0, 0, image_size[0], image_size[1])
 
-        # Set the mask to use to segment the image as a copy of the previous image mask
+        # Set the mask to use to segment the image as a copy of the previous image mask.
+        # Check that the previous_image_mask has been initialized and raise an error if it has not.
+        if self.previous_image_mask_array is None:
+            raise Exception("Previous image mask array was not created.")
         image_data.segmentation_initialization_mask = copy(self.previous_image_mask_array)
 
         # Segment the image
@@ -151,7 +158,7 @@ class ImageFilterGrabCut(ImageFilter):
         """
         image_data.sure_foreground_mask = cv2.morphologyEx(
             image_data.expanded_image_mask, cv2.MORPH_ERODE,
-            np.ones(10, np.uint8), iterations=2
+            np.ones((6, 6), np.uint8), iterations=4  # 10, 2
         )
 
     @staticmethod
@@ -167,7 +174,7 @@ class ImageFilterGrabCut(ImageFilter):
         """
         image_data.sure_background_mask = 1 - cv2.morphologyEx(
             image_data.expanded_image_mask, cv2.MORPH_DILATE,
-            np.ones(3, np.uint8), iterations=30
+            np.ones((6, 6), np.uint8), iterations=6
         )
 
     @staticmethod
@@ -184,3 +191,33 @@ class ImageFilterGrabCut(ImageFilter):
         image_data.probable_foreground_mask = 1 - (
                 image_data.sure_foreground_mask + image_data.sure_background_mask
         )
+
+    def generate_previous_mask_from_user_input(self, image_data: ImageData):
+        """
+        Allow the user to generate the previous image mask from the given data.
+
+        Parameters
+        ----------
+        image_data
+            The image data containing the image to be used to create the mask.
+        """
+
+        # Save the cropped image from the image data to a variable for use within the function
+        test_image = image_data.cropped_image
+
+        # Capture the background of the image from the user
+        list_of_points_for_background_polygon = user_input_polygon_points(test_image, "background",
+                                                                          display_result=True)
+
+        # Capture the foreground of the image from the user
+        list_of_points_for_foreground_polygon = user_input_polygon_points(test_image, "foreground",
+                                                                          display_result=True)
+
+        # Convert the points of the background and foreground polygons to triangles
+        list_of_background_triangles = create_convex_triangles_from_points(list_of_points_for_background_polygon)
+        list_of_foreground_triangles = create_convex_triangles_from_points(list_of_points_for_foreground_polygon)
+
+        # Use the polygons to generate the initial mask
+        self.previous_image_mask_array = create_mask_array_from_triangles(list_of_background_triangles,
+                                                                          list_of_foreground_triangles,
+                                                                          test_image.cropped_image.shape[:2])
