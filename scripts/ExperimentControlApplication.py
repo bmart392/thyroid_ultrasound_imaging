@@ -14,6 +14,8 @@ from geometry_msgs.msg import WrenchStamped
 from std_msgs.msg import Bool, String
 
 # Define constants for GUI elements
+START_IMAGE_STREAMING: str = "Start Image Streaming"
+STOP_IMAGE_STREAMING: str = "Stop Image Streaming"
 START_IMAGE_FILTER: str = "Start Image Filtering"
 STOP_IMAGE_FILTER: str = "Stop Image Filtering"
 START_FORCE_CONTROL: str = "Start Force Control"
@@ -87,6 +89,9 @@ class ExperimentControlApplication(Frame):
         # Create a publisher to publish the desired force for the robot to exert
         self.goal_force_publisher = Publisher('/goal/force', WrenchStamped, queue_size=1)
 
+        # Create a publisher to publish the command to start and stop streaming images
+        self.image_streaming_command_publisher = Publisher('/command/image_streaming_control', Bool, queue_size=1)
+
         # -------------------------------------------
         # Create GUI components of the User Interface
         # -------------------------------------------
@@ -103,6 +108,8 @@ class ExperimentControlApplication(Frame):
         window_content_frame = Frame(parent)
 
         # Define buttons that will have their values changed
+        self.image_streaming_button = ttk.Button(window_content_frame, text=START_IMAGE_STREAMING,
+                                                 command=self.image_streaming_button_callback)
         self.image_filtering_button = ttk.Button(window_content_frame, text=START_IMAGE_FILTER,
                                                  command=self.image_filtering_button_callback)
         self.force_control_button = ttk.Button(window_content_frame, text=START_FORCE_CONTROL,
@@ -116,6 +123,15 @@ class ExperimentControlApplication(Frame):
         # Define a list of widgets to create
         # List items are defined as (<widget object>, <y axis padding>, <column position>, <column span>)
         widgets = [
+            # Define widgets for the data streaming section
+            (ttk.Label(window_content_frame, text="Image Streaming Options"), 10,
+             LEFT_COLUMN, FULL_WIDTH),
+            (self.image_streaming_button, 2, LEFT_COLUMN, FULL_WIDTH),
+
+            # Define spacer widget to space out the two sections
+            (ttk.Label(window_content_frame, text=""), 1,
+             LEFT_COLUMN, FULL_WIDTH),
+
             # Define widgets for the initialization section
             (ttk.Label(window_content_frame, text="Filter Initialization Options"), 10,
              LEFT_COLUMN, FULL_WIDTH),
@@ -176,6 +192,40 @@ class ExperimentControlApplication(Frame):
     def generate_threshold_filter_parameters_button_callback(self):
         self.generate_threshold_filter_parameters_command_publisher.publish(Bool(True))
         self.update_status("Selecting threshold filter parameters")
+
+    def image_streaming_button_callback(self):
+        """
+        Toggles if the ultrasound images will be streamed, based on the user input.
+        """
+        # Get the current text of the button
+        button_text = self.image_streaming_button[WIDGET_TEXT]
+
+        # If the button currently says "Start"
+        if button_text == START_IMAGE_STREAMING:
+
+            # Publish the command to start filtering images
+            self.image_streaming_command_publisher.publish(Bool(True))
+
+            # Set it to say "Stop"
+            new_button_text = STOP_IMAGE_STREAMING
+
+            # Update the status label
+            self.update_status("Image streaming has started")
+
+        # If the button currently says "Stop"
+        else:
+
+            # Publish the command to stop filtering images
+            self.image_streaming_command_publisher.publish(Bool(False))
+
+            # Set the button to say "Stop"
+            new_button_text = START_IMAGE_STREAMING
+
+            # Update the status label
+            self.update_status("Image streaming has stopped")
+
+        # Set the new text of the button
+        self.image_streaming_button[WIDGET_TEXT] = new_button_text
 
     def image_filtering_button_callback(self):
         """

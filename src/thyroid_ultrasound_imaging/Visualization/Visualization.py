@@ -5,7 +5,8 @@ Contains Visualization object and associated function.
 from math import ceil
 from matplotlib.pyplot import axes, figure, show
 from numpy import array, zeros, ones, uint8, newaxis, where, repeat
-from cv2 import GC_BGD, GC_PR_BGD, imshow, waitKey, line, circle
+from cv2 import GC_BGD, GC_PR_BGD, imshow, waitKey, line, circle, startWindowThread
+from threading import Thread
 
 # Import custom constants
 from thyroid_ultrasound_imaging.Visualization.VisualizationConstants import *
@@ -205,6 +206,7 @@ class Visualization:
             # Remove carriage return if continuous images are shown
             if self.image_mode == IMG_CONTINUOUS:
                 image_title = image_title.replace("\n", " ")
+                startWindowThread()
 
             # Show the image using the parameters determined above
             self.show_basic_image(image_to_show, image_title,
@@ -281,8 +283,12 @@ class Visualization:
             the fade ratio to apply to the inverse of the mask.
             A smaller number darkens the remainder of the image.
         """
-        return base_image * mask[:, :, newaxis] + uint8(
-            base_image * (1 - mask)[:, :, newaxis] * fade_rate
+
+        if len(base_image.shape) == 3:
+            mask = mask[:, :, newaxis]
+            inverted_mask = (1 - mask)[:, :, newaxis]
+        return base_image * mask + uint8(
+            base_image * (1 - mask) * fade_rate
         )
 
     @staticmethod
@@ -368,3 +374,11 @@ class Visualization:
             the value that all values in the mask will be multiplied by.
         """
         return uint8(mask * multiplier)
+
+
+def test_imshow():
+    imshow("test", zeros((100, 100), uint8))
+    waitKey(0)
+    print("shown")
+
+

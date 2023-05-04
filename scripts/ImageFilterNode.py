@@ -4,10 +4,14 @@
 File containing ImageFiterNode class definition and ROS running code.
 """
 
+# TODO Implement threading on all portions of code using imshow
+# See: https://nrsyed.com/2018/07/05/multithreading-with-opencv-python-to-improve-video-processing-performance/
+
 # Import standard packages
 from numpy import frombuffer, reshape, uint8  # , ones, sign
 from cv_bridge import CvBridgeError  # , CvBridge
 from time import time
+from copy import copy
 
 # Import ROS packages
 # import rospy
@@ -21,6 +25,7 @@ from thyroid_ultrasound_imaging.ImageData.ImageData import ImageData
 
 from thyroid_ultrasound_imaging.ImageFilter.ImageFilterThreshold import ImageFilterThreshold
 from thyroid_ultrasound_imaging.ImageFilter.ImageFilterGrabCut import ImageFilterGrabCut
+from thyroid_ultrasound_imaging.ImageFilter.FilterConstants import COLOR_GRAY
 
 from thyroid_ultrasound_imaging.Visualization.VisualizationConstants import *
 from thyroid_ultrasound_imaging.Visualization.Visualization import Visualization
@@ -72,14 +77,15 @@ class ImageFilterNode:
 
         # Define flags and variables used within the class
         self.is_new_image_available = False     # flag showing when a new image to filter is available
-        self.newest_image_data = None           # for storing the data about the most recently sent image
-        self.image_data = None                  # for storing the data about the image to be filtered
+        self.newest_image_data: ImageData = None           # for storing the data about the most recently sent image
+        self.image_data: ImageData = None                  # for storing the data about the image to be filtered
         self.time_of_last_image_filtered = 0    # for storing when the first image was filtered
-        self.filter_images = True               # for storing the current image filtering status
+        self.filter_images = False              # for storing the current image filtering status
+        self.temporary_visualization_block = False
 
         # check that a valid filtering rate was given
         try:
-            temp = 1 / filtering_rate
+            1 / filtering_rate
         except ValueError:
             raise Exception("Filtering rate must be a non-zero value. A value of " + str(filtering_rate) +
                             " was given.")
@@ -95,7 +101,9 @@ class ImageFilterNode:
             visualization_title = "Threshold Filter"
 
         elif filter_type == GRABCUT_FILTER:
-            self.image_filter = ImageFilterGrabCut(None, debug_mode=self.debug_mode, analysis_mode=self.analysis_mode)
+            self.image_filter = ImageFilterGrabCut(None, debug_mode=self.debug_mode, analysis_mode=self.analysis_mode,
+                                                   image_crop_included=True,
+                                                   image_crop_coordinates=[[171, 199], [530, 477]])
 
             # Define the title to use in the visualization
             visualization_title = "Grabcut Filter"
@@ -182,14 +190,29 @@ class ImageFilterNode:
             cv_image = reshape(cv_image, (data.height, data.width))
 
             # note the amount of time required to convert the image
-            start_of_process_time = self.display_process_timer(start_of_process_time, "Image conversion time")
+            # start_of_process_time = self.display_process_timer(start_of_process_time, "Image conversion time")
 
             # Create new image data based on received image
-            self.newest_image_data = ImageData(image_data=cv_image)
+            self.newest_image_data = ImageData(image_data=cv_image, image_color=COLOR_GRAY)
 
-            # Show the newest image, when debugging
+            # Crop and recolorize the newest image if an image crop is included
+            if self.image_filter.image_crop_included:
+                self.image_filter.crop_image(self.newest_image_data)
+                self.image_filter.colorize_image(self.newest_image_data)
+
+            # Visualize the image accordingly
             if self.debug_mode:
-                self.visualization.visualize_images(self.newest_image_data, [SHOW_ORIGINAL])
+                if self.image_filter.image_crop_included:
+
+                    if self.newest_image_data.cropped_image is not None:
+
+                        self.visualization.visualize_images(self.newest_image_data, [SHOW_RECOLOR])
+
+                    else:
+                        self.visualization.visualize_images(self.newest_image_data, [SHOW_CROPPED])
+
+                else:
+                    self.visualization.visualize_images(self.newest_image_data, [SHOW_ORIGINAL])
 
         except CvBridgeError:
             print("Image error.")
@@ -204,7 +227,7 @@ class ImageFilterNode:
             self.time_of_last_image_filtered = time()
 
             # Create new image data based on received image
-            self.image_data = self.newest_image_data
+            self.image_data = copy(self.newest_image_data)
 
             # note the amount of time required to create an image data object
             start_of_process_time = self.display_process_timer(start_of_process_time, "Image_data object creation time")
@@ -228,19 +251,41 @@ class ImageFilterNode:
         """
         When commanded, call on the image filter to crop the image.
         """
+
+        # update status message
+        self.publish_status("Crop command received")
+
+        # If a new image data object exists
         if self.newest_image_data is not None:
+
+            # update status message
+            self.publish_status("Generating crop coordinates")
+
+            # Generate the image crop coordinates
             self.image_filter.generate_crop_coordinates(self.newest_image_data)
+
         else:
-            self.debug_status_messages_publisher.publish(String("No image available to crop"))
+            self.publish_status("No image available to crop")
 
     def generate_grabcut_mask_callback(self, data: Bool):
         """
         When commanded, call on the image filter to generate the previous mask.
         Only works for GrabCut image filters.
         """
+
         if self.newest_image_data is not None:
             if type(self.image_filter) is ImageFilterGrabCut:
-                self.image_filter.generate_previous_mask_from_user_input(self.newest_image_data)
+
+                # Define default values for lists of points for background and foreground
+                list_of_background_points = [(14, 194), (47, 14), (285, 7), (322, 154), (292, 148), (265, 135),
+                                             (234, 128), (186, 131), (139, 135), (106, 144), (80, 161), (58, 179),
+                                             (38, 198), (30, 218), (31, 245), (55, 262), (65, 275), (35, 271), (8, 270)]
+                list_of_foreground_points = [(63, 213), (81, 195), (114, 174), (134, 166), (131, 186), (125, 203),
+                                             (115, 222), (113, 235), (109, 250), (96, 246), (72, 231), (65, 228)]
+
+                self.image_filter.generate_previous_mask_from_user_input(self.newest_image_data,
+                                                                         list_of_background_points=list_of_background_points,
+                                                                         list_of_foreground_points=list_of_foreground_points)
         else:
             self.debug_status_messages_publisher.publish(String("No image available from which "
                                                                 "to create grabcut mask"))
@@ -272,7 +317,10 @@ class ImageFilterNode:
         start_of_process_time = time()
 
         # filter the image
-        self.image_data = self.image_filter.fully_filter_image(self.image_data)
+        self.image_filter.fully_filter_image(self.image_data)
+
+        # find the contours in the mask
+        self.image_data.generate_contours_in_image()
 
         # note the time required to fully filter the image
         start_of_process_time = self.display_process_timer(start_of_process_time, "Time to fully filter")
@@ -315,8 +363,8 @@ class ImageFilterNode:
                                                       -1, (0, 255, 0), -1)
 
                 # Add centroid to masked image
-                temp_masked_result = cv2.circle(temp_masked_result, self.image_data.contour_centroids[0], 6, (255, 0, 0),
-                                                -1)
+                temp_masked_result = cv2.circle(temp_masked_result, self.image_data.contour_centroids[0], 6, 
+                                            (255, 0, 0), -1)
 
                 # Add lines showing where centroid should be
                 temp_masked_result = cv2.line(temp_masked_result, (0, 240), (640, 240), (0, 0, 255), 2)
@@ -360,11 +408,17 @@ class ImageFilterNode:
         """
         return display_process_timer(start_of_process_time, message, self.analysis_mode)
 
+    def publish_status(self, message_to_publish: str):
+        """
+        Publish debugging messages to the status bar on the experiment control application.
+        """
+        self.debug_status_messages_publisher.publish(String(message_to_publish))
+
 
 if __name__ == '__main__':
     # create node object
     filter_node = ImageFilterNode(filter_type=GRABCUT_FILTER, visualizations_included=[SHOW_ORIGINAL, SHOW_FOREGROUND],
-                                  filtering_rate=10, debug_mode=True, analysis_mode=True)
+                                  filtering_rate=10, debug_mode=False, analysis_mode=True)
 
     print("Node initialized.")
     print("Press ctrl+c to terminate.")

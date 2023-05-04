@@ -24,7 +24,7 @@ def create_convex_triangles_from_points(list_of_points: list):
         triangulator.addPolygonVertex(triangulator.addVertex(x=point[0], y=point[1]))
 
     # Create the triangles of the polygons
-    triangulator.triangulate(None)
+    triangulator.triangulate()
 
     # Define list to store polygons
     list_of_triangles = []

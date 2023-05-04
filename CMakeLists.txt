@@ -165,6 +165,7 @@ catkin_install_python(PROGRAMS
   scripts/ImageFilterNode.py 
   scripts/ExperimentControlApplication.py
   scripts/ImagePositioningControllerNode.py
+  scripts/ExperimentStreamRecordedData.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

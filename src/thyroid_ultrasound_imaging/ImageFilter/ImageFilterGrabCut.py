@@ -192,7 +192,9 @@ class ImageFilterGrabCut(ImageFilter):
                 image_data.sure_foreground_mask + image_data.sure_background_mask
         )
 
-    def generate_previous_mask_from_user_input(self, image_data: ImageData):
+    def generate_previous_mask_from_user_input(self, image_data: ImageData,
+                                               list_of_background_points: list = None,
+                                               list_of_foreground_points: list = None):
         """
         Allow the user to generate the previous image mask from the given data.
 
@@ -200,18 +202,25 @@ class ImageFilterGrabCut(ImageFilter):
         ----------
         image_data
             The image data containing the image to be used to create the mask.
+        list_of_background_points
+            An optional list of (x, y) points defining the background region of the image.
+        list_of_foreground_points
+            An optional list of (x y) points defining the foreground region of the image.
         """
 
         # Save the cropped image from the image data to a variable for use within the function
-        test_image = image_data.cropped_image
+        if image_data.cropped_image is None:
+            self.crop_image(image_data)
 
         # Capture the background of the image from the user
-        list_of_points_for_background_polygon = user_input_polygon_points(test_image, "background",
-                                                                          display_result=True)
+        list_of_points_for_background_polygon = user_input_polygon_points(image_data, "background",
+                                                                          display_result=True,
+                                                                          list_of_points=list_of_background_points)
 
         # Capture the foreground of the image from the user
-        list_of_points_for_foreground_polygon = user_input_polygon_points(test_image, "foreground",
-                                                                          display_result=True)
+        list_of_points_for_foreground_polygon = user_input_polygon_points(image_data, "foreground",
+                                                                          display_result=True,
+                                                                          list_of_points=list_of_foreground_points)
 
         # Convert the points of the background and foreground polygons to triangles
         list_of_background_triangles = create_convex_triangles_from_points(list_of_points_for_background_polygon)
@@ -220,4 +229,4 @@ class ImageFilterGrabCut(ImageFilter):
         # Use the polygons to generate the initial mask
         self.previous_image_mask_array = create_mask_array_from_triangles(list_of_background_triangles,
                                                                           list_of_foreground_triangles,
-                                                                          test_image.cropped_image.shape[:2])
+                                                                          image_data.cropped_image.shape[:2])

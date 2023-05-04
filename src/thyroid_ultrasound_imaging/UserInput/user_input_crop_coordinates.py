@@ -4,7 +4,8 @@ Contains user_input_crop_coordinates and necessary callback functions.
 # Import standard packages
 from copy import copy
 from cv2 import imshow, waitKey, destroyAllWindows, \
-    line, rectangle, setMouseCallback, EVENT_LBUTTONDOWN
+    line, rectangle, setMouseCallback, EVENT_LBUTTONDOWN, \
+    startWindowThread
 
 # Import custom objects
 from thyroid_ultrasound_imaging.ImageData.ImageData import ImageData
@@ -33,10 +34,10 @@ def user_input_crop_coordinates(image_data: ImageData, crop_coordinates: list = 
         window_name = "Image Crop Selection"
 
         # Define characteristics of the shapes to show on the image
-        line_color = (0, 255, 0)
-        line_thickness = 1
-        box_color = (0, 255, 0)
-        box_thickness = 1
+        line_color = (255, 255, 255)
+        line_thickness = 2
+        box_color = (255, 255, 255)
+        box_thickness = 3
 
         # Create a copy of the original image to prevent damaging the original object
         temp_image_array = copy(image_data.original_image)
@@ -102,6 +103,7 @@ def user_input_crop_coordinates(image_data: ImageData, crop_coordinates: list = 
 
         # Destroy all windows when finished
         destroyAllWindows()
+        waitKey(1)
 
         # Display the points selected for the user
         print("1st Corner: (" + str(first_corner[0]) + ", " + str(first_corner[1]) + ")\n" +
@@ -139,5 +141,3 @@ def click_event(event: int, x, y, flags, additional_inputs: list):
         # Save the click location
         additional_inputs[0] = int(x)
         additional_inputs[1] = int(y)
-
-

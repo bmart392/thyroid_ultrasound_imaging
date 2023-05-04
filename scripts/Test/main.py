@@ -7,22 +7,22 @@ import cv2
 from copy import copy
 
 # Import custom packages and functions
-from scripts.ImageData import ImageData, import_images_as_image_data_objects
+from thyroid_ultrasound_imaging.ImageData.ImageData import ImageData, import_images_as_image_data_objects
 
-from src.thyroid_ultrasound_imaging.ImageFilter.ImageFilterThreshold import ImageFilterThreshold
-from src.thyroid_ultrasound_imaging.ImageFilter.ImageFilterGrabCut import ImageFilterGrabCut
-from src.thyroid_ultrasound_imaging.ImageFilter.ImageFilter import ImageFilter
-from scripts.FilterConstants import COLOR_BGR
+from thyroid_ultrasound_imaging.ImageFilter.ImageFilterThreshold import ImageFilterThreshold
+from thyroid_ultrasound_imaging.ImageFilter.ImageFilterGrabCut import ImageFilterGrabCut
+from thyroid_ultrasound_imaging.ImageFilter.ImageFilter import ImageFilter
+from thyroid_ultrasound_imaging.ImageFilter.FilterConstants import COLOR_BGR
 
-from scripts.Visualization import Visualization
-from scripts.VisualizationConstants import *
+from thyroid_ultrasound_imaging.Visualization.Visualization import Visualization
+from thyroid_ultrasound_imaging.Visualization.VisualizationConstants import *
 
-from scripts.user_input_crop_coordinates import user_input_crop_coordinates
-from scripts.user_input_polygon_points import user_input_polygon_points
-from scripts.get_threshold_values_user_input import get_threshold_values_from_user_input
+from thyroid_ultrasound_imaging.UserInput.user_input_crop_coordinates import user_input_crop_coordinates
+from thyroid_ultrasound_imaging.UserInput.user_input_polygon_points import user_input_polygon_points
+from thyroid_ultrasound_imaging.UserInput.get_threshold_values_user_input import get_threshold_values_from_user_input
 
-from src.thyroid_ultrasound_imaging.Boundaries.create_convex_triangles_from_points import create_convex_triangles_from_points
-from src.thyroid_ultrasound_imaging.Boundaries.create_mask_array_from_triangles import create_mask_array_from_triangles
+from thyroid_ultrasound_imaging.Boundaries.create_convex_triangles_from_points import create_convex_triangles_from_points
+from thyroid_ultrasound_imaging.Boundaries.create_mask_array_from_triangles import create_mask_array_from_triangles
 
 # Define image series names
 SERIES_1: int = 1
@@ -49,7 +49,7 @@ if __name__ == '__main__':
             # SHOW_SURE_BACKGROUND,
             # SHOW_PROBABLE_FOREGROUND,
             # SHOW_INITIALIZED_MASK,
-            # SHOW_CENTROIDS_ONLY,
+            SHOW_CENTROIDS_ONLY,
             # SHOW_CENTROIDS_CROSS_ONLY,
 
             # TODO Implement following mode
@@ -136,7 +136,7 @@ if __name__ == '__main__':
     image_filter = ImageFilter(image_crop_coordinates=image_crop_coordinates)
 
     # Crop the test image
-    test_image = image_filter.crop_image(test_image)
+    image_filter.crop_image(test_image)
 
     # Convert the points of the background and foreground polygons to triangles
     list_of_background_triangles = create_convex_triangles_from_points(list_of_points_for_background_polygon)
