@@ -31,7 +31,7 @@ SERIES_2: int = 2
 if __name__ == '__main__':
 
     # Define several controls to ease testing
-    capture_user_input = False  # True = define input, false = use values
+    capture_user_input = True  # True = define input, false = use values
     image_series_to_use = SERIES_2  # See above for options
     imaging_mode = IMG_CONTINUOUS  # Single or continuous
 
@@ -39,12 +39,12 @@ if __name__ == '__main__':
     list_of_visualizations = [
         [
             # SHOW_ORIGINAL,
-            # SHOW_CROPPED,
+            SHOW_CROPPED,
             # SHOW_RECOLOR,
             # SHOW_BLUR,
-            # SHOW_MASK,
-            # SHOW_EXPANDED_MASK,
-            SHOW_FOREGROUND,
+            SHOW_MASK,
+            SHOW_EXPANDED_MASK,
+            # SHOW_FOREGROUND,
             # SHOW_SURE_FOREGROUND,
             # SHOW_SURE_BACKGROUND,
             # SHOW_PROBABLE_FOREGROUND,
@@ -116,8 +116,17 @@ if __name__ == '__main__':
 
     # If user input is required, overwrite the saved parameters for the series
     if capture_user_input:
+
         # Capture the image crop coordinates from the user
         image_crop_coordinates = user_input_crop_coordinates(test_image)
+
+        # Create an ImageFilter object to crop the image so that the initial mask can be generated
+        image_filter = ImageFilter(image_crop_coordinates=image_crop_coordinates)
+
+        # Crop the test image
+        image_filter.crop_image(test_image)
+
+        image_filter.colorize_image(test_image)
 
         # Capture the background of the image from the user
         list_of_points_for_background_polygon = user_input_polygon_points(test_image, "background",
@@ -196,8 +205,8 @@ if __name__ == '__main__':
                 confidence_map = confidence_map + 0.375 * temp_image_data.expanded_image_mask
 
         # Show the updated confidence map
-        cv2.imshow("Confidence Map", np.uint8(confidence_map * 255))
-        cv2.waitKey(1)
+        # cv2.imshow("Confidence Map", np.uint8(confidence_map * 255))
+        # cv2.waitKey(1)
 
         # Overlay the confidence map on to the original image
         # TODO the confidence map should be overlaid onto the original image

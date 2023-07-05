@@ -1,7 +1,7 @@
 from numpy import radians
 
 from geometry_msgs.msg import TwistStamped
-from thyroid_ultrasound_imaging.ImageData.ImageData import ImageData
+from thyroid_ultrasound_imaging_support.ImageData.ImageData import ImageData
 
 
 class ImagePositioningController:

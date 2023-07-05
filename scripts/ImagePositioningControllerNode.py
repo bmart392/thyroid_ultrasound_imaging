@@ -1,5 +1,5 @@
 
-from thyroid_ultrasound_imaging.Controller.ImagePositioningController import *
+from thyroid_ultrasound_imaging_support.Controller.ImagePositioningController import *
 
 
 if __name__ == '__main__':

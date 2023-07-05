@@ -3,12 +3,13 @@ Define object class for GrabCut based image filters.
 """
 
 # Import the super-class for all image filters
-from thyroid_ultrasound_imaging.ImageFilter.ImageFilter import *
+from thyroid_ultrasound_imaging_support.ImageFilter.ImageFilter import *
 
-from thyroid_ultrasound_imaging.Boundaries.create_convex_triangles_from_points import \
+from thyroid_ultrasound_imaging_support.Boundaries.create_convex_triangles_from_points import \
     create_convex_triangles_from_points
-from thyroid_ultrasound_imaging.Boundaries.create_mask_array_from_triangles import create_mask_array_from_triangles
-from thyroid_ultrasound_imaging.UserInput.user_input_polygon_points import user_input_polygon_points
+from thyroid_ultrasound_imaging_support.Boundaries.create_mask_array_from_triangles import create_mask_array_from_triangles
+from thyroid_ultrasound_imaging_support.UserInput.user_input_polygon_points import user_input_polygon_points
+from thyroid_ultrasound_imaging_support.Visualization.Visualization import Visualization
 
 
 class ImageFilterGrabCut(ImageFilter):

@@ -38,6 +38,7 @@ SINGLE_COLUMN: int = int(1)
 LEFT_COLUMN: int = int(0)
 MIDDLE_COLUMN: int = int(1)
 RIGHT_COLUMN: int = int(2)
+GRAPHICS_WINDOW: int = int(3)
 
 # Define empty status string
 EMPTY_STATUS: str = "STATUS: "
@@ -92,6 +93,9 @@ class ExperimentControlApplication(Frame):
         # Create a publisher to publish the command to start and stop streaming images
         self.image_streaming_command_publisher = Publisher('/command/image_streaming_control', Bool, queue_size=1)
 
+        # Create a publisher to publish the command to start and stop streaming images
+        self.restart_image_streaming_command_publisher = Publisher('/command/restart_image_streaming', Bool, queue_size=1)
+
         # -------------------------------------------
         # Create GUI components of the User Interface
         # -------------------------------------------
@@ -120,6 +124,11 @@ class ExperimentControlApplication(Frame):
         self.desired_force_entry = ttk.Entry(window_content_frame)
         self.status_label = ttk.Label(window_content_frame, text=EMPTY_STATUS)
 
+        # self.image_display_window_canvas = Canvas(window_content_frame, width=1000, height=1000, borderwidth=2)
+
+        # self.img = PhotoImage(file="Test/Images/Series1/Slice_30.png")
+        # self.image_display_window_container = self.image_display_window_canvas.create_image(0, 0, image=self.img, anchor=NW)
+
         # Define a list of widgets to create
         # List items are defined as (<widget object>, <y axis padding>, <column position>, <column span>)
         widgets = [
@@ -127,6 +136,9 @@ class ExperimentControlApplication(Frame):
             (ttk.Label(window_content_frame, text="Image Streaming Options"), 10,
              LEFT_COLUMN, FULL_WIDTH),
             (self.image_streaming_button, 2, LEFT_COLUMN, FULL_WIDTH),
+            (ttk.Button(window_content_frame, text="Restart Image Streaming",
+                        command=self.restart_image_streaming_button_callback), 2,
+             LEFT_COLUMN, FULL_WIDTH),
 
             # Define spacer widget to space out the two sections
             (ttk.Label(window_content_frame, text=""), 1,
@@ -161,6 +173,7 @@ class ExperimentControlApplication(Frame):
                         command=self.send_desired_force), 2, LEFT_COLUMN, TWO_COLUMN),
             (self.robot_movement_button, 2, RIGHT_COLUMN, SINGLE_COLUMN),
             (self.status_label, 10, LEFT_COLUMN, FULL_WIDTH),
+            # (self.image_display_window_canvas, 2, GRAPHICS_WINDOW, SINGLE_COLUMN, 0, 12)
         ]
 
         # Add the parent frame as the only grid object in the window
@@ -169,7 +182,10 @@ class ExperimentControlApplication(Frame):
         i = 0
         # Add each widget to the grid
         for widget in widgets:
-            widget[0].grid(column=widget[2], columnspan=widget[3], row=i, pady=widget[1])
+            try:
+                widget[0].grid(column=widget[2], columnspan=widget[3], row=widget[4], rowspan=widget[5], pady=widget[1])
+            except IndexError:
+                widget[0].grid(column=widget[2], columnspan=widget[3], row=i, pady=widget[1])
             if widget[3] == FULL_WIDTH or widget[2] == RIGHT_COLUMN:
                 i = i + 1
 
@@ -184,6 +200,9 @@ class ExperimentControlApplication(Frame):
     def select_crop_coordinates_button_callback(self):
         self.select_crop_coordinates_command_publisher.publish(Bool(True))
         self.update_status("Selecting crop coordinates")
+        # self.image_display_window.create_image(0, 0, image=self.img, anchor=NW)
+        # self.img = PhotoImage(file="Test/Images/Series1/Slice_31.png")
+        # self.image_display_window_canvas.itemconfig(self.image_display_window_container, image=self.img)
 
     def generate_grabcut_filter_mask_button_callback(self):
         self.generate_grabcut_filter_mask_command_publisher.publish(Bool(True))
@@ -226,6 +245,10 @@ class ExperimentControlApplication(Frame):
 
         # Set the new text of the button
         self.image_streaming_button[WIDGET_TEXT] = new_button_text
+
+    def restart_image_streaming_button_callback(self):
+        self.restart_image_streaming_command_publisher.publish(Bool(True))
+        self.update_status("Restarting Image Stream")
 
     def image_filtering_button_callback(self):
         """

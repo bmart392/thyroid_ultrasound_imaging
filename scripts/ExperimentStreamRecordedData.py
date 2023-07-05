@@ -15,9 +15,13 @@ from os import listdir
 from os.path import isdir, isfile
 from cv2 import imread, cvtColor, COLOR_BGR2GRAY
 from sys import stdout
+from time import time
 
 # Define global variable to control image streaming
 stream_images = False
+
+# Define global iterator variable
+ii = 0
 
 
 def main(file_path: str, image_number_offset: int = None, publishing_rate: float = 1):
@@ -63,14 +67,20 @@ def main(file_path: str, image_number_offset: int = None, publishing_rate: float
     # Create a subscriber to listen to commands to start and stop publishing images
     Subscriber('/command/image_streaming_control', Bool, streaming_commands_callback)
 
-    # Define the rate at which to publish the images
-    rate = Rate(publishing_rate)
+    # Create a subscriber to listen to commands to restart publishing images
+    Subscriber('/command/restart_image_streaming', Bool, restart_streaming_command_callback)
+
+    # Define the time to wait between publishing the images
+    delay_time = 1 / publishing_rate  # seconds
+
+    # Define the time at which the last image was published
+    previous_publish_time = 0
 
     # loop
     try:
 
-        # Define an iterator for the list of images created
-        ii = 0
+        # Ensure the iterator references the global variable
+        global ii
 
         # Calculate the number of images to send
         num_images = len(created_objects)
@@ -78,13 +88,16 @@ def main(file_path: str, image_number_offset: int = None, publishing_rate: float
         # While the node is shutdown and more images are available
         while not is_shutdown() and ii < num_images:
 
-            if stream_images:
+            if stream_images and (time() - previous_publish_time) > delay_time:
 
                 # Recolor the image to grayscale
                 bscan = cvtColor(created_objects[ii], COLOR_BGR2GRAY)
 
                 # Publish the image as an image message
                 us_pub.publish(CvBridge().cv2_to_imgmsg(bscan, encoding="passthrough"))
+
+                # Capture the current time as the time of the last image publishing
+                previous_publish_time = time()
 
                 # Increment the iterator
                 ii = ii + 1
@@ -93,9 +106,6 @@ def main(file_path: str, image_number_offset: int = None, publishing_rate: float
                 stdout.write(f'Image {ii} of {num_images} sent.\r')
                 stdout.flush()
 
-                # Sleep until the next time
-                rate.sleep()
-
     except KeyboardInterrupt:
         print('terminated by user')
 
@@ -103,6 +113,12 @@ def main(file_path: str, image_number_offset: int = None, publishing_rate: float
 def streaming_commands_callback(data: Bool):
     global stream_images
     stream_images = data.data
+
+
+def restart_streaming_command_callback(data: Bool):
+    global ii
+    ii = 0
+
 
 if __name__ == '__main__':
 

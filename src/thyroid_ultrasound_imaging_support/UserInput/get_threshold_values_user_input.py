@@ -5,12 +5,12 @@ Contains get_threshold_values_from_triangle function.
 from numpy import std, median
 
 # Import custom objects
-from thyroid_ultrasound_imaging.Boundaries.BoundingSet import BoundingSet
-from thyroid_ultrasound_imaging.ImageData.ImageData import ImageData
+from thyroid_ultrasound_imaging_support.Boundaries.BoundingSet import BoundingSet
+from thyroid_ultrasound_imaging_support.ImageData.ImageData import ImageData
 
 # Import custom functions
-from thyroid_ultrasound_imaging.UserInput.user_input_polygon_points import user_input_polygon_points
-from thyroid_ultrasound_imaging.Boundaries.create_convex_triangles_from_points import \
+from thyroid_ultrasound_imaging_support.UserInput.user_input_polygon_points import user_input_polygon_points
+from thyroid_ultrasound_imaging_support.Boundaries.create_convex_triangles_from_points import \
     create_convex_triangles_from_points
 
 

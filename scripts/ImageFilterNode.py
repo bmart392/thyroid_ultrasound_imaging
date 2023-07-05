@@ -14,24 +14,27 @@ from time import time
 from copy import copy
 
 # Import ROS packages
-# import rospy
-from rospy import init_node, spin, Subscriber, Publisher
+from rospy import init_node, spin, Subscriber, Publisher, wait_for_service, ServiceProxy, ServiceException
 from geometry_msgs.msg import TwistStamped  # , Twist
 from sensor_msgs.msg import Image
 from std_msgs.msg import Bool, String  # ,Float64, String, UInt32MultiArray
 
+# Import custom ROS messages and services
+from thyroid_ultrasound_imaging.srv import SelectCropCoordinates
+from thyroid_ultrasound_imaging.msg import image_data
+
 # Import custom objects
-from thyroid_ultrasound_imaging.ImageData.ImageData import ImageData
+from thyroid_ultrasound_imaging_support.ImageData.ImageData import ImageData
 
-from thyroid_ultrasound_imaging.ImageFilter.ImageFilterThreshold import ImageFilterThreshold
-from thyroid_ultrasound_imaging.ImageFilter.ImageFilterGrabCut import ImageFilterGrabCut
-from thyroid_ultrasound_imaging.ImageFilter.FilterConstants import COLOR_GRAY
+from thyroid_ultrasound_imaging_support.ImageFilter.ImageFilterThreshold import ImageFilterThreshold
+from thyroid_ultrasound_imaging_support.ImageFilter.ImageFilterGrabCut import ImageFilterGrabCut
+from thyroid_ultrasound_imaging_support.ImageFilter.FilterConstants import COLOR_GRAY
 
-from thyroid_ultrasound_imaging.Visualization.VisualizationConstants import *
-from thyroid_ultrasound_imaging.Visualization.Visualization import Visualization
+from thyroid_ultrasound_imaging_support.Visualization.VisualizationConstants import *
+from thyroid_ultrasound_imaging_support.Visualization.Visualization import Visualization
 
-from thyroid_ultrasound_imaging.Controller.ImagePositioningController import ImagePositioningController
-from thyroid_ultrasound_imaging.Visualization.display_process_timer import display_process_timer
+from thyroid_ultrasound_imaging_support.Controller.ImagePositioningController import ImagePositioningController
+from thyroid_ultrasound_imaging_support.Visualization.display_process_timer import display_process_timer
 
 # Define the types of image filters that could be used
 THRESHOLD_FILTER: int = 0
@@ -76,11 +79,11 @@ class ImageFilterNode:
         self.analysis_mode = analysis_mode
 
         # Define flags and variables used within the class
-        self.is_new_image_available = False     # flag showing when a new image to filter is available
-        self.newest_image_data: ImageData = None           # for storing the data about the most recently sent image
-        self.image_data: ImageData = None                  # for storing the data about the image to be filtered
-        self.time_of_last_image_filtered = 0    # for storing when the first image was filtered
-        self.filter_images = False              # for storing the current image filtering status
+        self.is_new_image_available = False  # flag showing when a new image to filter is available
+        self.newest_image_data: ImageData = None  # for storing the data about the most recently sent image
+        self.image_data: ImageData = None  # for storing the data about the image to be filtered
+        self.time_of_last_image_filtered = 0  # for storing when the first image was filtered
+        self.filter_images = False  # for storing the current image filtering status
         self.temporary_visualization_block = False
 
         # check that a valid filtering rate was given
@@ -103,7 +106,10 @@ class ImageFilterNode:
         elif filter_type == GRABCUT_FILTER:
             self.image_filter = ImageFilterGrabCut(None, debug_mode=self.debug_mode, analysis_mode=self.analysis_mode,
                                                    image_crop_included=True,
-                                                   image_crop_coordinates=[[171, 199], [530, 477]])
+                                                   image_crop_coordinates=[[171, 199], [530, 477]],
+                                                   # image_crop_coordinates=[[585, 455], [639, 479]],
+
+                                                   )
 
             # Define the title to use in the visualization
             visualization_title = "Grabcut Filter"
@@ -261,6 +267,24 @@ class ImageFilterNode:
             # update status message
             self.publish_status("Generating crop coordinates")
 
+            # ensure the service is running
+            wait_for_service('select_crop_coordinates_server')
+
+            # request the service generate the crop coordinates
+            try:
+                service = ServiceProxy('select_crop_coordinates_server',
+                                       SelectCropCoordinates)
+                response = service(self.newest_image_data.generate_image_data_msg())
+
+                self.image_filter.image_crop_included = True
+                self.image_filter.image_crop_coordinates = [
+                    [response.first_corner_x, response.first_corner_y],
+                    [response.second_corner_x, response. second_corner_y]
+                ]
+
+            except ServiceException:
+                print("Service error.")
+
             # Generate the image crop coordinates
             self.image_filter.generate_crop_coordinates(self.newest_image_data)
 
@@ -273,22 +297,31 @@ class ImageFilterNode:
         Only works for GrabCut image filters.
         """
 
+        # update status message
+        self.publish_status("Generate mask command received")
+
         if self.newest_image_data is not None:
             if type(self.image_filter) is ImageFilterGrabCut:
 
                 # Define default values for lists of points for background and foreground
-                list_of_background_points = [(14, 194), (47, 14), (285, 7), (322, 154), (292, 148), (265, 135),
+                """list_of_background_points = [(14, 194), (47, 14), (285, 7), (322, 154), (292, 148), (265, 135),
                                              (234, 128), (186, 131), (139, 135), (106, 144), (80, 161), (58, 179),
                                              (38, 198), (30, 218), (31, 245), (55, 262), (65, 275), (35, 271), (8, 270)]
                 list_of_foreground_points = [(63, 213), (81, 195), (114, 174), (134, 166), (131, 186), (125, 203),
-                                             (115, 222), (113, 235), (109, 250), (96, 246), (72, 231), (65, 228)]
+                                             (115, 222), (113, 235), (109, 250), (96, 246), (72, 231), (65, 228)]"""
+                list_of_background_points = None
+                list_of_foreground_points = None
 
                 self.image_filter.generate_previous_mask_from_user_input(self.newest_image_data,
                                                                          list_of_background_points=list_of_background_points,
                                                                          list_of_foreground_points=list_of_foreground_points)
+
+            else:
+                # update status message
+                self.publish_status("Generate mask command not available for threshold filters")
         else:
-            self.debug_status_messages_publisher.publish(String("No image available from which "
-                                                                "to create grabcut mask"))
+            # update status message
+            self.publish_status("No image available from which to create grabcut mask")
 
     def generate_threshold_parameters_callback(self, data: Bool):
         """
@@ -317,10 +350,14 @@ class ImageFilterNode:
         start_of_process_time = time()
 
         # filter the image
+        # TODO Why is the mask looking at the whole image?
         self.image_filter.fully_filter_image(self.image_data)
 
         # find the contours in the mask
         self.image_data.generate_contours_in_image()
+
+        # find the centroids of each contour
+        self.image_data.calculate_image_centroids()
 
         # note the time required to fully filter the image
         start_of_process_time = self.display_process_timer(start_of_process_time, "Time to fully filter")
@@ -417,8 +454,9 @@ class ImageFilterNode:
 
 if __name__ == '__main__':
     # create node object
-    filter_node = ImageFilterNode(filter_type=GRABCUT_FILTER, visualizations_included=[SHOW_ORIGINAL, SHOW_FOREGROUND],
-                                  filtering_rate=10, debug_mode=False, analysis_mode=True)
+    filter_node = ImageFilterNode(filter_type=GRABCUT_FILTER, visualizations_included=[SHOW_ORIGINAL, SHOW_FOREGROUND,
+                                                                                       SHOW_CENTROIDS_ONLY],
+                                  filtering_rate=10, debug_mode=True, analysis_mode=True)
 
     print("Node initialized.")
     print("Press ctrl+c to terminate.")
@@ -426,6 +464,3 @@ if __name__ == '__main__':
     # spin until node is terminated
     # callback function handles image analysis
     spin()
-
-
-        

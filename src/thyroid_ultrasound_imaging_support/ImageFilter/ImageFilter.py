@@ -9,14 +9,15 @@ import cv2
 from copy import copy
 
 # Import custom objects
-from thyroid_ultrasound_imaging.ImageData.ImageData import ImageData
+from thyroid_ultrasound_imaging_support.ImageData.ImageData import ImageData
 
 # Import custom constants
-from thyroid_ultrasound_imaging.ImageFilter.FilterConstants import *
+from thyroid_ultrasound_imaging_support.ImageFilter.FilterConstants import *
 
 # Import custom functions
-from thyroid_ultrasound_imaging.Visualization.display_process_timer import display_process_timer
-from thyroid_ultrasound_imaging.UserInput.user_input_crop_coordinates import user_input_crop_coordinates
+from thyroid_ultrasound_imaging_support.Visualization.Visualization import Visualization
+from thyroid_ultrasound_imaging_support.Visualization.display_process_timer import display_process_timer
+from thyroid_ultrasound_imaging_support.UserInput.user_input_crop_coordinates import user_input_crop_coordinates
 
 
 class ImageFilter:
@@ -271,7 +272,7 @@ class ImageFilter:
         self.image_crop_included = True
         self.crop_image(image_data)
 
-    def generate_previous_mask_from_user_input(self, image_data: ImageData):
+    def generate_previous_mask_from_user_input(self, image_data: ImageData, visualization_object: Visualization):
         raise Exception("This function was not overridden as expected.")
 
     def generate_threshold_parameters(self, image_data: ImageData):
