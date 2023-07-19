@@ -10,8 +10,10 @@ from thyroid_ultrasound_imaging.msg import image_data_message
 
 # Import custom functions and constants
 from thyroid_ultrasound_imaging_support.ImageData.BridgeImageDataMessageConstants import *
-from thyroid_ultrasound_imaging_support.ImageData.bridge_list_of_points_multi_array import bridge_list_of_points_multi_array
-from thyroid_ultrasound_imaging_support.ImageData.bridge_list_of_contours_multi_array import bridge_list_of_contours_multi_array
+from thyroid_ultrasound_imaging_support.ImageData.bridge_list_of_points_multi_array import \
+    bridge_list_of_points_multi_array
+from thyroid_ultrasound_imaging_support.ImageData.bridge_list_of_contours_multi_array import \
+    bridge_list_of_contours_multi_array
 
 
 class ImageData:
