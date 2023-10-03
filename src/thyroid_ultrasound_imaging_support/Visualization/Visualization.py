@@ -107,6 +107,10 @@ class Visualization:
             # Iterate through each visualization type
             # Define the image to display and the image title
             for visual in visualizations_to_show:
+
+                # Provide default value in case one is not assigned
+                image_to_show = None
+
                 if visual == SHOW_ORIGINAL:
                     image_to_show = image_data.original_image
                     image_title = "Original Image"
@@ -124,30 +128,36 @@ class Visualization:
                     image_title = "Blurred Image"
 
                 elif visual == SHOW_MASK:
-                    image_to_show = self.create_mask_display_array(image_data.image_mask)
+                    if image_data.image_mask is not None:
+                        image_to_show = self.create_mask_display_array(image_data.image_mask)
                     image_title = "Image Mask\nfrom Segmentation"
 
                 elif visual == SHOW_EXPANDED_MASK:
-                    image_to_show = self.create_mask_display_array(image_data.expanded_image_mask)
+                    if image_data.expanded_image_mask is not None:
+                        image_to_show = self.create_mask_display_array(image_data.expanded_image_mask)
                     image_title = "Full Size Image Mask\nfrom Segmentation"
 
                 elif visual == SHOW_FOREGROUND:
-                    image_to_show = self.create_mask_overlay_array(image_data.original_image,
-                                                                   image_data.expanded_image_mask)
+                    if image_data.original_image is not None and image_data.expanded_image_mask is not None:
+                        image_to_show = self.create_mask_overlay_array(image_data.original_image,
+                                                                          image_data.expanded_image_mask)
                     image_title = "Foreground of the Image"
 
                 elif visual == SHOW_SURE_FOREGROUND:
-                    image_to_show = self.create_mask_overlay_array(image_data.original_image,
+                    if image_data.sure_foreground_mask is not None:
+                        image_to_show = self.create_mask_overlay_array(image_data.original_image,
                                                                    image_data.sure_foreground_mask)
                     image_title = "Sure Foreground of Image"
 
                 elif visual == SHOW_SURE_BACKGROUND:
-                    image_to_show = self.create_mask_overlay_array(image_data.original_image,
+                    if image_data.sure_background_mask is not None:
+                        image_to_show = self.create_mask_overlay_array(image_data.original_image,
                                                                    image_data.sure_background_mask)
                     image_title = "Sure Background of Image"
 
                 elif visual == SHOW_PROBABLE_FOREGROUND:
-                    image_to_show = self.create_mask_overlay_array(image_data.original_image,
+                    if image_data.probable_foreground_mask is not None:
+                        image_to_show = self.create_mask_overlay_array(image_data.original_image,
                                                                    image_data.probable_foreground_mask)
                     image_title = "Probable Foreground of Image"
 
@@ -162,28 +172,32 @@ class Visualization:
                         image_title = "No Initialization Mask\nProvided"
 
                 elif visual == SHOW_GRABCUT_USER_INITIALIZATION_0:
-                    initialization_mask = image_data.segmentation_initialization_mask[:, :, newaxis]
-                    image_to_show = image_data.cropped_image * where((initialization_mask == GC_BGD) |
+                    if image_data.segmentation_initialization_mask is not None:
+                        initialization_mask = image_data.segmentation_initialization_mask[:, :, newaxis]
+                        image_to_show = image_data.cropped_image * where((initialization_mask == GC_BGD) |
                                                                      (initialization_mask == GC_PR_BGD), 0, 1)
                     image_title = "Initialized Region of Image"
 
                 elif visual == SHOW_CENTROIDS_ONLY:
 
-                    # Create an empty mask
-                    image_to_show = zeros(image_data.original_image.shape, uint8)
+                    if len(image_data.contour_centroids) > 0:
+                        # Create an empty mask
+                        image_to_show = zeros(image_data.original_image.shape, uint8)
 
-                    # Draw each centroid from the image
-                    image_to_show = self.add_centroids_on_image(image_to_show, image_data)
+                        # Draw each centroid from the image
+                        image_to_show = self.add_centroids_on_image(image_to_show, image_data)
 
                     image_title = "Image Centroids"
 
                 elif visual == SHOW_CENTROIDS_CROSS_ONLY:
 
-                    # Create an empty mask
-                    image_to_show = zeros(image_data.original_image.shape, uint8)
+                    if len(image_data.contour_centroids) > 0:
 
-                    # Draw each centroid from the image and a cross
-                    image_to_show = self.add_cross_and_centroids_on_image(image_to_show, image_data)
+                        # Create an empty mask
+                        image_to_show = zeros(image_data.original_image.shape, uint8)
+
+                        # Draw each centroid from the image and a cross
+                        image_to_show = self.add_cross_and_centroids_on_image(image_to_show, image_data)
 
                     image_title = "Image Centroids with Crosshair."
 
@@ -211,13 +225,18 @@ class Visualization:
                 else:
                     raise Exception("Visualization type not recognized.")
 
+                # Add message image title to image title
+                image_title = image_data.image_title + ":\n " + image_title
+
                 # Remove carriage return if continuous images are shown
                 if self.image_mode == IMG_CONTINUOUS:
                     image_title = image_title.replace("\n", " ")
 
                 # Show the image using the parameters determined above
-                self.show_basic_image(image_to_show, image_title,
-                                      all_axes[current_axis_number])
+                if image_to_show is not None:
+                    if len(image_to_show) > 0:
+                        self.show_basic_image(image_to_show, image_title,
+                                              all_axes[current_axis_number])
 
                 # Increment the current axis number for the next loop
                 current_axis_number = current_axis_number + 1
@@ -311,8 +330,11 @@ class Visualization:
         if len(base_image.shape) == 3:
             mask = mask[:, :, newaxis]
             inverted_mask = (1 - mask)[:, :, newaxis]
-        return base_image * mask + uint8(
-            base_image * (1 - mask) * fade_rate
+        if mask is None:
+            return array([])
+        else:
+            return base_image * mask + uint8(
+                base_image * (1 - mask) * fade_rate
         )
 
     @staticmethod

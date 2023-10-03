@@ -14,7 +14,10 @@ find_package(catkin REQUIRED COMPONENTS
   sensor_msgs
   std_msgs
   message_generation
+  roslaunch 
 )
+
+roslaunch_add_file_check(launch)
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
@@ -54,6 +57,8 @@ add_message_files(
   FILES
   image_data_message.msg
   image_crop_coordinates.msg
+  initialization_mask_message.msg
+  threshold_parameters.msg
 )
 
 ## Generate services in the 'srv' folder
@@ -171,6 +176,8 @@ catkin_install_python(PROGRAMS
   scripts/SelectCropCoordinatesServer.py
   scripts/GeneratePreviousMaskServer.py
   scripts/VisualizationNode.py
+  scripts/ImageDataConverter.py
+  scripts/ImageBasedUserInput.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

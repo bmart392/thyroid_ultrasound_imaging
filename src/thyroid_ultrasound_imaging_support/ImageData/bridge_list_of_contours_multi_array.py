@@ -31,7 +31,7 @@ def bridge_list_of_contours_multi_array(direction: int, list_of_contours: list =
     if direction == TO_MESSAGE:
 
         # Verify that the proper input is not None
-        if list_of_contours is not None:
+        if list_of_contours is None:
             raise Exception("list_of_contours cannot be None when converting to message.")
 
         # Define one list that will contain all contours
@@ -44,7 +44,7 @@ def bridge_list_of_contours_multi_array(direction: int, list_of_contours: list =
             for coordinate_pair in contour_list:
 
                 # Add each point to the list of all points
-                list_of_points_of_all_contours.append(coordinate_pair)
+                list_of_points_of_all_contours.append(coordinate_pair[0])
 
             # Add a placeholder coordinate to separate each contour
             list_of_points_of_all_contours.append(PLACEHOLDER_COORDINATE)
@@ -55,7 +55,7 @@ def bridge_list_of_contours_multi_array(direction: int, list_of_contours: list =
     elif direction == TO_OBJECT:
 
         # Verify that the proper input is not None
-        if array_message is not None:
+        if array_message is None:
             raise Exception("array_message cannot be None when converting to message.")
 
         # Convert the array_message to a single list of points that contains all contours
@@ -109,12 +109,15 @@ if __name__ == "__main__":
 
     # Create a list of points to test
     trial_list = [[(1, 2), (3, 4), (5, 6), (7, 8)], [(9, 10)], [(11, 12), (13, 14)]]
+    trial_list = []
 
     # Generate the corresponding message
     message_result = bridge_list_of_contours_multi_array(TO_MESSAGE, trial_list)
 
     # Generate the corresponding object to the generated list
     object_result = bridge_list_of_contours_multi_array(TO_OBJECT, array_message=message_result)
+
+    print(object_result)
 
     # Print the result of the test
     print("Test result: " + str(trial_list == object_result))

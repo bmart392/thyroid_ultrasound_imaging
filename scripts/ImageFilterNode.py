@@ -4,26 +4,22 @@
 File containing ImageFiterNode class definition and ROS running code.
 """
 
-# TODO Implement threading on all portions of code using imshow
-# See: https://nrsyed.com/2018/07/05/multithreading-with-opencv-python-to-improve-video-processing-performance/
+# Import standard ROS packages
+from rospy import init_node, spin, Subscriber, Publisher
+from geometry_msgs.msg import TwistStamped
+from sensor_msgs.msg import Image
+from std_msgs.msg import Bool, String
 
 # Import standard packages
-from numpy import frombuffer, reshape, uint8  # , ones, sign
-from cv_bridge import CvBridgeError  # , CvBridge
+from numpy import frombuffer, reshape, uint8
 from time import time
 from copy import copy
 
-# Import ROS packages
-from rospy import init_node, spin, Subscriber, Publisher, wait_for_service, ServiceProxy, ServiceException
-from geometry_msgs.msg import TwistStamped  # , Twist
-from sensor_msgs.msg import Image
-from std_msgs.msg import Bool, String  # ,Float64, String, UInt32MultiArray
+# Import custom ROS packages
+from thyroid_ultrasound_imaging.msg import image_data_message, image_crop_coordinates, \
+    initialization_mask_message, threshold_parameters
 
-# Import custom ROS messages and services
-from thyroid_ultrasound_imaging.srv import SelectCropCoordinates
-from thyroid_ultrasound_imaging.msg import image_data
-
-# Import custom objects
+# Import custom packages
 from thyroid_ultrasound_imaging_support.ImageData.ImageData import ImageData
 
 from thyroid_ultrasound_imaging_support.ImageFilter.ImageFilterThreshold import ImageFilterThreshold
@@ -80,7 +76,9 @@ class ImageFilterNode:
 
         # Define flags and variables used within the class
         self.is_new_image_available = False  # flag showing when a new image to filter is available
+        # noinspection PyTypeChecker
         self.newest_image_data: ImageData = None  # for storing the data about the most recently sent image
+        # noinspection PyTypeChecker
         self.image_data: ImageData = None  # for storing the data about the image to be filtered
         self.time_of_last_image_filtered = 0  # for storing when the first image was filtered
         self.filter_images = False  # for storing the current image filtering status
@@ -91,7 +89,7 @@ class ImageFilterNode:
             1 / filtering_rate
         except ValueError:
             raise Exception("Filtering rate must be a non-zero value. A value of " + str(filtering_rate) +
-                            " was given.")
+                            " Hz was given.")
 
         # save the filtering rate passed to the function
         self.filtering_rate: float = filtering_rate  # hz
@@ -105,8 +103,8 @@ class ImageFilterNode:
 
         elif filter_type == GRABCUT_FILTER:
             self.image_filter = ImageFilterGrabCut(None, debug_mode=self.debug_mode, analysis_mode=self.analysis_mode,
-                                                   image_crop_included=True,
-                                                   image_crop_coordinates=[[171, 199], [530, 477]],
+                                                   # image_crop_included=True,
+                                                   # image_crop_coordinates=[[171, 199], [530, 477]],
                                                    # image_crop_coordinates=[[585, 455], [639, 479]],
 
                                                    )
@@ -137,16 +135,17 @@ class ImageFilterNode:
         self.filter_images_subscriber = Subscriber('/command/filter_images', Bool, self.filter_images_callback)
 
         # Create a subscriber to receive the command to select the crop coordinates for the image
-        self.select_crop_coordinates_subscriber = Subscriber('/command/select_crop_coordinates', Bool,
-                                                             self.select_crop_coordinates_callback)
+        self.select_crop_coordinates_subscriber = Subscriber('/ib_ui/image_crop_coordinates', image_crop_coordinates,
+                                                             self.crop_coordinates_callback)
 
         # Create a subscriber to receive the command to create the grabcut filter mask
-        self.generate_grabcut_mask_subscriber = Subscriber('/command/generate_grabcut_mask', Bool,
-                                                           self.generate_grabcut_mask_callback)
+        self.generate_grabcut_mask_subscriber = Subscriber('/ib_ui/initialization_mask', initialization_mask_message,
+                                                           self.grabcut_initialization_mask_callback)
 
         # Create a subscriber to receive the command to generate the threshold filter parameters
-        self.generate_threshold_parameters_subscriber = Subscriber('/command/generate_threshold_parameters', Bool,
-                                                                   self.generate_threshold_parameters_callback)
+        self.generate_threshold_parameters_subscriber = Subscriber('/ub_ui/generate_threshold_parameters',
+                                                                   threshold_parameters,
+                                                                   self.update_threshold_parameters_callback)
 
         # Create a publisher to publish the error of the centroid
         self.image_based_control_input_publisher = Publisher('/control_input/image_based', TwistStamped,
@@ -160,6 +159,12 @@ class ImageFilterNode:
 
         # Create a publisher to publish debugging status messages
         self.debug_status_messages_publisher = Publisher('/debug/status_messages', String, queue_size=1)
+
+        # Create a publisher to publish the cropped ultrasound image
+        self.cropped_image_publisher = Publisher('image_data/cropped', image_data_message, queue_size=1)
+
+        # Create a publisher to publish the fully filtered ultrasound image
+        self.filtered_image_publisher = Publisher('image_data/filtered', image_data_message, queue_size=1)
 
         # Create a publisher to publish the masked image
         # mask_publisher = rospy.Publisher('/image_data/mask', UInt32MultiArray, queue_size=1)
@@ -185,45 +190,24 @@ class ImageFilterNode:
         # record the current time for timing of processes
         start_of_process_time = time()
 
-        try:
-            """# Convert image using CvBridge
-            # convert the image message to a cv2 data array
-            bridge = CvBridge()
-            cv_image = bridge.imgmsg_to_cv2(data, desired_encoding='passthrough')"""
+        # Convert image using numpy tools
+        cv_image = frombuffer(data.data, dtype=uint8)
+        cv_image = reshape(cv_image, (data.height, data.width))
 
-            # Convert image using numpy tools
-            cv_image = frombuffer(data.data, dtype=uint8)
-            cv_image = reshape(cv_image, (data.height, data.width))
+        # note the amount of time required to convert the image
+        # start_of_process_time = self.display_process_timer(start_of_process_time, "Image conversion time")
 
-            # note the amount of time required to convert the image
-            # start_of_process_time = self.display_process_timer(start_of_process_time, "Image conversion time")
+        # Create new image data based on received image
+        self.newest_image_data = ImageData(image_data=cv_image, image_color=COLOR_GRAY)
 
-            # Create new image data based on received image
-            self.newest_image_data = ImageData(image_data=cv_image, image_color=COLOR_GRAY)
+        # Crop and recolorize the newest image if an image crop is included
+        if self.image_filter.image_crop_included:
+            self.image_filter.crop_image(self.newest_image_data)
+            self.image_filter.colorize_image(self.newest_image_data)
 
-            # Crop and recolorize the newest image if an image crop is included
-            if self.image_filter.image_crop_included:
-                self.image_filter.crop_image(self.newest_image_data)
-                self.image_filter.colorize_image(self.newest_image_data)
-
-            # Visualize the image accordingly
-            if self.debug_mode:
-                if self.image_filter.image_crop_included:
-
-                    if self.newest_image_data.cropped_image is not None:
-
-                        self.visualization.visualize_images(self.newest_image_data, [SHOW_RECOLOR])
-
-                    else:
-                        self.visualization.visualize_images(self.newest_image_data, [SHOW_CROPPED])
-
-                else:
-                    self.visualization.visualize_images(self.newest_image_data, [SHOW_ORIGINAL])
-
-        except CvBridgeError:
-            print("Image error.")
-            self.newest_image_data = None
-            return
+            # Publish this data so that it can be monitored before any filtering is completed
+            self.newest_image_data.image_title = "Image Filter Node"
+            self.cropped_image_publisher.publish(self.newest_image_data.convert_to_message())
 
         # check if the image needs to be filtered
         time_since_last_image = time() - self.time_of_last_image_filtered
@@ -253,87 +237,57 @@ class ImageFilterNode:
         """
         self.filter_images = data.data
 
-    def select_crop_coordinates_callback(self, data: Bool):
+    def crop_coordinates_callback(self, coordinates: image_crop_coordinates):
         """
-        When commanded, call on the image filter to crop the image.
+        When new image crop coordinates are available, set the image filter to use them.
         """
 
-        # update status message
-        self.publish_status("Crop command received")
+        # Set the image filter to crop the image
+        self.image_filter.image_crop_included = True
 
-        # If a new image data object exists
-        if self.newest_image_data is not None:
+        # Set the image crop coordinates to use to crop the image
+        self.image_filter.image_crop_coordinates = [
+            [coordinates.first_coordinate_x, coordinates.first_coordinate_y],
+            [coordinates.second_coordinate_x, coordinates.second_coordinate_y]
+        ]
 
-            # update status message
-            self.publish_status("Generating crop coordinates")
-
-            # ensure the service is running
-            wait_for_service('select_crop_coordinates_server')
-
-            # request the service generate the crop coordinates
-            try:
-                service = ServiceProxy('select_crop_coordinates_server',
-                                       SelectCropCoordinates)
-                response = service(self.newest_image_data.generate_image_data_msg())
-
-                self.image_filter.image_crop_included = True
-                self.image_filter.image_crop_coordinates = [
-                    [response.first_corner_x, response.first_corner_y],
-                    [response.second_corner_x, response. second_corner_y]
-                ]
-
-            except ServiceException:
-                print("Service error.")
-
-            # Generate the image crop coordinates
-            self.image_filter.generate_crop_coordinates(self.newest_image_data)
-
-        else:
-            self.publish_status("No image available to crop")
-
-    def generate_grabcut_mask_callback(self, data: Bool):
+    def grabcut_initialization_mask_callback(self, data: initialization_mask_message):
         """
-        When commanded, call on the image filter to generate the previous mask.
+        When the user has created a new initialization mask, update the previous image mask for the image filter.
         Only works for GrabCut image filters.
         """
 
-        # update status message
-        self.publish_status("Generate mask command received")
+        if type(self.image_filter) is ImageFilterGrabCut:
 
-        if self.newest_image_data is not None:
-            if type(self.image_filter) is ImageFilterGrabCut:
-
-                # Define default values for lists of points for background and foreground
-                """list_of_background_points = [(14, 194), (47, 14), (285, 7), (322, 154), (292, 148), (265, 135),
-                                             (234, 128), (186, 131), (139, 135), (106, 144), (80, 161), (58, 179),
-                                             (38, 198), (30, 218), (31, 245), (55, 262), (65, 275), (35, 271), (8, 270)]
-                list_of_foreground_points = [(63, 213), (81, 195), (114, 174), (134, 166), (131, 186), (125, 203),
-                                             (115, 222), (113, 235), (109, 250), (96, 246), (72, 231), (65, 228)]"""
-                list_of_background_points = None
-                list_of_foreground_points = None
-
-                self.image_filter.generate_previous_mask_from_user_input(self.newest_image_data,
-                                                                         list_of_background_points=list_of_background_points,
-                                                                         list_of_foreground_points=list_of_foreground_points)
-
-            else:
-                # update status message
-                self.publish_status("Generate mask command not available for threshold filters")
-        else:
             # update status message
-            self.publish_status("No image available from which to create grabcut mask")
+            self.publish_status("New initialization mask received")
 
-    def generate_threshold_parameters_callback(self, data: Bool):
+            # Convert the initialization mask from message form to array form
+            initialization_mask = frombuffer(data.previous_image_mask.data, dtype=uint8)
+            initialization_mask = reshape(initialization_mask, (data.previous_image_mask.height,
+                                                                data.previous_image_mask.width))
+
+            # Save the mask to the image filter
+            self.image_filter.previous_image_mask_array = initialization_mask
+
+            # update status message
+            self.publish_status("New initialization mask saved to the filter")
+
+    def update_threshold_parameters_callback(self, data: threshold_parameters):
         """
-        When commanded, call on the image filter to generate the ideal thresholding parameters.
+        When the user has generated new threshold parameters, update the parameters stored in the image filter.
         Only works for Threshold image filters.
         """
-        if self.newest_image_data is not None:
-            if type(self.image_filter) is ImageFilterThreshold:
-                self.image_filter.generate_threshold_parameters(self.newest_image_data)
-        else:
-            self.debug_status_messages_publisher.publish(String("No image available from which to "
-                                                                "generate threshold parameters"))
+        if type(self.image_filter) is ImageFilterThreshold:
+
+            # update status message
+            self.publish_status("New threshold parameters received")
+
+            # Update the parameters of the filter
+            self.image_filter.thresholding_parameters = (data.lower_bound, data.upper_bound)
+
+            self.publish_status("New threshold parameters saved to the filter")
+            # Update the status message
 
     #############################################################################
     # Define Helpers
@@ -350,7 +304,6 @@ class ImageFilterNode:
         start_of_process_time = time()
 
         # filter the image
-        # TODO Why is the mask looking at the whole image?
         self.image_filter.fully_filter_image(self.image_data)
 
         # find the contours in the mask
@@ -363,7 +316,7 @@ class ImageFilterNode:
         start_of_process_time = self.display_process_timer(start_of_process_time, "Time to fully filter")
 
         # visualize the result of the image filtering
-        self.visualization.visualize_images(self.image_data)
+        self.filtered_image_publisher.publish(self.image_data.convert_to_message())
 
         # note the time required to visualize the image
         start_of_process_time = self.display_process_timer(start_of_process_time, "Time to visualize image")
@@ -380,6 +333,8 @@ class ImageFilterNode:
 
         # If the thyroid is present in the image, publish data about it
         if thyroid_in_image:
+
+            # TODO Check if everything going on here is actually right
 
             # Analyze the centroid location to determine the needed control input, current thyroid position error, and
             # if the thyroid is in the center of the image
@@ -456,7 +411,7 @@ if __name__ == '__main__':
     # create node object
     filter_node = ImageFilterNode(filter_type=GRABCUT_FILTER, visualizations_included=[SHOW_ORIGINAL, SHOW_FOREGROUND,
                                                                                        SHOW_CENTROIDS_ONLY],
-                                  filtering_rate=10, debug_mode=True, analysis_mode=True)
+                                  filtering_rate=10, debug_mode=False, analysis_mode=True)
 
     print("Node initialized.")
     print("Press ctrl+c to terminate.")

@@ -3,8 +3,9 @@ Contains code for ImageData class.
 """
 
 # Import standard libraries
-import cv2
-from numpy import sum, uint8, array
+from cv2 import findContours, RETR_EXTERNAL, CHAIN_APPROX_NONE, contourArea, moments
+from numpy import sum, uint8, array, frombuffer, reshape
+from sensor_msgs.msg import Image
 from cv_bridge import CvBridge, CvBridgeError
 from thyroid_ultrasound_imaging.msg import image_data_message
 
@@ -61,9 +62,8 @@ class ImageData:
     """
 
     def __init__(self, image_data: array = None,
-                 image_filepath: str = None,
                  image_color: int = None,
-                 image_title: str = None,
+                 image_title: str = "",
                  image_size_x: int = 0,
                  image_size_y: int = int(0),
                  segmentation_initialization_mask: array = None,
@@ -72,12 +72,13 @@ class ImageData:
         """
         Creates a new ImageData object.
 
+        New ImageData objects can be built in two ways. First, with an array representing a 2D image. Second, with an
+        ImageDataMessage object.
+
         Parameters
         ----------
         image_data
             an array representing the image to use to create the ImageData object.
-        image_filepath
-            a string containing the path to an image file to use to create the ImageData object.
         image_color
             a constant representing the color scheme of the image.
         image_title
@@ -93,99 +94,19 @@ class ImageData:
             an image_data ros message object.
         """
 
-        # If the image data object is being created from an image_data message object
-        if image_data_msg is not None:
-
-            # Fill in the object properties from the message fields
-            self.bridge_image_data_and_message(TO_OBJECT, message=image_data_msg)
-
-            # # Read the color of the image from the message
-            # self.image_color = image_data_msg.image_color
-            #
-            # # Create a temporary bridge object to decode the image messages
-            # temp_bridge = CvBridge()
-            #
-            # # Decode the image messages
-            # try:
-            #     self.segmentation_initialization_mask = temp_bridge.imgmsg_to_cv2(
-            #         image_data.segmentation_initialization_mask,
-            #         desired_encoding='passthrough'
-            #     )
-            #
-            #     self.original_image = temp_bridge.imgmsg_to_cv2(
-            #         image_data.original_image,
-            #         desired_encoding='passthrough'
-            #     )
-            #
-            #     self.cropped_image = temp_bridge.imgmsg_to_cv2(
-            #         image_data.cropped_image,
-            #         desired_encoding='passthrough'
-            #     )
-            #
-            #     self.colorized_image = temp_bridge.imgmsg_to_cv2(
-            #         image_data.colorized_image,
-            #         desired_encoding='passthrough'
-            #     )
-            #
-            # except CvBridgeError:
-            #     print("Image could not be decoded.")
-
-        # Otherwise
-        else:
-
-            # Check that an image has been given for object creation
-            if image_data is None and image_filepath is None:
-                raise Exception("An ImageData object could not be created because an image was not provided.")
-
-            # Define basic parameters of the image
-            self.image_color = image_color
-
-            # Save the mask used to initialize the segmentation of this image
-            self.segmentation_initialization_mask = segmentation_initialization_mask
-
-            # --------------------------------------------------------------
-            # Save the data for the image according to how it has been given
-            # --------------------------------------------------------------
-
-            # If the image is only given as a filepath, read the image from the file
-            if image_filepath is not None and image_data is None:
-                self.original_image = cv2.imread(image_filepath)
-
-            # Else if the image is given as an array, save the array
-            elif image_data is not None:
-                self.original_image = image_data
-
-            # Otherwise initialize an empty object
-            else:
-                self.original_image = None
-
-            # --------------------------------------------------------------
-            # Create empty parameters for use by the filters
-            # !!! Order of parameters represent order of operations expected
-            # --------------------------------------------------------------
-            self.cropped_image = None
-            self.colorized_image = None
-
-        # --------------------------------------------------------------
-
-        # Define basic parameters of the image
-        self.image_title = image_title
+        # Define error behaviour for all cases
         self.display_error_messages = display_error_messages
 
-        # Calculate the size of the image if one is given
-        if self.original_image is not None:
-            self.image_size_x = self.original_image.shape[1]
-            self.image_size_y = self.original_image.shape[0]
-
-        # Otherwise set it to a default value
-        else:
-            self.image_size_x = image_size_x
-            self.image_size_y = image_size_y
+        # Define an empty initialized segmentation mask in case none is given later
+        self.segmentation_initialization_mask = array([])
 
         # --------------------------------------------------------------
         # Create empty parameters for use by the filters
         # !!! Order of parameters represent order of operations expected
         # --------------------------------------------------------------
+        self.original_image = array([])
+        self.cropped_image = None
+        self.colorized_image = None
         self.pre_processed_image = None
         self.image_mask = None
         self.expanded_image_mask = None
@@ -193,9 +114,44 @@ class ImageData:
         self.sure_background_mask = None
         self.probable_foreground_mask = None
 
-        # Create empty parameters for storing the centroids and contours
-        self.contours_in_image = None
-        self.contour_centroids = []
+        # If the image data object is being created from an image_data message object
+        if image_data_msg is not None:
+
+            # Fill in the object properties from the message fields
+            self.bridge_image_data_and_message(TO_OBJECT, message=image_data_msg)
+
+        # Otherwise
+        else:
+
+            # Check that an image has been given for object creation
+            if image_data is None:
+                raise Exception("An ImageData object could not be created because an image was not provided.")
+
+            # Save the mask used to initialize the segmentation of this image
+            if segmentation_initialization_mask is not None:
+                self.segmentation_initialization_mask = segmentation_initialization_mask
+
+            # Save the image given
+            self.original_image = image_data
+
+            # Define basic parameters of the image
+            self.image_title = image_title
+            self.image_color = image_color
+
+            # Create empty parameters for storing the centroids and contours
+            self.contours_in_image = []
+            self.contour_centroids = []
+
+        # Calculate the size of the image regardless of how the object is created
+        self.image_size_x = self.original_image.shape[1]
+        self.image_size_y = self.original_image.shape[0]
+
+    def convert_to_message(self):
+        """
+        Converts the existing data object into an equivalent ROS message.
+        """
+
+        return self.bridge_image_data_and_message(TO_MESSAGE)
 
     def generate_contours_in_image(self):
         """
@@ -212,15 +168,15 @@ class ImageData:
         if self.expanded_image_mask is not None and not sum(self.expanded_image_mask) == 0:
 
             # Use a built-in function to generate the contours
-            contours_in_image, hierarchy = cv2.findContours(
+            contours_in_image, hierarchy = findContours(
                 self.expanded_image_mask.astype(uint8),
-                cv2.RETR_EXTERNAL,
-                cv2.CHAIN_APPROX_NONE
+                RETR_EXTERNAL,
+                CHAIN_APPROX_NONE
             )
 
             # Sort the resulting contours by area with the largest contour first
             temp_contours = sorted(contours_in_image,
-                                   key=cv2.contourArea,
+                                   key=contourArea,
                                    reverse=True)
 
             # Define a minimum area requirement
@@ -228,7 +184,7 @@ class ImageData:
 
             # Only add contours to the final list that exceed the minimum contour area requirement
             for contour in temp_contours:
-                if cv2.contourArea(contour) > minimum_contour_area:
+                if contourArea(contour) > minimum_contour_area:
                     self.contours_in_image.append(contour)
 
     def calculate_image_centroids(self):
@@ -242,7 +198,7 @@ class ImageData:
 
         # calculate the centroid of each contour
         for contour in self.contours_in_image:
-            temp_moments = cv2.moments(contour)
+            temp_moments = moments(contour)
             temp_centroid_x = int(temp_moments["m10"] / temp_moments["m00"])
             temp_centroid_y = int(temp_moments["m01"] / temp_moments["m00"])
             self.contour_centroids.append((temp_centroid_x, temp_centroid_y))
@@ -252,8 +208,8 @@ class ImageData:
 
         # if 2 or more contours were found and the second contour also big, include it
         if len(self.contour_centroids) >= 2:
-            if (cv2.contourArea(self.contours_in_image[1]) >=
-                    0.9 * cv2.contourArea(self.contours_in_image[0])):
+            if (contourArea(self.contours_in_image[1]) >=
+                    0.9 * contourArea(self.contours_in_image[0])):
                 result.append((self.contours_in_image[1], self.contour_centroids[1]))
 
         return result
@@ -294,72 +250,118 @@ class ImageData:
             self.image_size_y = message.image_size_y
 
             self.contours_in_image = bridge_list_of_contours_multi_array(TO_OBJECT,
-                                                                         list_of_contours=message.contours_in_image)
+                                                                         array_message=message.contours_in_image)
             self.contour_centroids = bridge_list_of_points_multi_array(TO_OBJECT,
-                                                                       list_of_points=message.contour_centroids)
+                                                                       array_message=message.contour_centroids)
         else:
             raise Exception("Invalid direction given.")
 
-        # Create a bridge object to convert the image arrays to image message objects
-        bridge = CvBridge()
-
-        # Create a list of images to include
-        image_fields = [self.segmentation_initialization_mask,
-                        self.original_image,
-                        self.cropped_image,
-                        self.colorized_image,
-                        self.pre_processed_image,
-                        self.image_mask,
-                        self.expanded_image_mask,
-                        self.sure_foreground_mask,
-                        self.sure_background_mask,
-                        self.probable_foreground_mask]
-
-        # Create a list of message fields to fill
-        message_fields = [message.segmentation_initialization_mask,
-                          message.original_image,
-                          message.cropped_image,
-                          message.colorized_image,
-                          message.pre_processed_image,
-                          message.image_mask,
-                          message.expanded_image_mask,
-                          message.sure_foreground_mask,
-                          message.sure_background_mask,
-                          message.probable_foreground_mask]
-
-        # Create a list of image titles to include in the error messages
-        error_messages = ["Segmentation initialization mask",
-                          "Original image",
-                          "Cropped image",
-                          "Colorized image",
-                          "Pre-processed image",
-                          "Image mask",
-                          "Expanded image mask",
-                          "Sure foreground mask",
-                          "Sure background mask",
-                          "Probable foreground mask"]
-
+        # --------------------------------------------------------------
         # Convert each image field to its corresponding message field OR
-        # convert each message field to its corresponding image field,
-        # otherwise display the corresponding error message
-        for image_field, message_field, error_message in \
-                zip(image_fields, message_fields, error_messages):
-            try:
-                if direction == TO_MESSAGE:
-                    if image_field is not None:
-                        message_field = bridge.cv2_to_imgmsg(image_field)
-                elif direction == TO_OBJECT:
-                    if message_field is not None:
-                        image_field = bridge.imgmsg_to_cv2(message_field)
-                else:
-                    raise Exception("Invalid direction given.")
-            except CvBridgeError:
-                if self.display_error_messages:
-                    print(error_message + " could not be converted.")
+        # convert each message field to its corresponding image field.
+        # --------------------------------------------------------------
+
+        # Segmentation Initialization Mask
+        temp_result = self.convert_single_field(direction=direction, image_field=self.segmentation_initialization_mask,
+                                                message_field=message.segmentation_initialization_mask,
+                                                error_message="Segmentation Initialization Mask")
+        message.segmentation_initialization_mask = temp_result[1]
+        self.segmentation_initialization_mask = temp_result[0]
+
+        # Original Image
+        temp_result = self.convert_single_field(direction=direction, image_field=self.original_image,
+                                                message_field=message.original_image,
+                                                error_message="Original Image")
+        message.original_image = temp_result[1]
+        self.original_image = temp_result[0]
+
+        # Cropped Image
+        temp_result = self.convert_single_field(direction=direction, image_field=self.cropped_image,
+                                                message_field=message.cropped_image,
+                                                error_message="Cropped Image")
+        message.cropped_image = temp_result[1]
+        self.cropped_image = temp_result[0]
+
+        # Colorized Image
+        temp_result = self.convert_single_field(direction=direction, image_field=self.colorized_image,
+                                                message_field=message.colorized_image,
+                                                error_message="Colorized Image")
+        message.colorized_image = temp_result[1]
+        self.colorized_image = temp_result[0]
+
+        # Pre-process Image
+        temp_result = self.convert_single_field(direction=direction, image_field=self.pre_processed_image,
+                                                message_field=message.pre_processed_image,
+                                                error_message="Pre-processed Image")
+        message.pre_processed_image = temp_result[1]
+        self.pre_processed_image = temp_result[0]
+
+        # Image Mask
+        temp_result = self.convert_single_field(direction=direction, image_field=self.image_mask,
+                                                message_field=message.image_mask,
+                                                error_message="Image Mask")
+        message.image_mask = temp_result[1]
+        self.image_mask = temp_result[0]
+
+        # Expanded Image Mask
+        temp_result = self.convert_single_field(direction=direction, image_field=self.expanded_image_mask,
+                                                message_field=message.expanded_image_mask,
+                                                error_message="Expanded Image Mask")
+        message.expanded_image_mask = temp_result[1]
+        self.expanded_image_mask = temp_result[0]
+
+        # Sure Foreground Image Mask
+        temp_result = self.convert_single_field(direction=direction, image_field=self.sure_foreground_mask,
+                                                message_field=message.sure_foreground_mask,
+                                                error_message="Sure Foreground Image Mask")
+        message.sure_foreground_mask = temp_result[1]
+        self.sure_foreground_mask = temp_result[0]
+
+        # Sure Background Image Mask
+        temp_result = self.convert_single_field(direction=direction, image_field=self.sure_background_mask,
+                                                message_field=message.sure_background_mask,
+                                                error_message="Sure Background Image Mask")
+        message.sure_background_mask = temp_result[1]
+        self.sure_background_mask = temp_result[0]
+
+        # Probable Foreground Image Mask
+        temp_result = self.convert_single_field(direction=direction, image_field=self.probable_foreground_mask,
+                                                message_field=message.probable_foreground_mask,
+                                                error_message="Probable Foreground Image Mask")
+        message.probable_foreground_mask = temp_result[1]
+        self.probable_foreground_mask = temp_result[0]
 
         # Return the resulting message if required
         if direction == TO_MESSAGE:
             return message
 
+    def convert_single_field(self, direction, image_field, message_field, error_message):
 
+        # Create a bridge object to convert the image arrays to image message objects
+        bridge = CvBridge()
 
+        try:
+            if direction == TO_MESSAGE:
+                message_field = Image()
+                if image_field is not None:
+                    if len(image_field) != 0:
+                        message_field = bridge.cv2_to_imgmsg(image_field)
+            elif direction == TO_OBJECT:
+                image_field = None
+                if message_field is not None:
+                    if len(message_field.data) != 0:
+                        image_field = frombuffer(message_field.data, dtype=uint8)
+                        if message_field.encoding == "8UC1":
+                            image_field = reshape(image_field, (message_field.height, message_field.width))
+                        elif message_field.encoding == "8UC3" or \
+                                message_field.encoding == "rgb8" or \
+                                message_field.encoding == "bgr8":
+                            image_field = reshape(image_field, (message_field.height, message_field.width, 3))
+                        else:
+                            raise Exception("Unknown encoding given.")
+            else:
+                raise Exception("Invalid direction given.")
+            return image_field, message_field
+        except CvBridgeError:
+            if self.display_error_messages:
+                print(error_message + " could not be converted.")

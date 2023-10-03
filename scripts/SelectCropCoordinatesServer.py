@@ -6,7 +6,7 @@ File containing ImageFiterNode class definition and ROS running code.
 
 # Import ROS packages
 from rospy import init_node, spin, Service, Publisher
-from thyroid_ultrasound_imaging.msg import image_data, image_crop_coordinates
+from thyroid_ultrasound_imaging.msg import image_data_message, image_crop_coordinates
 from thyroid_ultrasound_imaging.srv import SelectCropCoordinates
 
 # Import custom objects
@@ -14,7 +14,7 @@ from thyroid_ultrasound_imaging_support.ImageData.ImageData import ImageData
 from thyroid_ultrasound_imaging_support.UserInput.user_input_crop_coordinates import user_input_crop_coordinates
 
 
-def request_handler(request: image_data):
+def request_handler(request: image_data_message):
 
     # Create a publisher to publish the resulting coordinates from the user image cropping
     result_publisher = Publisher('/ui/image_crop_coordinates', image_crop_coordinates, queue_size=1)

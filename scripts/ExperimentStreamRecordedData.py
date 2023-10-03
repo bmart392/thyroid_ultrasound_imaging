@@ -3,6 +3,7 @@
 """
 File containing code to stream recorded data as ROS Topic.
 """
+import cv2
 
 # Import ROS specific packages
 from rospy import init_node, Publisher, Rate, is_shutdown, Subscriber
@@ -13,7 +14,7 @@ from sensor_msgs.msg import Image
 # Import standard packages
 from os import listdir
 from os.path import isdir, isfile
-from cv2 import imread, cvtColor, COLOR_BGR2GRAY
+from cv2 import imread, cvtColor, COLOR_BGR2GRAY, imshow
 from sys import stdout
 from time import time
 

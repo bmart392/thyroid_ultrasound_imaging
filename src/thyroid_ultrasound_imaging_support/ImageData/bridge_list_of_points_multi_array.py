@@ -33,14 +33,14 @@ def bridge_list_of_points_multi_array(direction: int,
     if direction == TO_MESSAGE:
 
         # Verify that the proper input is not None
-        if list_of_points is not None:
+        if list_of_points is None:
             raise Exception("list_of_points cannot be None when converting to message.")
 
         # Create an empty message
         return_message = UInt16MultiArray()
 
         # Return the empty message if the list is empty
-        if list_of_points is None:
+        if list_of_points is None or len(list_of_points) == 0:
             return return_message
 
         # Check the type of the input list
@@ -84,7 +84,7 @@ def bridge_list_of_points_multi_array(direction: int,
     elif direction == TO_OBJECT:
 
         # Verify that the proper input is not None
-        if array_message is not None:
+        if array_message is None:
             raise Exception("array_message cannot be None when converting to message.")
 
         # Create an empty array
@@ -118,6 +118,7 @@ if __name__ == "__main__":
 
     # Create a list of points to test
     trial_list = [(1, 2), (3, 4), (5, 6), (7, 8)]
+    trial_list = []
 
     # Generate the corresponding message
     message_result = bridge_list_of_points_multi_array(TO_MESSAGE, trial_list)

@@ -3,7 +3,7 @@ Contains user_input_crop_coordinates and necessary callback functions.
 """
 # Import standard packages
 from copy import copy
-from cv2 import line, rectangle
+from cv2 import line, rectangle, imread
 
 # Import custom objects
 from thyroid_ultrasound_imaging_support.ImageData.ImageData import ImageData
@@ -125,8 +125,8 @@ def user_input_crop_coordinates(image_data: ImageData,
 if __name__ == '__main__':
 
     # Create a test image
-    image = ImageData(image_filepath='/home/ben/thyroid_ultrasound/src/thyroid_ultrasound_imaging/' +
-                                     'scripts/Test/Images/Series2/Slice_30.png')
+    image = ImageData(image_data=imread('/home/ben/thyroid_ultrasound/src/thyroid_ultrasound_imaging/' +
+                                     'scripts/Test/Images/Series2/Slice_30.png'))
 
     # Test the function
     user_input_crop_coordinates(image)

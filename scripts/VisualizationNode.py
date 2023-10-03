@@ -5,7 +5,7 @@ File containing VisualizationNode class definition and ROS running code.
 """
 
 # Import ROS packages
-from rospy import init_node, spin, Subscriber
+from rospy import init_node, Subscriber, Rate, is_shutdown
 
 # Import custom ROS messages and services
 from thyroid_ultrasound_imaging.msg import image_data_message
@@ -19,46 +19,110 @@ from thyroid_ultrasound_imaging_support.ImageData.ImageData import ImageData
 class VisualizationNode:
     def __init__(self,
                  image_mode,
-                 visualizations_included: list,
+                 visualizations_included: list = None,
                  debug_mode=True,
                  analysis_mode=True):
 
-        # Define visualization object to use to visualize all image messages received
-        self.visualizer = Visualization(image_mode, visualizations_included)
+        # Define visualization object ot use to visualize images showing the result of the image filter
+        self.image_visualizer = Visualization(image_mode, [SHOW_ORIGINAL, SHOW_CROPPED,
+                                                           SHOW_EXPANDED_MASK, SHOW_CENTROIDS_ONLY,
+                                                           SHOW_FOREGROUND])
 
         init_node('visualizer')
 
-        # Define a subscriber to listen for image_data_messages
-        self.image_data_message_subscriber = Subscriber('image_data', image_data_message,
-                                                        self.image_data_message_callback)
+        # Define a subscriber to listen for raw images
+        Subscriber('image_data/raw', image_data_message, self.raw_image_data_message_callback)
 
-    def image_data_message_callback(self, message: image_data_message):
+        # Define a subscriber to listen for cropped images
+        Subscriber('image_data/cropped', image_data_message, self.cropped_image_data_message_callback)
+
+        # Define a subscriber to listen for fully filtered images
+        Subscriber('image_data/filtered', image_data_message,
+                   self.filtered_image_data_message_callback)
+
+        self.image_to_visualize: ImageData = None
+
+    def raw_image_data_message_callback(self, message: image_data_message):
         """
-        Converts the received image data message to an image data object and then visualizes it.
+        Converts the received raw image data message to an image data object and then visualizes it.
 
         Parameters
         ----------
         message
-            An image_data_msg representing the images to visualize.
+            An image_data_msg representing the raw image to visualize.
         """
 
-        # Generate an image data object to visualize
-        image_to_visualize = ImageData(image_data_msg=message)
+        # Generate a temporary image data object
+        temp_image_to_visualize = ImageData(image_data_msg=message)
 
-        # Visualize the image data
-        self.visualizer.visualize_images(image_to_visualize)
+        # Copy the original image field into the data to visualize
+        if self.image_to_visualize is None:
+            self.image_to_visualize = temp_image_to_visualize
+        else:
+            self.image_to_visualize.original_image = temp_image_to_visualize.original_image
+
+    def cropped_image_data_message_callback(self, message: image_data_message):
+        """
+        Converts the received cropped image data message to an image data object and then visualizes it.
+
+        Parameters
+        ----------
+        message
+            An image_data_msg representing the cropped image to visualize.
+        """
+        # Generate a temporary image data object
+        temp_image_to_visualize = ImageData(image_data_msg=message)
+
+        # Copy the cropped image field into the data to visualize
+        if self.image_to_visualize is None:
+            self.image_to_visualize = temp_image_to_visualize
+        else:
+            self.image_to_visualize.cropped_image = temp_image_to_visualize.cropped_image
+
+    def filtered_image_data_message_callback(self, message: image_data_message):
+        """
+        Converts the received filtered image data message to an image data object and then visualizes it.
+
+        Parameters
+        ----------
+        message
+            An image_data_msg representing the filtered image to visualize.
+        """
+
+        temp_image_to_visualize = ImageData(image_data_msg=message)
+
+        # Copy the relevant image fields into the data to visualize
+        if self.image_to_visualize is None:
+            self.image_to_visualize = temp_image_to_visualize
+        else:
+            self.image_to_visualize.pre_processed_image = temp_image_to_visualize.pre_processed_image
+            self.image_to_visualize.image_mask = temp_image_to_visualize.image_mask
+            self.image_to_visualize.expanded_image_mask = temp_image_to_visualize.expanded_image_mask
+            self.image_to_visualize.sure_foreground_mask = temp_image_to_visualize.sure_foreground_mask
+            self.image_to_visualize.sure_background_mask = temp_image_to_visualize.sure_background_mask
+            self.image_to_visualize.probable_foreground_mask = temp_image_to_visualize.probable_foreground_mask
+            self.image_to_visualize.contours_in_image = temp_image_to_visualize.contours_in_image
+            self.image_to_visualize.contour_centroids = temp_image_to_visualize.contour_centroids
+
+    def publish_updated_image(self):
+        if self.image_to_visualize is not None:
+            self.image_visualizer.visualize_images(self.image_to_visualize)
 
 
 if __name__ == '__main__':
     # create node object
-    visualization_node = VisualizationNode(IMG_CONTINUOUS,
-                                           visualizations_included=[SHOW_ORIGINAL,
-                                                                    SHOW_FOREGROUND,
-                                                                    SHOW_CENTROIDS_ONLY], )
+    visualization_node = VisualizationNode(IMG_CONTINUOUS)
+
+    # Set the publishing rate for updating the visualization
+    publishing_rate = Rate(30)  # Hz
 
     print("Node initialized.")
     print("Press ctrl+c to terminate.")
 
-    # spin until node is terminated
-    # callback function handles image analysis
-    spin()
+    # While the nod is running
+    while not is_shutdown():
+        # Publish the correct visualization
+        visualization_node.publish_updated_image()
+
+        # Then wait
+        publishing_rate.sleep()

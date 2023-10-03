@@ -272,8 +272,3 @@ class ImageFilter:
         self.image_crop_included = True
         self.crop_image(image_data)
 
-    def generate_previous_mask_from_user_input(self, image_data: ImageData, visualization_object: Visualization):
-        raise Exception("This function was not overridden as expected.")
-
-    def generate_threshold_parameters(self, image_data: ImageData):
-        raise Exception("This function was not overridden as expected.")

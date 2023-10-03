@@ -58,7 +58,12 @@ def get_threshold_values_from_user_input(image_data: ImageData,
                 if bounding_set.is_point_within_set([x, y]):
 
                     # Save the value and move to the next pixel
-                    values_list.append(image[y][x][0])
+                    if len(image.shape) == 3:
+                        values_list.append(image[y][x][0])
+                    elif len(image.shape) == 2:
+                        values_list.append(image[y][x])
+                    else:
+                        raise Exception("Image does not have recognizable dimensions.")
                     break
 
     # Calculate the median value of all values found
