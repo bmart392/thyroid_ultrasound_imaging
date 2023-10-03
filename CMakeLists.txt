@@ -62,11 +62,9 @@ add_message_files(
 )
 
 ## Generate services in the 'srv' folder
-add_service_files(
-  FILES
-  SelectCropCoordinates.srv
-  GeneratePreviousMask.srv
-)
+# add_service_files(
+#   FILES
+# )
 
 ## Generate actions in the 'action' folder
 # add_action_files(
@@ -173,8 +171,6 @@ catkin_install_python(PROGRAMS
   scripts/ExperimentControlApplication.py
   scripts/ImagePositioningControllerNode.py
   scripts/ExperimentStreamRecordedData.py
-  scripts/SelectCropCoordinatesServer.py
-  scripts/GeneratePreviousMaskServer.py
   scripts/VisualizationNode.py
   scripts/ImageDataConverter.py
   scripts/ImageBasedUserInput.py
