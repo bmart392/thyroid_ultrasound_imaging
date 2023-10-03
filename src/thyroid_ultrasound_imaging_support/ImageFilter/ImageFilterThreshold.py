@@ -205,16 +205,16 @@ class ImageFilterThreshold(ImageFilter):
 
     @staticmethod
     def create_sure_foreground_mask(image_data: ImageData):
-        # TODO - Implement this function properly
+        # TODO - Low - Implement this function properly
         image_data.sure_foreground_mask = np.zeros(image_data.expanded_image_mask.shape[:2], np.uint8)
 
     @staticmethod
     def create_sure_background_mask(image_data: ImageData):
-        # TODO - Implement this function properly
+        # TODO - Low - Implement this function properly
         image_data.sure_background_mask = np.zeros(image_data.expanded_image_mask.shape[:2], np.uint8)
 
     @staticmethod
     def create_probable_foreground_mask(image_data: ImageData):
-        # TODO - Implement this function properly
+        # TODO - Low - Implement this function properly
         image_data.probable_foreground_mask = np.ones(image_data.expanded_image_mask.shape[:2], np.uint8)
 
