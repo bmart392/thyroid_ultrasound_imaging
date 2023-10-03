@@ -24,6 +24,8 @@ stream_images = False
 # Define global iterator variable
 ii = 0
 
+# TODO - Low - Add status message logging to this file.
+
 
 def main(file_path: str, image_number_offset: int = None, publishing_rate: float = 1):
 

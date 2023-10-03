@@ -4,6 +4,7 @@
 File containing ImageFiterNode class definition and ROS running code.
 """
 
+# TODO - Medium - Create fusion filter of Grabcut & Threshold types. Combine using Beysian probability.
 # Import standard ROS packages
 from rospy import init_node, spin, Subscriber, Publisher
 from geometry_msgs.msg import TwistStamped
@@ -166,6 +167,7 @@ class ImageFilterNode:
         # Create a publisher to publish the fully filtered ultrasound image
         self.filtered_image_publisher = Publisher('image_data/filtered', image_data_message, queue_size=1)
 
+        # TODO - Low - Clean-up all of these unused publishers.
         # Create a publisher to publish the masked image
         # mask_publisher = rospy.Publisher('/image_data/mask', UInt32MultiArray, queue_size=1)
 
@@ -286,8 +288,8 @@ class ImageFilterNode:
             # Update the parameters of the filter
             self.image_filter.thresholding_parameters = (data.lower_bound, data.upper_bound)
 
-            self.publish_status("New threshold parameters saved to the filter")
             # Update the status message
+            self.publish_status("New threshold parameters saved to the filter")
 
     #############################################################################
     # Define Helpers
@@ -334,7 +336,8 @@ class ImageFilterNode:
         # If the thyroid is present in the image, publish data about it
         if thyroid_in_image:
 
-            # TODO Check if everything going on here is actually right
+            # TODO - High - Check if everything going on here is actually right
+            # TODO - High - Add control input for x and y directions
 
             # Analyze the centroid location to determine the needed control input, current thyroid position error, and
             # if the thyroid is in the center of the image
@@ -345,32 +348,6 @@ class ImageFilterNode:
             start_of_process_time = display_process_timer(start_of_process_time,
                                                           "Image based control input calculation",
                                                           self.analysis_mode)
-
-            """if self.debug_mode:
-                # Create a temporary recolored image for debugging purposes
-                temp_masked_result = cv2.cvtColor(self.image_data.original_image, cv2.COLOR_GRAY2RGB)
-
-                # Add mask to original image
-                temp_masked_result = cv2.drawContours(temp_masked_result, self.image_data.contours_in_image[0],
-                                                      -1, (0, 255, 0), -1)
-
-                # Add centroid to masked image
-                temp_masked_result = cv2.circle(temp_masked_result, self.image_data.contour_centroids[0], 6, 
-                                            (255, 0, 0), -1)
-
-                # Add lines showing where centroid should be
-                temp_masked_result = cv2.line(temp_masked_result, (0, 240), (640, 240), (0, 0, 255), 2)
-                temp_masked_result = cv2.line(temp_masked_result, (320, 0), (320, 480), (0, 165, 255), 2)
-
-                # note the time required to mark up the original image for display
-                start_of_process_time = display_process_timer(start_of_process_time, "Markup Time", self.analysis_mode)
-
-                # Show masked image
-                cv2.imshow("Marked-up image", temp_masked_result)
-                cv2.waitKey(1)
-
-                # note the time required to update the visualization
-                display_process_timer(start_of_process_time, "Display Time", self.analysis_mode)"""
 
             # Publish if the thyroid is centered
             self.is_thyroid_centered_status_publisher.publish(Bool(is_thyroid_centered))

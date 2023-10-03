@@ -451,6 +451,10 @@ class ExperimentControlApplication(Frame):
             new_message = EMPTY_STATUS + message + "."
         self.status_label.config(text=new_message)
 
+        # TODO - Low - Update this to use a stringVar
+        # TODO - Low - Turn this into a better error logging device. Show message, time sent, and node sending
+        # TODO - Low - Create an option to see minimal, standard, or verbose logging data.
+
 
 if __name__ == "__main__":
 

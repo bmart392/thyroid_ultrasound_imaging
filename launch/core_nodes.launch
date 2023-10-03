@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+
+<launch>
+    <!-- start the experiment controller -->
+    <node name="ExperimentControlApplication" pkg="thyroid_ultrasound_imaging" type="ExperimentControlApplication.py" />
+    
+    <!-- start the image data converter -->
+    <node name="ImageDataConverter" pkg="thyroid_ultrasound_imaging" type="ImageDataConverter.py" />
+
+    <!--- start the image filter -->
+    <node name="ImageFilterNode" pkg="thyroid_ultrasound_imaging" type="ImageFilterNode.py" />
+
+    <!-- start the image visualization node -->
+    <node name="VisualizationNode" pkg="thyroid_ultrasound_imaging" type="VisualizationNode.py" />
+    
+    <!-- start the image based user input node -->
+    <node name="ImageBasedUserInput" pkg="thyroid_ultrasound_imaging" type="ImageBasedUserInput.py" />
+
+</launch>

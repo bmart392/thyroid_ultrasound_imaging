@@ -4,6 +4,8 @@
 File containing VisualizationNode class definition and ROS running code.
 """
 
+# TODO - Low - Improve comments in this file.
+
 # Import ROS packages
 from rospy import init_node, Subscriber, Rate, is_shutdown
 
@@ -40,6 +42,7 @@ class VisualizationNode:
         Subscriber('image_data/filtered', image_data_message,
                    self.filtered_image_data_message_callback)
 
+        # noinspection PyTypeChecker
         self.image_to_visualize: ImageData = None
 
     def raw_image_data_message_callback(self, message: image_data_message):

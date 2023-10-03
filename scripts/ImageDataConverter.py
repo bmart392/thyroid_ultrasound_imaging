@@ -35,6 +35,7 @@ class ImageDataConverter:
         Receives a raw image, converts it to an ImageData object, and then publishes that object.
         """
 
+        # TODO - Low - Convert the following two lines of text into a single helper function for all files to use.
         # Convert the Image message to an image array
         image_array = frombuffer(data.data, dtype=uint8)
         image_array = reshape(image_array, (data.height, data.width))

@@ -1,0 +1,17 @@
+Header header
+string image_title
+uint8 image_color
+uint16 image_size_x
+uint16 image_size_y
+sensor_msgs/Image segmentation_initialization_mask
+sensor_msgs/Image original_image
+sensor_msgs/Image cropped_image
+sensor_msgs/Image colorized_image
+sensor_msgs/Image pre_processed_image
+sensor_msgs/Image image_mask
+sensor_msgs/Image expanded_image_mask
+sensor_msgs/Image sure_foreground_mask
+sensor_msgs/Image sure_background_mask
+sensor_msgs/Image probable_foreground_mask
+std_msgs/UInt16MultiArray contours_in_image
+std_msgs/UInt16MultiArray contour_centroids
