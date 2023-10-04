@@ -66,7 +66,7 @@ class ImagePositioningControllerNode:
 
         # Define a publisher to publish the image-based positioning error
         self.image_based_position_error_publisher = Publisher(
-            'positioning_error/image_based', TwistStamped, queue_size=1
+            'control_error/image_based', TwistStamped, queue_size=1
         )
 
         # Define a variable to store the newest image data available
