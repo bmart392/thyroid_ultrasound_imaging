@@ -16,7 +16,7 @@ from thyroid_ultrasound_imaging_support.Visualization.VisualizationConstants imp
 # Import custom objects
 from thyroid_ultrasound_imaging_support.ImageData.ImageData import ImageData
 
-# TODO Fill in missing visualization schemes
+# TODO - Low - Fill in missing visualization schemes
 
 
 class Visualization:

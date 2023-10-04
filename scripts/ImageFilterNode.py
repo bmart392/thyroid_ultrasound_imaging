@@ -259,6 +259,8 @@ class ImageFilterNode:
         Only works for GrabCut image filters.
         """
 
+        # TODO - Low - Add comparison between image used to generate mask and current image to ensure mask is still good
+
         if type(self.image_filter) is ImageFilterGrabCut:
 
             # update status message
@@ -332,33 +334,6 @@ class ImageFilterNode:
 
         # note the time required to determine and publish the status of the thyroid in the image
         start_of_process_time = self.display_process_timer(start_of_process_time, "Thyroid status check time")
-
-        # If the thyroid is present in the image, publish data about it
-        if thyroid_in_image:
-
-            # TODO - High - Check if everything going on here is actually right
-            # TODO - High - Add control input for x and y directions
-
-            # Analyze the centroid location to determine the needed control input, current thyroid position error, and
-            # if the thyroid is in the center of the image
-            control_input_msg, current_error, is_thyroid_centered = self.image_positioning_controller. \
-                calculate_control_input(self.image_data)
-
-            # note the time required to calculate the image based control input
-            start_of_process_time = display_process_timer(start_of_process_time,
-                                                          "Image based control input calculation",
-                                                          self.analysis_mode)
-
-            # Publish if the thyroid is centered
-            self.is_thyroid_centered_status_publisher.publish(Bool(is_thyroid_centered))
-
-            # publish the image based control input
-            self.image_based_control_input_publisher.publish(control_input_msg)
-
-        # Publish no control input and do not show the thyroid as centered
-        else:
-            self.is_thyroid_centered_status_publisher.publish(Bool(False))
-            self.image_based_control_input_publisher.publish(TwistStamped())
 
         # set that a new image has not been delivered yet
         self.is_new_image_available = False
