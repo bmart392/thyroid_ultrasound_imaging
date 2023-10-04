@@ -15,5 +15,8 @@
     
     <!-- start the image based user input node -->
     <node name="ImageBasedUserInput" pkg="thyroid_ultrasound_imaging" type="ImageBasedUserInput.py" />
+    
+    <!-- start the image base position control node -->
+    <node name="ImagePositioningControllerNode" pkg="thyroid_ultrasound_imaging" type="ImagePositioningControllerNode.py" />
 
 </launch>

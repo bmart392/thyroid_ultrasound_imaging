@@ -121,6 +121,7 @@ if __name__ == '__main__':
     print("Node initialized.")
     print("Press ctrl+c to terminate.")
 
+    # TODO - Medium - Add logic to stop having it send messages when a new message has not arrived
     # Let the program run indefinitely
     while not is_shutdown():
 
