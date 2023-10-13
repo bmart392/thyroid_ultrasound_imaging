@@ -130,7 +130,7 @@ class ImageFilterNode:
         init_node('image_filtering')
 
         # Create a subscriber to receive the ultrasound images
-        self.raw_image_subscriber = Subscriber('/Clarius/US', Image, self.raw_image_callback)
+        self.raw_image_subscriber = Subscriber('/image_data/raw', image_data_message, self.raw_image_callback)
 
         # Create a subscriber to receive the command to start and stop filtering images
         self.filter_images_subscriber = Subscriber('/command/filter_images', Bool, self.filter_images_callback)
@@ -184,7 +184,7 @@ class ImageFilterNode:
     # Define ROS callbacks
     #############################################################################
 
-    def raw_image_callback(self, data: Image):
+    def raw_image_callback(self, data: image_data_message):
         """
         Regulates filtering rate and updates object parameters.
         """
@@ -193,14 +193,14 @@ class ImageFilterNode:
         start_of_process_time = time()
 
         # Convert image using numpy tools
-        cv_image = frombuffer(data.data, dtype=uint8)
-        cv_image = reshape(cv_image, (data.height, data.width))
+        # cv_image = frombuffer(data.data, dtype=uint8)
+        # cv_image = reshape(cv_image, (data.height, data.width))
 
         # note the amount of time required to convert the image
         # start_of_process_time = self.display_process_timer(start_of_process_time, "Image conversion time")
 
         # Create new image data based on received image
-        self.newest_image_data = ImageData(image_data=cv_image, image_color=COLOR_GRAY)
+        self.newest_image_data = ImageData(image_data_msg=data)
 
         # Crop and recolorize the newest image if an image crop is included
         if self.image_filter.image_crop_included:
@@ -319,7 +319,7 @@ class ImageFilterNode:
         # note the time required to fully filter the image
         start_of_process_time = self.display_process_timer(start_of_process_time, "Time to fully filter")
 
-        # visualize the result of the image filtering
+        # publish the result of the image filtering
         self.filtered_image_publisher.publish(self.image_data.convert_to_message())
 
         # note the time required to visualize the image

@@ -15,6 +15,7 @@ from thyroid_ultrasound_imaging.msg import image_data_message
 # Import from custom packages
 from thyroid_ultrasound_imaging_support.ImageData.ImageData import ImageData
 from thyroid_ultrasound_imaging_support.ImageFilter.FilterConstants import COLOR_BGR, COLOR_GRAY, COLOR_RGB
+from thyroid_ultrasound_imaging_support.ImageData.convert_image_message_to_array import convert_image_message_to_array
 
 
 class ImageDataConverter:
@@ -35,17 +36,15 @@ class ImageDataConverter:
         Receives a raw image, converts it to an ImageData object, and then publishes that object.
         """
 
-        # TODO - Low - Convert the following two lines of text into a single helper function for all files to use.
         # Convert the Image message to an image array
-        image_array = frombuffer(data.data, dtype=uint8)
-        image_array = reshape(image_array, (data.height, data.width))
+        image_array = convert_image_message_to_array(data)
 
         # Declare image color
         image_color = COLOR_GRAY
 
         # Create new ImageData object
         new_image_object = ImageData(image_data=image_array, image_title="Raw Image Converter",
-                                     image_color=image_color,)
+                                     image_capture_time=data.header.stamp, image_color=image_color,)
 
         # Create a new image_data_message from ImageData object
         new_image_data_message = new_image_object.convert_to_message()
