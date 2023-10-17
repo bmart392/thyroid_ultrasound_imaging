@@ -6,7 +6,7 @@ File containing code to stream recorded data as ROS Topic.
 import cv2
 
 # Import ROS specific packages
-from rospy import init_node, Publisher, Rate, is_shutdown, Subscriber
+from rospy import init_node, Publisher, Rate, is_shutdown, Subscriber, Time
 from std_msgs.msg import Bool
 from cv_bridge import CvBridge
 from sensor_msgs.msg import Image
@@ -96,8 +96,14 @@ def main(file_path: str, image_number_offset: int = None, publishing_rate: float
                 # Recolor the image to grayscale
                 bscan = cvtColor(created_objects[ii], COLOR_BGR2GRAY)
 
-                # Publish the image as an image message
-                us_pub.publish(CvBridge().cv2_to_imgmsg(bscan, encoding="passthrough"))
+                # Generate an image message to publish
+                resulting_image_message: Image = CvBridge().cv2_to_imgmsg(bscan, encoding="passthrough")
+
+                # Register when the image was taken
+                resulting_image_message.header.stamp = Time.now()
+
+                # Publish the image
+                us_pub.publish(resulting_image_message)
 
                 # Capture the current time as the time of the last image publishing
                 previous_publish_time = time()

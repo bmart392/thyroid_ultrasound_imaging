@@ -5,6 +5,7 @@ Contains code for ImageData class.
 # Import standard libraries
 from cv2 import findContours, RETR_EXTERNAL, CHAIN_APPROX_NONE, contourArea, moments
 from numpy import sum, uint8, array, frombuffer, reshape
+from rospy import Time
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge, CvBridgeError
 from thyroid_ultrasound_imaging.msg import image_data_message
@@ -64,8 +65,7 @@ class ImageData:
     def __init__(self, image_data: array = None,
                  image_color: int = None,
                  image_title: str = "",
-                 image_size_x: int = 0,
-                 image_size_y: int = int(0),
+                 image_capture_time: Time = None,
                  segmentation_initialization_mask: array = None,
                  image_data_msg: image_data_message = None,
                  display_error_messages: bool = False):
@@ -83,10 +83,8 @@ class ImageData:
             a constant representing the color scheme of the image.
         image_title
             a title for the image.
-        image_size_x
-            the size of the image in the x-axis.
-        image_size_y
-            the size of the image in the y-axis.
+        image_capture_time
+            a time stamp marking when the image was captured.
         segmentation_initialization_mask
             the mask used to initialize the segmentation of the image stored in this object.
             This is not used in all types of image filters.
@@ -133,6 +131,12 @@ class ImageData:
 
             # Save the image given
             self.original_image = image_data
+
+            # Save the time the image was taken or save the current time
+            if image_capture_time is not None:
+                self.image_capture_time = image_capture_time
+            else:
+                self.image_capture_time = Time.now()
 
             # Define basic parameters of the image
             self.image_title = image_title
@@ -228,6 +232,8 @@ class ImageData:
             message.image_title = self.image_title
             message.image_color = self.image_color
 
+            message.header.stamp = self.image_capture_time
+
             message.image_size_x = self.image_size_x
             message.image_size_y = self.image_size_y
 
@@ -245,6 +251,8 @@ class ImageData:
 
             self.image_title = message.image_title
             self.image_color = message.image_color
+
+            self.image_capture_time = message.header.stamp
 
             self.image_size_x = message.image_size_x
             self.image_size_y = message.image_size_y

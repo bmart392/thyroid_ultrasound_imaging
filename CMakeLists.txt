@@ -59,6 +59,7 @@ add_message_files(
   image_crop_coordinates.msg
   initialization_mask_message.msg
   threshold_parameters.msg
+  transformed_points.msg
 )
 
 ## Generate services in the 'srv' folder
