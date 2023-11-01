@@ -1,4 +1,4 @@
-from numpy import arctan2, rad2deg
+from numpy import arctan2, rad2deg, array
 
 from thyroid_ultrasound_imaging_support.ImageData.ImageData import ImageData
 
@@ -23,34 +23,21 @@ class ImagePositioningController:
         self.debug_mode = debug_mode
         self.analysis_mode = analysis_mode
 
-        imaging_depth = imaging_depth  # cm
+        self.imaging_depth = imaging_depth  # cm
 
-        # Calculate the resolution of the image
-        resolution = (imaging_depth / 100) / 480  # (imaging_depth * (1m / 100cm)) * (1m/480pixels)
+        # Define the acceptable position error of the centroid in the image for each dimension in the probe's space
+        self.acceptable_errors = [0.005,  # meters in x
+                                  0.005,  # meters in y
+                                  1.01,  # meters in z
+                                  10,  # deg in x
+                                  10,  # deg in y
+                                  1]  # deg in z
 
-        # Set the image resolution in each direction
-        self.x_resolution = resolution  # m/pixel
-        self.y_resolution = resolution  # m/pixel
+    def calculate_resolution(self, image_height: int):
 
-        """# Define the acceptable position error of the centroid in the image for each dimension in the probe's space
-        self.acceptable_error = [0.005,  # meters in x
-                                 1.01,  # meters in y
-                                 1.01,  # meters in z
-                                 10,  # deg
-                                 10,  # deg
-                                 10]  # deg
+        return (self.imaging_depth / 100) / image_height
 
-        # Define the control input gains for each dimension
-        self.control_input_gains = [
-            # [k_p, k_d]
-            [0.5, 0.0],  # x
-            [1.0, 0.0],  # y
-            [1.0, 0.0],  # z
-            [1.0, 0.0],  # roll
-            [1.0, 0.0],  # pitch
-            [1.0, 0.0],  # yaw
-        ]"""
-
+    # TODO check how this is calculated and fix it because somehow it gave 50 degrees when the centroid was centered
     def calculate_position_error(self, image_data: ImageData):
 
         # Declare the error values that cannot be determined from the image
@@ -70,8 +57,8 @@ class ImagePositioningController:
             y_error = (centroid_one[1] + centroid_two[1]) / 2
 
             # In Z angle, balance the centroids across the middle of the image
-            centroid_one_angle = arctan2(centroid_one[1], centroid_one[0])
-            centroid_two_angle = arctan2(centroid_two[1], centroid_two[0])
+            centroid_one_angle = arctan2(centroid_one[0], centroid_one[1])
+            centroid_two_angle = arctan2(centroid_two[0], centroid_two[1])
             z_angle_error = rad2deg(centroid_one_angle - centroid_two_angle)
 
         elif len(image_data.contour_centroids) == 1:
@@ -80,20 +67,44 @@ class ImagePositioningController:
             centroid = image_data.contour_centroids[0]
 
             # In X, measure the distance to the middle of the image
-            x_error = (centroid[0] - (image_data.image_size_x / 2)) * self.x_resolution
+            x_error = (centroid[0] - (image_data.image_size_x / 2)) * self.calculate_resolution(image_data.image_size_y)
 
             # In Y, measure the distance to the top of the image
-            y_error = centroid[1] * self.y_resolution
+            y_error = centroid[1] * self.calculate_resolution(image_data.image_size_y)
 
             # In Z angle, bring the angle to zero
-            z_angle_error = rad2deg(arctan2(centroid[1], centroid[0]))
+            z_angle_error = rad2deg(arctan2(centroid[0], centroid[1]))
 
         else:
 
             raise Exception("More centroids than expected were found.")
 
-        return [round(x_error, 5), round(y_error, 5), round(z_error, 5),
-                round(x_angle_error, 1), round(y_angle_error, 1), round(z_angle_error, 1)]
+        exact_position_errors = [round(x_error, 5), round(y_error, 5), round(z_error, 5),
+                                 round(x_angle_error, 1), round(y_angle_error, 1), round(z_angle_error, 1)]
+
+        # Define a temporary flag to determine if the image is centered
+        temp_is_image_centered = True
+
+        # Define a temporary place to store the control inputs
+        adjusted_position_errors = []
+
+        # Check if the error is within an acceptable amount
+        for single_dimension_error, single_dimension_acceptable_error in zip(exact_position_errors,
+                                                                             self.acceptable_errors):
+
+            # Determine if the error is acceptable in a single dimension
+            is_dimension_centered = single_dimension_acceptable_error >= abs(single_dimension_error)
+
+            # Calculate the control input for the given dimension
+            if not is_dimension_centered:
+                adjusted_position_errors.append(single_dimension_error)
+            else:
+                adjusted_position_errors.append(0)
+
+            # Calculate if the image is centered in all dimensions
+            temp_is_image_centered = temp_is_image_centered * is_dimension_centered
+
+        return adjusted_position_errors, temp_is_image_centered
 
     """def calculate_control_input(self, image_data: ImageData):
 

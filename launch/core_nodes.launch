@@ -1,8 +1,6 @@
 <?xml version="1.0"?>
 
 <launch>
-    <!-- start the experiment controller -->
-    <node name="ExperimentControlApplication" pkg="thyroid_ultrasound_imaging" type="ExperimentControlApplication.py" />
     
     <!-- start the image data converter -->
     <node name="ImageDataConverter" pkg="thyroid_ultrasound_imaging" type="ImageDataConverter.py" />

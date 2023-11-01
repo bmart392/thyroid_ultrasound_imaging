@@ -39,6 +39,7 @@ class ImageFilter:
         """
         self.image_crop_included: bool = image_crop_included
         self.image_crop_coordinates: np.array = image_crop_coordinates
+        self.ready_to_filter = False
         self.filter_color = None
         self.previous_image_mask_array = None
         self.debug_mode: bool = False

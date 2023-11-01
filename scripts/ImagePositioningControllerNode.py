@@ -7,6 +7,7 @@ File containing ImagePositioningControllerNode class definition and ROS running 
 # Import standard ROS packages
 from rospy import init_node, Subscriber, Publisher, is_shutdown, Rate
 from geometry_msgs.msg import TwistStamped
+from std_msgs.msg import Bool, Float64
 
 # Import standard packages
 from copy import copy
@@ -61,13 +62,19 @@ class ImagePositioningControllerNode:
         # Create the node object
         init_node('ImagePositioningControllerNode')
 
+        # Define a subscriber to listen for the imaging depth of the scanner
+        Subscriber('/image_data/imaging_depth', Float64, self.imaging_depth_callback)
+
         # Define a subscriber to listen for the filtered images
-        Subscriber('image_data/filtered', image_data_message, self.filtered_image_callback)
+        Subscriber('/image_data/filtered', image_data_message, self.filtered_image_callback)
 
         # Define a publisher to publish the image-based positioning error
         self.image_based_position_error_publisher = Publisher(
-            'positioning_error/image_based', TwistStamped, queue_size=1
+            '/image_control/distance_to_centroid', TwistStamped, queue_size=1
         )
+
+        # Define a publisher to publish if the image is centered
+        self.image_centered_publisher = Publisher('status/image_centered', Bool, queue_size=1)
 
         # Define a variable to store the newest image data available
         # noinspection PyTypeChecker
@@ -78,6 +85,15 @@ class ImagePositioningControllerNode:
 
         # Define a positioning controller object to use in the object
         self.image_positioning_controller = ImagePositioningController()
+
+        # Define a variable to save the imaging depth of the scanner
+        self.image_positioning_controller.imaging_depth = 5.0
+
+    def imaging_depth_callback(self, data: Float64):
+
+        # Save the newest imaging depth
+        self.image_positioning_controller.imaging_depth = data.data
+        print(data.data)
 
     def filtered_image_callback(self, data: image_data_message):
 
@@ -93,18 +109,17 @@ class ImagePositioningControllerNode:
             image_data = copy(self.newest_image)
 
             # Calculate the error in the image centroids
-            position_error = self.image_positioning_controller.calculate_position_error(image_data)
+            position_error, is_image_centered = self.image_positioning_controller.calculate_position_error(image_data)
+
+            # Publish if the image is centered
+            self.image_centered_publisher.publish(Bool(is_image_centered))
 
             # Create a new TwistStamped message
             position_error_message = TwistStamped()
 
-            # Fill in the message fields
+            # Fill in the message fields converting from the image axes to the robot end effector axes
             position_error_message.twist.linear.x = position_error[0]
-            position_error_message.twist.linear.y = position_error[1]
-            position_error_message.twist.linear.z = position_error[2]
-            position_error_message.twist.angular.x = position_error[3]
-            position_error_message.twist.angular.y = position_error[4]
-            position_error_message.twist.angular.z = position_error[5]
+            position_error_message.twist.angular.y = position_error[5]
 
             # Publish positioning error
             self.image_based_position_error_publisher.publish(position_error_message)

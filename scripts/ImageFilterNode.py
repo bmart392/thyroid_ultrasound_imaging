@@ -5,6 +5,7 @@ File containing ImageFiterNode class definition and ROS running code.
 """
 
 # TODO - Medium - Create fusion filter of Grabcut & Threshold types. Combine using Beysian probability.
+# TODO - HIGH - Downsample the image before filtering it
 # Import standard ROS packages
 from rospy import init_node, spin, Subscriber, Publisher
 from geometry_msgs.msg import TwistStamped
@@ -32,6 +33,7 @@ from thyroid_ultrasound_imaging_support.Visualization.Visualization import Visua
 
 from thyroid_ultrasound_imaging_support.Controller.ImagePositioningController import ImagePositioningController
 from thyroid_ultrasound_imaging_support.Visualization.display_process_timer import display_process_timer
+from thyroid_ultrasound_imaging_support.RosSupport.BasicNode import *
 
 # Define the types of image filters that could be used
 THRESHOLD_FILTER: int = 0
@@ -39,7 +41,7 @@ GRABCUT_FILTER: int = 1
 FUSION_FILTER: int = 2
 
 
-class ImageFilterNode:
+class ImageFilterNode(BasicNode):
     """
     A class for defining a ROS node to filter ultrasound images.
     """
@@ -66,6 +68,9 @@ class ImageFilterNode:
         analysis_mode
             display the time key processes take to occur.
         """
+
+        # Call the init function of the basic node class to inherit functions and parameters
+        super(BasicNode, self).__init__()
 
         # -----------------------------
         # Define class attributes
@@ -202,19 +207,19 @@ class ImageFilterNode:
         # Create new image data based on received image
         self.newest_image_data = ImageData(image_data_msg=data)
 
-        # Crop and recolorize the newest image if an image crop is included
-        if self.image_filter.image_crop_included:
-            self.image_filter.crop_image(self.newest_image_data)
-            self.image_filter.colorize_image(self.newest_image_data)
+        # Crop and recolorize the newest image
+        self.image_filter.crop_image(self.newest_image_data)
+        self.image_filter.colorize_image(self.newest_image_data)
 
-            # Publish this data so that it can be monitored before any filtering is completed
-            self.newest_image_data.image_title = "Image Filter Node"
-            self.cropped_image_publisher.publish(self.newest_image_data.convert_to_message())
+        # Publish this data so that it can be monitored before any filtering is completed
+        self.newest_image_data.image_title = "Image Filter Node"
+        self.cropped_image_publisher.publish(self.newest_image_data.convert_to_message())
 
         # check if the image needs to be filtered
         time_since_last_image = time() - self.time_of_last_image_filtered
 
-        if time_since_last_image > (1 / self.filtering_rate) and self.filter_images:
+        if time_since_last_image > (1 / self.filtering_rate) and \
+                self.filter_images and self.image_filter.ready_to_filter:
             # record the current time
             self.time_of_last_image_filtered = time()
 
@@ -262,6 +267,9 @@ class ImageFilterNode:
         # TODO - Low - Add comparison between image used to generate mask and current image to ensure mask is still good
 
         if type(self.image_filter) is ImageFilterGrabCut:
+
+            # update the flag to allow image filtering to occur
+            self.image_filter.ready_to_filter = True
 
             # update status message
             self.publish_status("New initialization mask received")

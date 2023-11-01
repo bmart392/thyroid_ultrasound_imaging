@@ -45,10 +45,10 @@ class ImageBasedUserInput:
         Subscriber('image_data/cropped', image_data_message, self.cropped_image_callback)
 
         # Define a subscriber to listen for commands to crop the image
-        Subscriber('command/select_crop_coordinates', Bool, self.generate_crop_coordinates_callback)
+        Subscriber('command/generate_new_image_cropping', Bool, self.generate_crop_coordinates_callback)
 
         # Define a subscriber to listen for commands to generate the grabcut mask
-        Subscriber('command/generate_grabcut_mask', Bool, self.generate_grabcut_initialization_mask_callback)
+        Subscriber('command/identify_thyroid_from_points', Bool, self.generate_grabcut_initialization_mask_callback)
 
         # Define a subscriber to listen for commands to generate the threshold filter parameters
         Subscriber('command/generate_threshold_parameters', Bool, self.generate_threshold_parameters_callback)
@@ -115,6 +115,7 @@ class ImageBasedUserInput:
 
                 elif next_action == GENERATE_INITIALIZATION:
 
+                    # TODO - Low - What if it did the expand thing so that you only had to select the foreground?
                     # TODO - Low - Stop having the whole window close after giving each input step.
 
                     # Check that there is an image to generate the initial mask from before continuing

@@ -30,6 +30,8 @@ class ImagePositionRegistrationNode:
         # Listens to /image_data/filtered to get the contour of the thyroid
         Subscriber('/image_data/filtered', image_data_message, self.filtered_image_callback)
 
+        # TODO Fix this to work with the actual position getting sent out
+        # Maybe make new message class
         # Listens to the robot to get the pose of the end effector
         Subscriber('/franka_state_controller/franka_states', FrankaState, self.pose_callback)
 
