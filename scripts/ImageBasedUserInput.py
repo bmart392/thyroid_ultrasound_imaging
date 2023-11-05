@@ -8,7 +8,7 @@ from std_msgs.msg import Bool
 from cv_bridge import CvBridge
 
 # Import custom ROS specific packages
-from thyroid_ultrasound_imaging.msg import image_data_message, image_crop_coordinates, \
+from thyroid_ultrasound_messages.msg import image_data_message, image_crop_coordinates, \
     initialization_mask_message, threshold_parameters
 
 # Import from standard packages

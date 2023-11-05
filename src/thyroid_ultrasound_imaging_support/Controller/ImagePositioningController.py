@@ -37,48 +37,41 @@ class ImagePositioningController:
 
         return (self.imaging_depth / 100) / image_height
 
-    # TODO check how this is calculated and fix it because somehow it gave 50 degrees when the centroid was centered
     def calculate_position_error(self, image_data: ImageData):
 
         # Declare the error values that cannot be determined from the image
         z_error = 0
         x_angle_error = 0
         y_angle_error = 0
+        z_angle_error = 0
 
         # Calculate position errors using centroid location in pixels and image size
         if len(image_data.contour_centroids) == 2:
 
-            # In X, balance the centroids across the middle of the image
+            # In X in the image frame, balance the centroids across the middle of the image
             centroid_one = image_data.contour_centroids[0]
             centroid_two = image_data.contour_centroids[1]
             x_error = centroid_one[0] - centroid_two[0]
 
-            # In Y, average the centroids distance to the top of the image
+            # In Y in the image frame, average the centroids distance to the top of the image
             y_error = (centroid_one[1] + centroid_two[1]) / 2
-
-            # In Z angle, balance the centroids across the middle of the image
-            centroid_one_angle = arctan2(centroid_one[0], centroid_one[1])
-            centroid_two_angle = arctan2(centroid_two[0], centroid_two[1])
-            z_angle_error = rad2deg(centroid_one_angle - centroid_two_angle)
 
         elif len(image_data.contour_centroids) == 1:
 
             # Rename the centroid for ease of use
             centroid = image_data.contour_centroids[0]
 
-            # In X, measure the distance to the middle of the image
+            # In X in the image frame, measure the distance to the middle of the image
             x_error = (centroid[0] - (image_data.image_size_x / 2)) * self.calculate_resolution(image_data.image_size_y)
 
-            # In Y, measure the distance to the top of the image
+            # In Y in the image frame, measure the distance to the top of the image
             y_error = centroid[1] * self.calculate_resolution(image_data.image_size_y)
-
-            # In Z angle, bring the angle to zero
-            z_angle_error = rad2deg(arctan2(centroid[0], centroid[1]))
 
         else:
 
             raise Exception("More centroids than expected were found.")
 
+        # Send the position errors relative to the camera frame
         exact_position_errors = [round(x_error, 5), round(y_error, 5), round(z_error, 5),
                                  round(x_angle_error, 1), round(y_angle_error, 1), round(z_angle_error, 1)]
 

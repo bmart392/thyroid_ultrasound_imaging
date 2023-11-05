@@ -1,5 +1,0 @@
-Header header
-uint16 first_coordinate_x
-uint16 first_coordinate_y
-uint16 second_coordinate_x
-uint16 second_coordinate_y

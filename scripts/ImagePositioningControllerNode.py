@@ -13,7 +13,7 @@ from std_msgs.msg import Bool, Float64
 from copy import copy
 
 # Import custom ROS packages
-from thyroid_ultrasound_imaging.msg import image_data_message
+from thyroid_ultrasound_messages.msg import image_data_message
 
 # Import custom packages
 from thyroid_ultrasound_imaging_support.Controller.ImagePositioningController import ImagePositioningController

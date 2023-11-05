@@ -10,7 +10,7 @@ File containing VisualizationNode class definition and ROS running code.
 from rospy import init_node, Subscriber, Rate, is_shutdown
 
 # Import custom ROS messages and services
-from thyroid_ultrasound_imaging.msg import image_data_message
+from thyroid_ultrasound_messages.msg import image_data_message
 
 # Import custom functions, classes, and constants
 from thyroid_ultrasound_imaging_support.Visualization.VisualizationConstants import *

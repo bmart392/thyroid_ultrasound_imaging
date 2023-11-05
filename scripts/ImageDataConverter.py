@@ -10,7 +10,7 @@ from numpy import frombuffer, reshape, uint8
 from sensor_msgs.msg import Image
 
 # Import custom ROS specific packages
-from thyroid_ultrasound_imaging.msg import image_data_message
+from thyroid_ultrasound_messages.msg import image_data_message
 
 # Import from custom packages
 from thyroid_ultrasound_imaging_support.ImageData.ImageData import ImageData

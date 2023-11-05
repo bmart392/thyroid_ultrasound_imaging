@@ -53,14 +53,9 @@ catkin_python_setup()
 ##   * add every package in MSG_DEP_SET to generate_messages(DEPENDENCIES ...)
 
 ## Generate messages in the 'msg' folder
-add_message_files(
-  FILES
-  image_data_message.msg
-  image_crop_coordinates.msg
-  initialization_mask_message.msg
-  threshold_parameters.msg
-  transformed_points.msg
-)
+# add_message_files(
+#   FILES
+# )
 
 ## Generate services in the 'srv' folder
 # add_service_files(
@@ -75,11 +70,11 @@ add_message_files(
 # )
 
 ## Generate added messages and services with any dependencies listed here
-generate_messages(
-  DEPENDENCIES
-  std_msgs
-  sensor_msgs
-)
+# generate_messages(
+#   DEPENDENCIES
+#   std_msgs
+#   sensor_msgs
+# )
 
 ################################################
 ## Declare ROS dynamic reconfigure parameters ##

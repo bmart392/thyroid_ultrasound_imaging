@@ -8,7 +8,7 @@ from numpy import sum, uint8, array, frombuffer, reshape
 from rospy import Time
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge, CvBridgeError
-from thyroid_ultrasound_imaging.msg import image_data_message
+from thyroid_ultrasound_messages.msg import image_data_message
 
 # Import custom functions and constants
 from thyroid_ultrasound_imaging_support.ImageData.BridgeImageDataMessageConstants import *

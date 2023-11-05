@@ -18,7 +18,7 @@ from time import time
 from copy import copy
 
 # Import custom ROS packages
-from thyroid_ultrasound_imaging.msg import image_data_message, image_crop_coordinates, \
+from thyroid_ultrasound_messages.msg import image_data_message, image_crop_coordinates, \
     initialization_mask_message, threshold_parameters
 
 # Import custom packages
@@ -33,7 +33,7 @@ from thyroid_ultrasound_imaging_support.Visualization.Visualization import Visua
 
 from thyroid_ultrasound_imaging_support.Controller.ImagePositioningController import ImagePositioningController
 from thyroid_ultrasound_imaging_support.Visualization.display_process_timer import display_process_timer
-from thyroid_ultrasound_imaging_support.RosSupport.BasicNode import *
+from thyroid_ultrasound_support.BasicNode import *
 
 # Define the types of image filters that could be used
 THRESHOLD_FILTER: int = 0

@@ -10,7 +10,7 @@ from rospy import init_node, Subscriber, Publisher, spin
 from std_msgs.msg import Bool, Float32
 
 # Import custom ROS packages
-from thyroid_ultrasound_imaging.msg import transformed_points
+from thyroid_ultrasound_messages.msg import transformed_points
 
 # Import standard packages
 from numpy import array
