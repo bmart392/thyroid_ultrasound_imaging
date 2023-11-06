@@ -169,6 +169,7 @@ catkin_install_python(PROGRAMS
   scripts/VisualizationNode.py
   scripts/ImageDataConverter.py
   scripts/ImageBasedUserInput.py
+  scripts/ImagePositionRegistrationNode.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

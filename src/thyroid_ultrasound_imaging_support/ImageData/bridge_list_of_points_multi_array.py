@@ -6,11 +6,20 @@ Contains code for bridge_list_of_points_multi_array function.
 import cv2
 from numpy import sum, uint8, array, zeros, delete, append, ndarray
 from thyroid_ultrasound_imaging_support.ImageData.BridgeImageDataMessageConstants import *
-from std_msgs.msg import UInt16MultiArray, MultiArrayDimension
+from std_msgs.msg import UInt16MultiArray, MultiArrayDimension, Float64MultiArray, MultiArrayLayout
+
+# Define constants for the type of message to create
+INT_ARRAY: str = 'INT'
+FLOAT_ARRAY: str = 'FLOAT'
+
+# Define the dimension of points included in the array
+TWO_D: int = int(2)
+THREE_D: int = int(3)
+FOUR_D: int = int (4)
 
 
-def bridge_list_of_points_multi_array(direction: int,
-                                      list_of_points: list = None, array_message: UInt16MultiArray = None):
+def bridge_list_of_points_multi_array(direction: int, list_of_points=None, array_message=None,
+                                      msg_type: str = INT_ARRAY, point_dim: int = TWO_D):
     """
     Converts a 1D list of (x, y) coordinates to a ROS Multi-array or vice versa.
 
@@ -20,10 +29,15 @@ def bridge_list_of_points_multi_array(direction: int,
         Determines whether a message object or a list object will be created.
 
     list_of_points
-        A list of points to convert into a ROS message. Each (x, y) coordinate is stored as a tuple.
+        A list of points to convert into a ROS message. Each coordinate is stored as a tuple in a list or array.
 
     array_message
-        A ROS message to convert into a list of points.
+        A ROS message to convert into a list of points. The message can be an int or float array.
+
+    msg_type
+        The type of MultiArray message to create when converting to a message
+    point_dim
+        The dimension of each point included in the array.
     """
 
     # Ensure enough arguments are passed to the function
@@ -37,7 +51,14 @@ def bridge_list_of_points_multi_array(direction: int,
             raise Exception("list_of_points cannot be None when converting to message.")
 
         # Create an empty message
-        return_message = UInt16MultiArray()
+        if msg_type == INT_ARRAY:
+            return_message = UInt16MultiArray()
+
+        elif msg_type == FLOAT_ARRAY:
+            return_message = Float64MultiArray()
+
+        else:
+            raise Exception("The message type given (" + msg_type + ") was not recognized.")
 
         # Return the empty message if the list is empty
         if list_of_points is None or len(list_of_points) == 0:
@@ -57,9 +78,21 @@ def bridge_list_of_points_multi_array(direction: int,
         else:
             raise Exception("List type not recognized.")
 
+        exception_msg = None
+
         # Check that the array has the correct dimensions
-        if not shape[1] == 2:
-            raise Exception("List of points is formatted incorrectly.")
+        if not shape[1] == 2 and point_dim == TWO_D:
+            exception_msg = str(TWO_D)
+
+        if not shape[1] == 3 and point_dim == THREE_D:
+            exception_msg = str(THREE_D)
+
+        if not shape[1] == 4 and point_dim == FOUR_D:
+            exception_msg = str(FOUR_D)
+
+        if exception_msg is not None:
+            raise Exception("List of points is formatted incorrectly. Dimension of each point is not " +
+                            exception_msg + "D.")
 
         # Reshape the array to be a 1D list
         return_message.data = list_of_points.reshape(shape[0] * shape[1])
@@ -68,12 +101,12 @@ def bridge_list_of_points_multi_array(direction: int,
         return_message.layout.data_offset = 0
 
         # Define the layout of the array
-        return_message.layout.dim.append(MultiArrayDimension)
+        return_message.layout.dim.append(MultiArrayDimension())
         return_message.layout.dim[0].label = "coordinate pair"
         return_message.layout.dim[0].size = shape[0]
         return_message.layout.dim[0].stride = shape[0] * shape[1]
 
-        return_message.layout.dim.append(MultiArrayDimension)
+        return_message.layout.dim.append(MultiArrayDimension())
         return_message.layout.dim[1].label = "direction"
         return_message.layout.dim[1].size = shape[1]
         return_message.layout.dim[1].stride = 0

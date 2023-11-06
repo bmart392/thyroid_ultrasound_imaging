@@ -6,6 +6,7 @@ File containing ImageFiterNode class definition and ROS running code.
 
 # TODO - Medium - Create fusion filter of Grabcut & Threshold types. Combine using Beysian probability.
 # TODO - HIGH - Downsample the image before filtering it
+# TODO - HIGH - Publish if there is anything in the image
 # Import standard ROS packages
 from rospy import init_node, spin, Subscriber, Publisher
 from geometry_msgs.msg import TwistStamped
@@ -89,6 +90,10 @@ class ImageFilterNode(BasicNode):
         self.time_of_last_image_filtered = 0  # for storing when the first image was filtered
         self.filter_images = False  # for storing the current image filtering status
         self.temporary_visualization_block = False
+
+        # Define a list to store the images received by the node
+        self.received_images = []
+        self.max_images_to_store = 20
 
         # check that a valid filtering rate was given
         try:
@@ -191,52 +196,15 @@ class ImageFilterNode(BasicNode):
 
     def raw_image_callback(self, data: image_data_message):
         """
-        Regulates filtering rate and updates object parameters.
+        Updates the list of received images and places the newest message at the end of the list.
         """
 
-        # record the current time for timing of processes
-        start_of_process_time = time()
+        # Create new image data based on received image and add it to the list
+        self.received_images.append(ImageData(image_data_msg=data))
 
-        # Convert image using numpy tools
-        # cv_image = frombuffer(data.data, dtype=uint8)
-        # cv_image = reshape(cv_image, (data.height, data.width))
-
-        # note the amount of time required to convert the image
-        # start_of_process_time = self.display_process_timer(start_of_process_time, "Image conversion time")
-
-        # Create new image data based on received image
-        self.newest_image_data = ImageData(image_data_msg=data)
-
-        # Crop and recolorize the newest image
-        self.image_filter.crop_image(self.newest_image_data)
-        self.image_filter.colorize_image(self.newest_image_data)
-
-        # Publish this data so that it can be monitored before any filtering is completed
-        self.newest_image_data.image_title = "Image Filter Node"
-        self.cropped_image_publisher.publish(self.newest_image_data.convert_to_message())
-
-        # check if the image needs to be filtered
-        time_since_last_image = time() - self.time_of_last_image_filtered
-
-        if time_since_last_image > (1 / self.filtering_rate) and \
-                self.filter_images and self.image_filter.ready_to_filter:
-            # record the current time
-            self.time_of_last_image_filtered = time()
-
-            # Create new image data based on received image
-            self.image_data = copy(self.newest_image_data)
-
-            # note the amount of time required to create an image data object
-            start_of_process_time = self.display_process_timer(start_of_process_time, "Image_data object creation time")
-
-            # mark that a new image is available
-            self.is_new_image_available = True
-
-            # analyze the new image
-            self.analyze_image()
-
-            # note the amount of time required to analyze the image
-            self.display_process_timer(start_of_process_time, "Image analysis time")
+        # Remove the oldest image if the list is now too long
+        if len(self.received_images) > self.max_images_to_store:
+            self.received_images.pop(0)
 
     def filter_images_callback(self, data: Bool):
         """
@@ -366,6 +334,59 @@ class ImageFilterNode(BasicNode):
         """
         self.debug_status_messages_publisher.publish(String(message_to_publish))
 
+    def main_loop(self):
+        """
+        Loop continuously until the node has been shut down. On every loop, process the newest available image.
+        """
+
+        while not is_shutdown():
+
+            if len(self.received_images) > 0:
+                # record the current time for timing of processes
+                start_of_process_time = time()
+
+                # Convert image using numpy tools
+                # cv_image = frombuffer(data.data, dtype=uint8)
+                # cv_image = reshape(cv_image, (data.height, data.width))
+
+                # note the amount of time required to convert the image
+                # start_of_process_time = self.display_process_timer(start_of_process_time, "Image conversion time")
+
+                # Create new image data based on received image
+                self.newest_image_data = copy(self.received_images.pop(-1))
+
+                # Crop and recolorize the newest image
+                self.image_filter.crop_image(self.newest_image_data)
+                self.image_filter.colorize_image(self.newest_image_data)
+
+                # Publish this data so that it can be monitored before any filtering is completed
+                self.newest_image_data.image_title = "Image Filter Node"
+                self.cropped_image_publisher.publish(self.newest_image_data.convert_to_message())
+
+                # check if the image needs to be filtered
+                time_since_last_image = time() - self.time_of_last_image_filtered
+
+                if time_since_last_image > (1 / self.filtering_rate) and \
+                        self.filter_images and self.image_filter.ready_to_filter:
+                    # record the current time
+                    self.time_of_last_image_filtered = time()
+
+                    # Create new image data based on received image
+                    self.image_data = copy(self.newest_image_data)
+
+                    # note the amount of time required to create an image data object
+                    start_of_process_time = self.display_process_timer(start_of_process_time,
+                                                                       "Image_data object creation time")
+
+                    # mark that a new image is available
+                    self.is_new_image_available = True
+
+                    # analyze the new image
+                    self.analyze_image()
+
+                    # note the amount of time required to analyze the image
+                    self.display_process_timer(start_of_process_time, "Image analysis time")
+
 
 if __name__ == '__main__':
     # create node object
@@ -376,6 +397,7 @@ if __name__ == '__main__':
     print("Node initialized.")
     print("Press ctrl+c to terminate.")
 
-    # spin until node is terminated
-    # callback function handles image analysis
-    spin()
+    # Run the main loop until the program terminates
+    filter_node.main_loop()
+
+    print("Node Terminated.")
