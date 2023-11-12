@@ -46,7 +46,7 @@ class ImagePositioningController:
         z_angle_error = 0
 
         # Calculate position errors using centroid location in pixels and image size
-        if len(image_data.contour_centroids) == 2:
+        """if len(image_data.contour_centroids) == 2:
 
             # In X in the image frame, balance the centroids across the middle of the image
             centroid_one = image_data.contour_centroids[0]
@@ -54,22 +54,22 @@ class ImagePositioningController:
             x_error = centroid_one[0] - centroid_two[0]
 
             # In Y in the image frame, average the centroids distance to the top of the image
-            y_error = (centroid_one[1] + centroid_two[1]) / 2
+            y_error = (centroid_one[1] + centroid_two[1]) / 2"""
 
-        elif len(image_data.contour_centroids) == 1:
+        # elif len(image_data.contour_centroids) == 1:
 
-            # Rename the centroid for ease of use
-            centroid = image_data.contour_centroids[0]
+        # Rename the centroid for ease of use
+        centroid = image_data.contour_centroids[0]
 
-            # In X in the image frame, measure the distance to the middle of the image
-            x_error = (centroid[0] - (image_data.image_size_x / 2)) * self.calculate_resolution(image_data.image_size_y)
+        # In X in the image frame, measure the distance to the middle of the image
+        x_error = (centroid[0] - (image_data.image_size_x / 2)) * self.calculate_resolution(image_data.image_size_y)
 
-            # In Y in the image frame, measure the distance to the top of the image
-            y_error = centroid[1] * self.calculate_resolution(image_data.image_size_y)
+        # In Y in the image frame, measure the distance to the top of the image
+        y_error = centroid[1] * self.calculate_resolution(image_data.image_size_y)
 
-        else:
+        """else:
 
-            raise Exception("More centroids than expected were found.")
+            raise Exception(str(len(image_data.contour_centroids)) + " centroids were found included in the image. ")"""
 
         # Send the position errors relative to the camera frame
         exact_position_errors = [round(x_error, 5), round(y_error, 5), round(z_error, 5),

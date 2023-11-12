@@ -7,8 +7,8 @@ File containing ImageFiterNode class definition and ROS running code.
 # TODO - Medium - Create fusion filter of Grabcut & Threshold types. Combine using Beysian probability.
 # TODO - HIGH - Downsample the image before filtering it
 # TODO - HIGH - Publish if there is anything in the image
+# TODO - High - Add logic to prevent force control from occurring if the patient is not in view in the ultrasound image
 # Import standard ROS packages
-from rospy import init_node, spin, Subscriber, Publisher
 from geometry_msgs.msg import TwistStamped
 from sensor_msgs.msg import Image
 from std_msgs.msg import Bool, String
@@ -140,26 +140,26 @@ class ImageFilterNode(BasicNode):
         init_node('image_filtering')
 
         # Create a subscriber to receive the ultrasound images
-        self.raw_image_subscriber = Subscriber('/image_data/raw', image_data_message, self.raw_image_callback)
+        self.raw_image_subscriber = Subscriber(IMAGE_RAW, image_data_message, self.raw_image_callback)
 
         # Create a subscriber to receive the command to start and stop filtering images
-        self.filter_images_subscriber = Subscriber('/command/filter_images', Bool, self.filter_images_callback)
+        self.filter_images_subscriber = Subscriber(FILTER_IMAGES, Bool, self.filter_images_callback)
 
         # Create a subscriber to receive the command to select the crop coordinates for the image
-        self.select_crop_coordinates_subscriber = Subscriber('/ib_ui/image_crop_coordinates', image_crop_coordinates,
+        self.select_crop_coordinates_subscriber = Subscriber(IMAGE_CROP_COORDINATES, image_crop_coordinates,
                                                              self.crop_coordinates_callback)
 
         # Create a subscriber to receive the command to create the grabcut filter mask
-        self.generate_grabcut_mask_subscriber = Subscriber('/ib_ui/initialization_mask', initialization_mask_message,
+        self.generate_grabcut_mask_subscriber = Subscriber(INITIALIZATION_MASK, initialization_mask_message,
                                                            self.grabcut_initialization_mask_callback)
 
         # Create a subscriber to receive the command to generate the threshold filter parameters
-        self.generate_threshold_parameters_subscriber = Subscriber('/ub_ui/generate_threshold_parameters',
+        self.generate_threshold_parameters_subscriber = Subscriber(THRESHOLD_PARAMETERS,
                                                                    threshold_parameters,
                                                                    self.update_threshold_parameters_callback)
 
         # Create a publisher to publish the error of the centroid
-        self.image_based_control_input_publisher = Publisher('/control_input/image_based', TwistStamped,
+        self.image_based_control_input_publisher = Publisher(RC_IMAGE_ERROR, TwistStamped,
                                                              queue_size=1)
 
         # Create a publisher to publish if the thyroid is visible in the image
