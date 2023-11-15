@@ -73,9 +73,9 @@ class ImageFilterNode(BasicNode):
         # Call the init function of the basic node class to inherit functions and parameters
         super(BasicNode, self).__init__()
 
-        # -----------------------------
+        #########################
         # Define class attributes
-        # -----------------------------
+        # region
 
         # set parameters assisting in measuring and debugging code
         self.debug_mode = debug_mode
@@ -132,9 +132,12 @@ class ImageFilterNode(BasicNode):
         self.image_positioning_controller = ImagePositioningController(debug_mode=self.debug_mode,
                                                                        analysis_mode=self.analysis_mode)
 
-        # -----------------------------
+        # endregion
+        #########################
+
+        #######################
         # Define ROS components
-        # -----------------------------
+        # region
 
         # initialize ros node
         init_node('image_filtering')
@@ -177,6 +180,9 @@ class ImageFilterNode(BasicNode):
         # Create a publisher to publish the fully filtered ultrasound image
         self.filtered_image_publisher = Publisher('image_data/filtered', image_data_message, queue_size=1)
 
+        # Create a publisher to publish when the patient is in view in the image
+        self.patient_contact_publisher = Publisher(IMAGE_PATIENT_CONTACT, Bool, queue_size=1)
+
         # TODO - Low - Clean-up all of these unused publishers.
         # Create a publisher to publish the masked image
         # mask_publisher = rospy.Publisher('/image_data/mask', UInt32MultiArray, queue_size=1)
@@ -190,9 +196,12 @@ class ImageFilterNode(BasicNode):
         # Create a publisher to publish the centroids of the thyroid
         # centroid_publisher = rospy.Publisher('/image_data/centroids', UInt32MultiArray, queue_size=1)
 
-    #############################################################################
+        # endregion
+        #######################
+
+    ######################
     # Define ROS callbacks
-    #############################################################################
+    # region
 
     def raw_image_callback(self, data: image_data_message):
         """
@@ -269,9 +278,12 @@ class ImageFilterNode(BasicNode):
             # Update the status message
             self.publish_status("New threshold parameters saved to the filter")
 
-    #############################################################################
+    # endregion
+    ######################
+
+    ################
     # Define Helpers
-    #############################################################################
+    # region
 
     def analyze_image(self):
         """
@@ -334,6 +346,9 @@ class ImageFilterNode(BasicNode):
         """
         self.debug_status_messages_publisher.publish(String(message_to_publish))
 
+    # endregion
+    ################
+
     def main_loop(self):
         """
         Loop continuously until the node has been shut down. On every loop, process the newest available image.
@@ -344,13 +359,6 @@ class ImageFilterNode(BasicNode):
             if len(self.received_images) > 0:
                 # record the current time for timing of processes
                 start_of_process_time = time()
-
-                # Convert image using numpy tools
-                # cv_image = frombuffer(data.data, dtype=uint8)
-                # cv_image = reshape(cv_image, (data.height, data.width))
-
-                # note the amount of time required to convert the image
-                # start_of_process_time = self.display_process_timer(start_of_process_time, "Image conversion time")
 
                 # Create new image data based on received image
                 self.newest_image_data = copy(self.received_images.pop(-1))
@@ -363,11 +371,16 @@ class ImageFilterNode(BasicNode):
                 self.newest_image_data.image_title = "Image Filter Node"
                 self.cropped_image_publisher.publish(self.newest_image_data.convert_to_message())
 
+                # Publish if the patient is in contact with the ultrasound image
+                self.patient_contact_publisher.publish(
+                    Bool(self.image_filter.is_patient_in_view(self.newest_image_data)))
+
                 # check if the image needs to be filtered
                 time_since_last_image = time() - self.time_of_last_image_filtered
 
                 if time_since_last_image > (1 / self.filtering_rate) and \
-                        self.filter_images and self.image_filter.ready_to_filter:
+                        self.filter_images and self.image_filter.ready_to_filter and \
+                        self.image_filter.is_in_contact_with_patient:
                     # record the current time
                     self.time_of_last_image_filtered = time()
 

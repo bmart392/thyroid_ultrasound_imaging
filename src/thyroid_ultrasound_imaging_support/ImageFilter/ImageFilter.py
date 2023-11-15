@@ -45,10 +45,11 @@ class ImageFilter:
         self.debug_mode: bool = False
         self.analysis_mode: bool = False
         self.increase_contrast: bool = False
+        self.is_in_contact_with_patient: bool = False
 
-    # --------------------------------------
-    # Start image filtering function section
-    # --------------------------------------
+    ###########################
+    # Image filtering functions
+    # region
 
     def fully_filter_image(self, image_data: ImageData):
         """
@@ -141,9 +142,68 @@ class ImageFilter:
     def create_probable_foreground_mask(image_data: ImageData):
         raise Exception("This function was not implemented in this sub-class.")
 
-    # -----------------------------
-    # Start helper function section
-    # -----------------------------
+    # endregion
+    ###########################
+
+    ##################
+    # Helper Functions
+    # region
+
+    def crop_image(self, image_data: ImageData):
+        """
+            Crop the original image, if included in the filter, using the crop coordinates stored in the filter.
+
+            Parameters
+            ----------
+            image_data: ImageData
+                the image data object containing the image to be cropped.
+        """
+
+        # If the image needs to be cropped
+        if self.image_crop_included:
+
+            # Define the x and y values of the crop region
+            crop_x_0 = self.image_crop_coordinates[0][0]
+            crop_y_0 = self.image_crop_coordinates[0][1]
+            crop_x_1 = self.image_crop_coordinates[1][0]
+            crop_y_1 = self.image_crop_coordinates[1][1]
+
+            # check that the image has the correct shape, then crop it
+            if image_data.original_image.ndim > 3 or image_data.original_image.ndim < 2:
+                raise Exception("The dimensions of the original image are invalid.")
+            elif image_data.original_image.ndim == 3:
+                image_data.cropped_image = copy(image_data.original_image[crop_y_0:crop_y_1, crop_x_0:crop_x_1, :])
+            else:
+                image_data.cropped_image = copy(image_data.original_image[crop_y_0:crop_y_1, crop_x_0:crop_x_1])
+
+        # Otherwise pass the original image on
+        else:
+            image_data.cropped_image = copy(image_data.original_image)
+
+        # Check if the patient is in view in the cropped image
+        self.is_patient_in_view(image_data)
+
+    def is_patient_in_view(self, image_data: ImageData) -> bool:
+
+        # Calculate the row index that is approximately 1/4 of the way down the image
+        shortened_image_start_index = np.ceil(image_data.cropped_image.shape[0] * 0.25)
+
+        # Define a temporary variable to store the section of the image
+        temp_result = image_data.cropped_image[shortened_image_start_index:]
+
+        # Calculate the number of elements in the image section
+        num_elements = np.prod(temp_result.shape)
+
+        # Keep summing until a single sum has been achieved
+        while len(temp_result.shape) > 0:
+            temp_result = sum(temp_result)
+
+        # If the sum is greater than the number of elements in the array multiplied by a lower limit,
+        # the probe is in contact with the patient
+        self.is_in_contact_with_patient = temp_result > num_elements * 20
+
+        # Return the result
+        return self.is_in_contact_with_patient
 
     def colorize_image(self, image_data: ImageData) -> ImageData:
         """
@@ -187,38 +247,7 @@ class ImageFilter:
         # return the image data object
         return image_data
 
-    def crop_image(self, image_data: ImageData) -> ImageData:
-        """
-            Crop the original image, if included in the filter, using the crop coordinates stored in the filter.
-
-            Parameters
-            ----------
-            image_data: ImageData
-                the image data object containing the image to be cropped.
-        """
-
-        # If the image needs to be cropped
-        if self.image_crop_included:
-
-            # Define the x and y values of the crop region
-            crop_x_0 = self.image_crop_coordinates[0][0]
-            crop_y_0 = self.image_crop_coordinates[0][1]
-            crop_x_1 = self.image_crop_coordinates[1][0]
-            crop_y_1 = self.image_crop_coordinates[1][1]
-
-            # check that the image has the correct shape, then crop it
-            if image_data.original_image.ndim > 3 or image_data.original_image.ndim < 2:
-                raise Exception("The dimensions of the original image are invalid.")
-            elif image_data.original_image.ndim == 3:
-                image_data.cropped_image = copy(image_data.original_image[crop_y_0:crop_y_1, crop_x_0:crop_x_1, :])
-            else:
-                image_data.cropped_image = copy(image_data.original_image[crop_y_0:crop_y_1, crop_x_0:crop_x_1])
-
-        # Otherwise pass the original image on
-        else:
-            image_data.cropped_image = copy(image_data.original_image)
-
-    def expand_image_mask(self, image_data: ImageData) -> ImageData:
+    def expand_image_mask(self, image_data: ImageData):
         """
             Expand the image mask generated by the filter to the full size of the image, if necessary.
 
@@ -260,16 +289,19 @@ class ImageFilter:
         """
         return display_process_timer(start_of_process_time, message, self.analysis_mode)
 
-    def generate_crop_coordinates(self, image_data: ImageData):
-        """
-        Prompt the user to crop the image correctly. Then crop the passed in image.
+    # def generate_crop_coordinates(self, image_data: ImageData):
+    #     """
+    #     Prompt the user to crop the image correctly. Then crop the passed in image.
+    #
+    #     Parameters
+    #     ----------
+    #     image_data
+    #         The ImageData object containing the image to be cropped.
+    #     """
+    #     self.image_crop_coordinates = user_input_crop_coordinates(image_data)
+    #     self.image_crop_included = True
+    #     self.crop_image(image_data)
 
-        Parameters
-        ----------
-        image_data
-            The ImageData object containing the image to be cropped.
-        """
-        self.image_crop_coordinates = user_input_crop_coordinates(image_data)
-        self.image_crop_included = True
-        self.crop_image(image_data)
+    # endregion
+    ##################
 
