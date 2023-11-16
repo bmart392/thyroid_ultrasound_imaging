@@ -7,8 +7,8 @@ File containing code to ensure even patient contact.
 # Import standard ROS packages
 
 # Import standard python packages
-from numpy import floor, sin, deg2rad, zeros, newaxis, uint8, linspace
-from cv2 import imread, cvtColor, COLOR_GRAY2BGR
+from numpy import floor, sin, deg2rad, zeros, newaxis, uint8, linspace, array, polyfit
+from cv2 import imread, cvtColor, COLOR_GRAY2BGR, COLOR_BGR2GRAY
 from cv_bridge import CvBridge
 from matplotlib.pyplot import imshow, figure, show, plot
 from matplotlib.pyplot import Circle as circ
@@ -21,35 +21,56 @@ from thyroid_ultrasound_messages.msg import image_data_message
 from thyroid_ultrasound_imaging_support.Visualization.display_process_timer import *
 from thyroid_ultrasound_imaging_support.ImageData.ImageData import ImageData
 
-
 # Define constants for use in the node
 CURRENT_VALUE: int = int(0)
 NEW_VALUE: int = int(1)
 
+LEFT_SECTOR: int = int(0)
+RIGHT_SECTOR: int = int(1)
+
+X_POINTS: int = int(0)
+Y_POINTS: int = int(1)
+
 
 class ImageContactBalanceNode(BasicNode):
 
-    def __init__(self, image_field_of_view: float = 30, num_slices: int = 20, image_shape: tuple = (640, 480)):
+    def __init__(self, image_field_of_view: float = 30, num_slices: int = 20, image_shape: tuple = (640, 480),
+                 imaging_depth_meters: float = 0.05, bottom_distance_to_imaginary_center_meters: float = 0.275,
+                 sides_distance_to_imaginary_center_meters: float = 0.074, start_of_us_image: int = 0,
+                 end_of_us_image_from_bottom: int = 0, image_center_offset_px: int = 0,
+                 down_sampling_rate: int = 5, sector_angles: list = None,
+                 skin_level_offset: int = 100,
+                 ):
 
         # Call to super class init
         super().__init__()
 
         # Define the start and end angles of every sector in the image
-        self.sector_angles = linspace(-image_field_of_view / 2, image_field_of_view / 2, num_slices + 1)
-        # self.sector_angles = [-image_field_of_view / 2, image_field_of_view / 2]
+        if sector_angles is None:
+            self.sector_angles = linspace(-image_field_of_view / 2, image_field_of_view / 2, num_slices + 1)
+        else:
+            self.sector_angles = sector_angles
+
+        # Define the down sampling rate of the algorithm
+        self.down_sampling_rate = down_sampling_rate
+
+        # Define an offset for finding the skin level
+        self.skin_level_offset = skin_level_offset
 
         # Define a variable to store each sector of the image in
         self.sectors = []
 
         # Define characteristics of the ultrasound image
-        self.imaging_depth_meters = [0.05, 0.05]
+        self.imaging_depth_meters = [imaging_depth_meters, imaging_depth_meters]
         self.img_num_rows = [image_shape[0], image_shape[0]]
         self.img_num_cols = [image_shape[1], image_shape[1]]
-        self.bottom_distance_to_imaginary_center_meters = [0.275, 0.275]
-        self.sides_distance_to_imaginary_center_meters = [0.074, 0.074]
-        self.start_of_us_image = [0, 0]
-        self.end_of_us_image_from_bottom = [0, 0]
-        self.image_center_offset_px = [0, 0]
+        self.bottom_distance_to_imaginary_center_meters = [bottom_distance_to_imaginary_center_meters,
+                                                           bottom_distance_to_imaginary_center_meters]
+        self.sides_distance_to_imaginary_center_meters = [sides_distance_to_imaginary_center_meters,
+                                                          sides_distance_to_imaginary_center_meters]
+        self.start_of_us_image = [start_of_us_image, start_of_us_image]
+        self.end_of_us_image_from_bottom = [end_of_us_image_from_bottom, end_of_us_image_from_bottom]
+        self.image_center_offset_px = [image_center_offset_px, image_center_offset_px]
 
         # Generate the image sectors
         self.rebuild_sectors()
@@ -66,6 +87,17 @@ class ImageContactBalanceNode(BasicNode):
 
         # Define a bitmask to note which pixels were sampled
         self.sampled_data_bit_mask = None
+
+        # Define variables to store the lines of best fit
+        self.best_fit_left_line_a = None
+        self.best_fit_left_line_b = None
+        self.best_fit_right_line_a = None
+        self.best_fit_right_line_b = None
+        self.best_fit_shared_line_a = None
+        self.best_fit_shared_line_b = None
+
+        # Define a list structure to store the points found along the skin
+        self.skin_points = [[[], []], [[], []]]
 
         # Initialize the ROS Node
         init_node("ImageContactBalanceNode")
@@ -134,7 +166,7 @@ class ImageContactBalanceNode(BasicNode):
         bottom_distance_to_imaginary_center_meters_to_use = self.bottom_distance_to_imaginary_center_meters[
             CURRENT_VALUE]
         if not bottom_distance_to_imaginary_center_meters_to_use == \
-                self.bottom_distance_to_imaginary_center_meters[NEW_VALUE]:
+               self.bottom_distance_to_imaginary_center_meters[NEW_VALUE]:
             bottom_distance_to_imaginary_center_meters_to_use = \
                 self.bottom_distance_to_imaginary_center_meters[NEW_VALUE]
             self.bottom_distance_to_imaginary_center_meters[CURRENT_VALUE] = \
@@ -142,7 +174,7 @@ class ImageContactBalanceNode(BasicNode):
 
         sides_distance_to_imaginary_center_meters_to_use = self.sides_distance_to_imaginary_center_meters[CURRENT_VALUE]
         if not self.sides_distance_to_imaginary_center_meters[CURRENT_VALUE] == \
-                self.sides_distance_to_imaginary_center_meters[NEW_VALUE]:
+               self.sides_distance_to_imaginary_center_meters[NEW_VALUE]:
             sides_distance_to_imaginary_center_meters_to_use = self.sides_distance_to_imaginary_center_meters[NEW_VALUE]
             self.sides_distance_to_imaginary_center_meters[CURRENT_VALUE] = \
                 self.sides_distance_to_imaginary_center_meters[NEW_VALUE]
@@ -187,6 +219,7 @@ class ImageContactBalanceNode(BasicNode):
         """
 
         # If there is a new ultrasound image
+        # TODO add constraint that node only runs when patient is visible
         if len(self.new_ultrasound_images) > 0:
 
             # Pop out the latest image
@@ -207,19 +240,16 @@ class ImageContactBalanceNode(BasicNode):
             # Define a variable to use to store the last sector where a point was found
             last_sector_used = 0
 
-            # Define the down-sampling rate for the image
-            down_sampling_rate = 5
-
             # Iterate through the rows of the original image that contain the ultrasound image
             for yy in range(self.start_of_us_image[CURRENT_VALUE],
                             self.img_num_rows[CURRENT_VALUE] - self.end_of_us_image_from_bottom[CURRENT_VALUE],
-                            down_sampling_rate):
+                            self.down_sampling_rate):
 
                 # Iterate through the columns that are between the left line of the leftmost column and the right line
                 # of the rightmost column skipping points based on the down-sampling rate
                 for xx in range(round(self.sectors[0].left_line.calc_point_on_line(y_value=yy)) - 2,
                                 round(self.sectors[-1].right_line.calc_point_on_line(y_value=yy)) + 2,
-                                down_sampling_rate):
+                                self.down_sampling_rate):
 
                     if xx < 0:
                         xx = 0
@@ -266,6 +296,76 @@ class ImageContactBalanceNode(BasicNode):
             # print("Number of dark sectors: " + str(sum(num_dark_sectors)))
             # print("Error: " + str(num_dark_sectors[1] - num_dark_sectors[0]))
             # print("---")
+
+            # Define an iterator for the sectors
+            ii = 0
+
+            # For each half-sector
+            for half_sector in [self.left_half_sectors, self.right_half_sectors]:
+
+                # For each sector in each half-sector
+                for u in half_sector:
+
+                    # Define a variable to store the number of points that qualify along each line
+                    num_points_found_over_min = 0
+
+                    # For each y value in the top section of the ultrasound image
+                    for yyy in range(self.start_of_us_image[CURRENT_VALUE] + self.skin_level_offset,
+                                     self.img_num_rows[CURRENT_VALUE] - self.end_of_us_image_from_bottom[CURRENT_VALUE],
+                                     1):
+
+                        # Calculate the corresponding x value
+                        xxx = round(self.sectors[u].left_line.calc_point_on_line(y_value=yyy))
+
+                        # If the intensity of that pixel is bright enough
+                        if latest_image[yyy][xxx] > 2 * self.min_intensity:
+
+                            # Increment the number of points found
+                            num_points_found_over_min = num_points_found_over_min + 1
+
+                            # If enough points have been found
+                            if num_points_found_over_min > 5:
+                                # Save the (x, y) coordinate of the point
+                                self.skin_points[ii][X_POINTS].append(xxx)
+                                self.skin_points[ii][Y_POINTS].append(yyy)
+
+                                # Break and move on to the next sector
+                                break
+                        # If the intensity is not bright enough, restart the count
+                        else:
+                            num_points_found_over_min = 0
+
+                # Increment the half-sector count
+                ii = ii + 1
+
+            # Calculate the straight line of best fit for the left half-sector
+            # noinspection PyTupleAssignmentBalance
+            self.best_fit_left_line_a, self.best_fit_left_line_b = polyfit(
+                array(self.skin_points[LEFT_SECTOR][X_POINTS]),
+                array(self.skin_points[LEFT_SECTOR][Y_POINTS]),
+                1)
+
+            # Calculate the straight line of best fit for the right half-sector
+            # noinspection PyTupleAssignmentBalance
+            self.best_fit_right_line_a, self.best_fit_right_line_b = polyfit(
+                array(self.skin_points[RIGHT_SECTOR][X_POINTS]),
+                array(self.skin_points[RIGHT_SECTOR][Y_POINTS]), 1)
+
+            # Calculate the straight line of best fit for the entire image
+            # noinspection PyTupleAssignmentBalance
+            self.best_fit_shared_line_a, self.best_fit_shared_line_b = polyfit(
+                array(self.skin_points[LEFT_SECTOR][X_POINTS] +
+                      self.skin_points[RIGHT_SECTOR][X_POINTS]),
+                array(self.skin_points[LEFT_SECTOR][Y_POINTS] +
+                      self.skin_points[RIGHT_SECTOR][Y_POINTS]), 1)
+
+            print("Dual Line Flatness error: " + str(round(self.best_fit_left_line_a + self.best_fit_right_line_a, 3)))
+            print("Single Line Flatness error: " + str(round(self.best_fit_shared_line_a, 3)))
+            # print("---")
+
+        # Reset variables
+        self.sampled_data_bit_mask = None
+        self.skin_points = [[[], []], [[], []]]
 
 
 class ImageSector:
@@ -342,6 +442,7 @@ class ImageSector:
             (
                 image_center, top_of_ultrasound_image_offset_px - sides_pixel_to_imaginary_center
             ),
+            left_line_angle,
             left_line_directionality)
 
         self.right_line = Line(
@@ -352,6 +453,7 @@ class ImageSector:
             (
                 image_center, top_of_ultrasound_image_offset_px - sides_pixel_to_imaginary_center
             ),
+            right_line_angle,
             right_line_directionality)
 
         # Save the top upper limit of the set
@@ -398,7 +500,7 @@ class ImageSector:
 
 class Line:
 
-    def __init__(self, pt_1: tuple, pt_2: tuple, directionality: bool = False):
+    def __init__(self, pt_1: tuple, pt_2: tuple, line_angle: float = None, directionality: bool = False):
         """
         Creates a 2D set bounded by a single line, defined by two points, with the given directionality.
         The equation of a line used for this object is: 0 = ax + by + c
@@ -415,6 +517,8 @@ class Line:
             The first point used to define the line.
         pt_2:
             The second point used to define the line.
+        line_angle:
+            The angle used to generate the line.
         directionality:
             Determines which direction that points are considered in the set.
         """
@@ -422,6 +526,9 @@ class Line:
         # Save the points used to generate the line
         self.pt_1 = pt_1
         self.pt_2 = pt_2
+
+        # Save the angle used to generate the line
+        self.line_angle = line_angle
 
         # Check if the line is horizontal
         if pt_2[1] - pt_1[1] == 0:
@@ -551,10 +658,16 @@ if __name__ == '__main__':
     # Create the node
     node = ImageContactBalanceNode()
 
+    """node = ImageContactBalanceNode(image_field_of_view=28, num_slices=12, image_shape=(685, 684),
+                                   imaging_depth_meters=0.05, bottom_distance_to_imaginary_center_meters=0.15,
+                                   sides_distance_to_imaginary_center_meters=0.039, start_of_us_image=200,
+                                   end_of_us_image_from_bottom=200, image_center_offset_px=0,
+                                   down_sampling_rate=3, skin_level_offset=25
+                                   )"""
+
     print("Node initialized.")
     print("Press ctrl+c to terminate.")
 
-    """
     # Uncomment this section to view a single image
     print("---")
 
@@ -562,27 +675,27 @@ if __name__ == '__main__':
     ax = fig.gca()
 
     # read in an image
-    # image = imread(
-    #     '/home/ben/thyroid_ultrasound/src/thyroid_ultrasound_imaging/scripts/Test/Images/Series2/Slice_23.png')
-    
-    node.new_ultrasound_images.append(image)
-    
+    """image = imread(
+        '/home/ben/thyroid_ultrasound/src/thyroid_ultrasound_imaging/scripts/Test/Images/Series2/Slice_23.png')
+    image = cvtColor(image, COLOR_BGR2GRAY)
+
+    node.new_ultrasound_images.append(image)"""
+
     while len(node.new_ultrasound_images) < 1:
         pass
 
     image = node.new_ultrasound_images[0]
     image = cvtColor(image, COLOR_GRAY2BGR)
 
-    start_time = time()"""
+    start_time = time()
 
     while not is_shutdown():
         node.main_loop()
 
-    """
-    # Uncomment this section to display one image
-    
-    display_process_timer(start_time, "Image Translation Time")
+    start_time = display_process_timer(start_time, "Radial Location Time")
     print("---")
+
+    # Uncomment this section to display one image
 
     print("Number of points in image: " + str(image.shape[0] * image.shape[1]))
     print("Number of points in sectors: " + str(node.sampled_data_bit_mask.sum()))
@@ -599,11 +712,14 @@ if __name__ == '__main__':
         print("---")
         gg = gg + 1
 
-    ax = imshow(
-        node.sampled_data_bit_mask[:, :, newaxis] * image + uint8((1 - node.sampled_data_bit_mask)[:, :, newaxis] * 255)
+    imshow(
+        node.sampled_data_bit_mask[:, :, newaxis] * image + uint8(
+            (1 - node.sampled_data_bit_mask)[:, :, newaxis] * image * 0.5)
     )
 
-    plot(
+    # imshow(image)
+
+    """plot(
         (node.sectors[0].left_line.pt_1[0], node.sectors[0].left_line.calc_point_on_line(y_value=400)),
         (node.sectors[0].left_line.pt_1[1], 400),
         '-g', linewidth=0.5
@@ -613,6 +729,30 @@ if __name__ == '__main__':
         (node.sectors[0].right_line.pt_1[0], node.sectors[0].right_line.calc_point_on_line(y_value=400)),
         (node.sectors[0].right_line.pt_1[1], 400),
         '-r', linewidth=0.5
-    )
+    )"""
 
-    show()"""
+    fitted_left_y = []
+    fitted_right_y = []
+    fitted_shared_y = []
+
+    for left_x in node.skin_points[0][X_POINTS]:
+        fitted_left_y.append(node.best_fit_left_line_a * left_x + node.best_fit_left_line_b)
+    for right_x in node.skin_points[1][X_POINTS]:
+        fitted_right_y.append(node.best_fit_right_line_a * right_x + node.best_fit_right_line_b)
+    for shared_x in node.skin_points[LEFT_SECTOR][X_POINTS] + node.skin_points[RIGHT_SECTOR][X_POINTS]:
+        fitted_shared_y.append(node.best_fit_shared_line_a * shared_x + node.best_fit_shared_line_b)
+
+    for xxxx, yyyy in zip(node.skin_points[0][X_POINTS], node.skin_points[0][Y_POINTS]):
+        ax.add_patch(circ((xxxx, yyyy), 2, color='b', fill=True))
+    for xxxx, yyyy in zip(node.skin_points[1][X_POINTS], node.skin_points[1][Y_POINTS]):
+        ax.add_patch(circ((xxxx, yyyy), 2, color='y', fill=True))
+
+    plot(node.skin_points[0][X_POINTS], array(fitted_left_y), linewidth=1, color='b')
+    plot(node.skin_points[1][X_POINTS], array(fitted_right_y), linewidth=1, color='y')
+    plot(node.skin_points[LEFT_SECTOR][X_POINTS] + node.skin_points[RIGHT_SECTOR][X_POINTS], fitted_shared_y,
+         linewidth=1, color='g')
+
+    start_time = display_process_timer(start_time, "Graphing")
+    print("---")
+
+    show()
