@@ -7,11 +7,11 @@ File containing code to ensure even patient contact.
 # Import standard ROS packages
 
 # Import standard python packages
-from numpy import floor, sin, deg2rad, zeros, newaxis, uint8, linspace, array, polyfit
+from numpy import zeros, newaxis, uint8, linspace, array, polyfit
 from cv2 import imread, cvtColor, COLOR_GRAY2BGR, COLOR_BGR2GRAY
 from cv_bridge import CvBridge
 from matplotlib.pyplot import imshow, figure, show, plot
-from matplotlib.pyplot import Circle as circ
+from matplotlib.pyplot import Circle
 
 # Import custom ROS packages
 from thyroid_ultrasound_support.BasicNode import *
@@ -20,6 +20,7 @@ from thyroid_ultrasound_messages.msg import image_data_message
 # Import custom python packages
 from thyroid_ultrasound_imaging_support.Visualization.display_process_timer import *
 from thyroid_ultrasound_imaging_support.ImageData.ImageData import ImageData
+from thyroid_ultrasound_imaging_support.ImageBalancing.ImageSector import *
 
 # Define constants for use in the node
 CURRENT_VALUE: int = int(0)
@@ -44,6 +45,10 @@ class ImageContactBalanceNode(BasicNode):
 
         # Call to super class init
         super().__init__()
+
+        # Check to ensure that the number of slices given is even
+        if num_slices % 2 == 1:
+            raise Exception("Non-even number of slices given.")
 
         # Define the start and end angles of every sector in the image
         if sector_angles is None:
@@ -105,10 +110,11 @@ class ImageContactBalanceNode(BasicNode):
         # Define a publisher to publish the error
         self.error_publisher = Publisher('/contact_angle_error', Float64, queue_size=1)
 
+        # Define a publisher to publish if the patient is in contact
+        self.patient_contact_publisher = Publisher(IMAGE_PATIENT_CONTACT, Bool, queue_size=1)
+
         # Define a subscriber to listen for the raw image
         Subscriber(IMAGE_RAW, image_data_message, self.new_raw_image_callback)
-
-        # Define a subscriber to listen for if the patient is in contact
 
     ###############
     # ROS Callbacks
@@ -219,7 +225,6 @@ class ImageContactBalanceNode(BasicNode):
         """
 
         # If there is a new ultrasound image
-        # TODO add constraint that node only runs when patient is visible
         if len(self.new_ultrasound_images) > 0:
 
             # Pop out the latest image
@@ -251,6 +256,7 @@ class ImageContactBalanceNode(BasicNode):
                                 round(self.sectors[-1].right_line.calc_point_on_line(y_value=yy)) + 2,
                                 self.down_sampling_rate):
 
+                    # Window the acceptable values of x between 0 and the number of columns in the image
                     if xx < 0:
                         xx = 0
                     if xx > self.img_num_cols[CURRENT_VALUE] - 1:
@@ -275,20 +281,129 @@ class ImageContactBalanceNode(BasicNode):
             num_dark_sectors = [0, 0]
 
             # For each sector in the left half area,
-            for li in self.left_half_sectors:
+            for li, ri in zip(self.left_half_sectors, self.right_half_sectors):
 
                 # If the average intensity is lower than the minimum
                 if self.sectors[li].avg_data_value < self.min_intensity:
                     # Increment the counter
                     num_dark_sectors[0] = num_dark_sectors[0] + 1
-
-            # For each sector in the right half area,
-            for ri in self.right_half_sectors:
+                else:
+                    # Note that the sector is bright
+                    self.sectors[li].is_bright = True
 
                 # If the average intensity is lower than the minimum
                 if self.sectors[ri].avg_data_value < self.min_intensity:
                     # Increment the counter
                     num_dark_sectors[1] = num_dark_sectors[1] + 1
+                else:
+                    # Note that the sector is bright
+                    self.sectors[ri].is_bright = True
+
+            # Calculate the difference in the number of dark sectors on each side of the image
+            dark_sector_difference = num_dark_sectors[1] - num_dark_sectors[0]
+
+            # If patient contact is detected at all
+            if abs(dark_sector_difference) < floor(len(self.sectors)*0.5):
+
+                # Publish the true patient contact message
+                patient_contact = True
+
+                # Calculate the image error based on the number of dark sectors
+                image_error = float(num_dark_sectors[1] - num_dark_sectors[0])
+
+                # Check if there is enough patient contact to calculate the error from the skin layer
+                if abs(dark_sector_difference) < floor((len(self.sectors)*0.1)):
+
+                    # Define an iterator for the sectors
+                    ii = 0
+
+                    # For each half-sector
+                    for half_sector in [self.left_half_sectors, self.right_half_sectors]:
+
+                        # For each sector in each half-sector
+                        for u in half_sector:
+
+                            # Make sure the sector is bright
+                            if self.sectors[u].is_bright:
+
+                                # Define a variable to store the number of points that qualify along each line
+                                num_points_found_over_min = 0
+
+                                # For each y value in the top section of the ultrasound image
+                                for yyy in range(self.start_of_us_image[CURRENT_VALUE] + self.skin_level_offset,
+                                                 self.img_num_rows[CURRENT_VALUE] - self.end_of_us_image_from_bottom[
+                                                     CURRENT_VALUE],
+                                                 1):
+
+                                    # Calculate the corresponding x value
+                                    xxx = round(self.sectors[u].left_line.calc_point_on_line(y_value=yyy))
+
+                                    # If the intensity of that pixel is bright enough
+                                    if latest_image[yyy][xxx] > 2 * self.min_intensity:
+
+                                        # Increment the number of points found
+                                        num_points_found_over_min = num_points_found_over_min + 1
+
+                                        # If enough points have been found
+                                        if num_points_found_over_min > 5:
+                                            # Save the (x, y) coordinate of the point
+                                            self.skin_points[ii][X_POINTS].append(xxx)
+                                            self.skin_points[ii][Y_POINTS].append(yyy)
+
+                                            # Break and move on to the next sector
+                                            break
+                                    # If the intensity is not bright enough, restart the count
+                                    else:
+                                        num_points_found_over_min = 0
+
+                        # Increment the half-sector count
+                        ii = ii + 1
+
+                    """# Calculate the straight line of best fit for the left half-sector
+                    # noinspection PyTupleAssignmentBalance
+                    self.best_fit_left_line_a, self.best_fit_left_line_b = polyfit(
+                        array(self.skin_points[LEFT_SECTOR][X_POINTS]),
+                        array(self.skin_points[LEFT_SECTOR][Y_POINTS]),
+                        1)
+
+                    # Calculate the straight line of best fit for the right half-sector
+                    # noinspection PyTupleAssignmentBalance
+                    self.best_fit_right_line_a, self.best_fit_right_line_b = polyfit(
+                        array(self.skin_points[RIGHT_SECTOR][X_POINTS]),
+                        array(self.skin_points[RIGHT_SECTOR][Y_POINTS]), 1)"""
+
+                    # Calculate the straight line of best fit for the entire image
+                    # noinspection PyTupleAssignmentBalance
+                    self.best_fit_shared_line_a, self.best_fit_shared_line_b = polyfit(
+                        array(self.skin_points[LEFT_SECTOR][X_POINTS] +
+                              self.skin_points[RIGHT_SECTOR][X_POINTS]),
+                        array(self.skin_points[LEFT_SECTOR][Y_POINTS] +
+                              self.skin_points[RIGHT_SECTOR][Y_POINTS]), 1)
+
+                    image_error = round(self.best_fit_shared_line_a, 3) + image_error
+
+                    """print("Dual Line Flatness error: " + str(
+                        round(self.best_fit_left_line_a + self.best_fit_right_line_a, 3)))
+                    print("Single Line Flatness error: " + str(round(self.best_fit_shared_line_a, 3)))"""
+                    # print("---")
+
+            else:
+                # If zero patient contact is detected, publish false patient contact and publish 0 balance error
+                patient_contact = False
+                image_error = 0.0
+
+                pass
+
+            self.patient_contact_publisher.publish(Bool(patient_contact))
+            self.error_publisher.publish(Float64(image_error))
+
+            """# For each sector in the right half area,
+            for ri in self.right_half_sectors:
+
+                # If the average intensity is lower than the minimum
+                if self.sectors[ri].avg_data_value < self.min_intensity:
+                    # Increment the counter
+                    num_dark_sectors[1] = num_dark_sectors[1] + 1"""
 
             # Publish the difference between the two numbers as the error
             # Float64(float(num_dark_sectors[1] - num_dark_sectors[0]))
@@ -297,405 +412,54 @@ class ImageContactBalanceNode(BasicNode):
             # print("Error: " + str(num_dark_sectors[1] - num_dark_sectors[0]))
             # print("---")
 
-            # Define an iterator for the sectors
-            ii = 0
-
-            # For each half-sector
-            for half_sector in [self.left_half_sectors, self.right_half_sectors]:
-
-                # For each sector in each half-sector
-                for u in half_sector:
-
-                    # Define a variable to store the number of points that qualify along each line
-                    num_points_found_over_min = 0
-
-                    # For each y value in the top section of the ultrasound image
-                    for yyy in range(self.start_of_us_image[CURRENT_VALUE] + self.skin_level_offset,
-                                     self.img_num_rows[CURRENT_VALUE] - self.end_of_us_image_from_bottom[CURRENT_VALUE],
-                                     1):
-
-                        # Calculate the corresponding x value
-                        xxx = round(self.sectors[u].left_line.calc_point_on_line(y_value=yyy))
-
-                        # If the intensity of that pixel is bright enough
-                        if latest_image[yyy][xxx] > 2 * self.min_intensity:
-
-                            # Increment the number of points found
-                            num_points_found_over_min = num_points_found_over_min + 1
-
-                            # If enough points have been found
-                            if num_points_found_over_min > 5:
-                                # Save the (x, y) coordinate of the point
-                                self.skin_points[ii][X_POINTS].append(xxx)
-                                self.skin_points[ii][Y_POINTS].append(yyy)
-
-                                # Break and move on to the next sector
-                                break
-                        # If the intensity is not bright enough, restart the count
-                        else:
-                            num_points_found_over_min = 0
-
-                # Increment the half-sector count
-                ii = ii + 1
-
-            # Calculate the straight line of best fit for the left half-sector
-            # noinspection PyTupleAssignmentBalance
-            self.best_fit_left_line_a, self.best_fit_left_line_b = polyfit(
-                array(self.skin_points[LEFT_SECTOR][X_POINTS]),
-                array(self.skin_points[LEFT_SECTOR][Y_POINTS]),
-                1)
-
-            # Calculate the straight line of best fit for the right half-sector
-            # noinspection PyTupleAssignmentBalance
-            self.best_fit_right_line_a, self.best_fit_right_line_b = polyfit(
-                array(self.skin_points[RIGHT_SECTOR][X_POINTS]),
-                array(self.skin_points[RIGHT_SECTOR][Y_POINTS]), 1)
-
-            # Calculate the straight line of best fit for the entire image
-            # noinspection PyTupleAssignmentBalance
-            self.best_fit_shared_line_a, self.best_fit_shared_line_b = polyfit(
-                array(self.skin_points[LEFT_SECTOR][X_POINTS] +
-                      self.skin_points[RIGHT_SECTOR][X_POINTS]),
-                array(self.skin_points[LEFT_SECTOR][Y_POINTS] +
-                      self.skin_points[RIGHT_SECTOR][Y_POINTS]), 1)
-
-            print("Dual Line Flatness error: " + str(round(self.best_fit_left_line_a + self.best_fit_right_line_a, 3)))
-            print("Single Line Flatness error: " + str(round(self.best_fit_shared_line_a, 3)))
-            # print("---")
-
         # Reset variables
         self.sampled_data_bit_mask = None
         self.skin_points = [[[], []], [[], []]]
 
 
-class ImageSector:
-
-    def __init__(self, line_angles: tuple,
-                 imaging_depth_meters: float,
-                 image_num_rows: int, image_num_cols: int,
-                 bottom_distance_to_imaginary_center_meters: float,
-                 sides_distance_to_imaginary_center_meters: float,
-                 top_of_ultrasound_image_offset_px: int = 0,
-                 bottom_of_ultrasound_image_offset_px: int = 0,
-                 image_center_offset_px: int = 0):
-        """
-        Creates a pie-shaped sector of an ultrasound image.
-
-        Parameters
-        ----------
-        line_angles
-            The starting and ending angles for the sector edges. Order is not important.
-        imaging_depth_meters
-            The imaging depth of the ultrasound image measured in meters.
-        image_num_rows
-            The number of rows in the ultrasound image array.
-        image_num_cols
-            The number of columns in the ultrasound image array.
-        sides_distance_to_imaginary_center_meters
-            The distance from the top of the ultrasound image to the imaginary center.
-        top_of_ultrasound_image_offset_px
-            The distance from the top of the image array to the start of the actual ultrasound image.
-        bottom_of_ultrasound_image_offset_px
-            The distance from the bottom of the actual ultrasound image to the bottom of the image array.
-        image_center_offset_px
-            The offset from the center of the image to the center of the ultrasound image.
-        """
-
-        # Ensure that the sector is only defined with two angles
-        if len(line_angles) > 2:
-            raise Exception("Too many angles passed into function.")
-
-        # Always define the left angle as the larger angle
-        left_line_angle = min(line_angles)
-
-        # Always define the right angle as the smaller angle
-        right_line_angle = max(line_angles)
-
-        if left_line_angle <= 0:
-            left_line_directionality = True
-        else:
-            left_line_directionality = False
-
-        if right_line_angle <= 0:
-            right_line_directionality = False
-        else:
-            right_line_directionality = True
-
-        # Calculate the resolution of the image
-        pixels_per_meter = image_num_rows / imaging_depth_meters  # px/m
-
-        # Calculate the number of pixels to the imaginary center for the side edges
-        sides_pixel_to_imaginary_center = round(sides_distance_to_imaginary_center_meters * pixels_per_meter)
-
-        # Calculate the number of pixels to the imaginary center for the bottom edge
-        bottom_pixel_to_imaginary_center = round(bottom_distance_to_imaginary_center_meters * pixels_per_meter)
-
-        # Calculate the center of the image
-        image_center = floor(image_num_cols / 2) + image_center_offset_px
-
-        # Define the two lines used to define the sides of the sector
-        self.left_line = Line(
-            (
-                round(image_center + (sides_pixel_to_imaginary_center * sin(deg2rad(left_line_angle)))),
-                top_of_ultrasound_image_offset_px
-            ),
-            (
-                image_center, top_of_ultrasound_image_offset_px - sides_pixel_to_imaginary_center
-            ),
-            left_line_angle,
-            left_line_directionality)
-
-        self.right_line = Line(
-            (
-                round(image_center + (sides_pixel_to_imaginary_center * sin(deg2rad(right_line_angle)))),
-                top_of_ultrasound_image_offset_px
-            ),
-            (
-                image_center, top_of_ultrasound_image_offset_px - sides_pixel_to_imaginary_center
-            ),
-            right_line_angle,
-            right_line_directionality)
-
-        # Save the top upper limit of the set
-        self.top_edge = top_of_ultrasound_image_offset_px
-
-        # Define the circle used to define the lower edge of the set
-        self.bottom_edge_circle = Circle(
-            (image_center, top_of_ultrasound_image_offset_px - bottom_pixel_to_imaginary_center),
-            image_num_rows - top_of_ultrasound_image_offset_px +
-            bottom_pixel_to_imaginary_center - bottom_of_ultrasound_image_offset_px)
-
-        # Create variables to store data about the set
-        self.avg_data_value = 0.
-        self.num_data_values = 0.
-
-    def is_point_in_sector(self, pt: tuple, pt_value: int) -> bool:
-        """
-        Checks if the given point is included in the sector and updates the sector data if the pt is part of the sector.
-        Returns True if the point is in the sector.
-
-        Parameters
-        ----------
-        pt
-            The (x, y) point to check.
-        pt_value
-            The value stored at the given point.
-        """
-
-        # If the point is in both line sets, below the upper boundary, and above the lower boundary
-        if self.left_line.is_point_in_set(pt) and self.right_line.is_point_in_set(pt) and \
-                pt[1] > self.top_edge and self.bottom_edge_circle.is_point_in_set(pt):
-            # Calculate the new average value for the sector
-            self.avg_data_value = ((self.avg_data_value * self.num_data_values) + pt_value) / (self.num_data_values + 1)
-
-            # Increment the number of data values that are in the sector
-            self.num_data_values = self.num_data_values + 1
-
-            # Return that the point is in the sector.
-            return True
-
-        # Returns that the point is not in the sector.
-        return False
-
-
-class Line:
-
-    def __init__(self, pt_1: tuple, pt_2: tuple, line_angle: float = None, directionality: bool = False):
-        """
-        Creates a 2D set bounded by a single line, defined by two points, with the given directionality.
-        The equation of a line used for this object is: 0 = ax + by + c
-
-        False directionality means that a point is in set when solution to the equation of the line is negative.
-        In other words, when the point is below the line when shown on standard 2D cartesian plot.
-
-        True directionality means that a point is in set when solution to the equation of the line is positive.
-        In other words, when the point is above the line when shown on standard 2D cartesian plot.
-
-        Parameters
-        ----------
-        pt_1:
-            The first point used to define the line.
-        pt_2:
-            The second point used to define the line.
-        line_angle:
-            The angle used to generate the line.
-        directionality:
-            Determines which direction that points are considered in the set.
-        """
-
-        # Save the points used to generate the line
-        self.pt_1 = pt_1
-        self.pt_2 = pt_2
-
-        # Save the angle used to generate the line
-        self.line_angle = line_angle
-
-        # Check if the line is horizontal
-        if pt_2[1] - pt_1[1] == 0:
-            self.a_constant = 0
-            self.b_constant = 1
-            self.c_constant = -pt_2[1]
-
-        # Check if the line is vertical
-        elif pt_2[0] - pt_1[0] == 0:
-            self.a_constant = 1
-            self.b_constant = 0
-            self.c_constant = -pt_2[0]
-
-        # Otherwise calculate the slope and y-intercept
-        else:
-            self.a_constant = -(pt_2[1] - pt_1[1]) / (pt_2[0] - pt_1[0])
-            self.b_constant = 1
-            self.c_constant = -pt_1[1] - self.a_constant * pt_1[0]
-
-        self.directionality = directionality
-
-    def is_point_in_set(self, new_pt, boundary_inclusive: bool = True) -> bool:
-        """
-        Checks if the given point is included in the circular set with the option to include the boundary or not.
-
-        Parameters
-        ----------
-        new_pt
-            The (x, y) point to check.
-        boundary_inclusive
-            Determines if a point on the boundary is included in the set.
-            By default, the boundary is part of the set.
-        """
-        value = self.a_constant * new_pt[0] + self.b_constant * new_pt[1] + self.c_constant
-
-        if not self.directionality:
-
-            return (value <= 0 and boundary_inclusive) or (value < 0 and not boundary_inclusive)
-
-        else:
-
-            return (value >= 0 and boundary_inclusive) or (value > 0 and not boundary_inclusive)
-
-    def calc_point_on_line(self, x_value: float = None, y_value: float = None) -> float:
-        """
-        Calculate a point on the line given either an x_value or a y_value.
-        If both values are given, an error is raised.
-
-        Parameters
-        ----------
-        x_value
-            The x value at which to calculate a corresponding y value.
-        y_value
-            The y value at which to calculate a corresponding x value.
-        """
-
-        # If an x_value is given and a y_value is not, calculate the y_value
-        if x_value is not None and y_value is None:
-            return ((self.a_constant * x_value) + self.c_constant) / -self.b_constant
-
-        # If a y_value is given and an x_value is not, calculate the x_value
-        if x_value is None and y_value is not None:
-            return ((self.b_constant * y_value) + self.c_constant) / -self.a_constant
-
-        # Otherwise raise an exception
-        else:
-            raise Exception("Two values cannot be provided to the function.")
-
-
-class Circle:
-
-    def __init__(self, origin_pt: tuple, radius: float, directionality: bool = False):
-
-        """
-        Creates a circular 2D set defined by an origin point, a radius, and a set directionality.
-
-        False directionality means that points within the boundary are part of the set.
-
-        True directionality means that points outside the boundary are part of the set.
-
-        Parameters
-        ----------
-        origin_pt
-            The center point of the circular set.
-        radius
-            The radial distance from the origin for the boundary of the set.
-        directionality
-            Determines which direction that points are considered in the set.
-        """
-
-        self.origin_pt = origin_pt
-
-        self.h = -self.origin_pt[0]
-
-        self.k = -self.origin_pt[1]
-
-        self.r_squared = radius ** 2
-
-        self.directionality = directionality
-
-    def is_point_in_set(self, new_pt, boundary_inclusive: bool = True) -> bool:
-        """
-        Checks if the given point is included in the circular set with the option to include the boundary or not.
-
-        Parameters
-        ----------
-        new_pt
-            The (x, y) point to check.
-        boundary_inclusive
-            Determines if a point on the boundary is included in the set.
-            By default, the boundary is part of the set.
-        """
-
-        value = (new_pt[0] + self.h) ** 2 + (new_pt[1] + self.k) ** 2 - self.r_squared
-
-        if not self.directionality:
-
-            return (value <= 0 and boundary_inclusive) or (value < 0 and not boundary_inclusive)
-
-        else:
-
-            return (value >= 0 and boundary_inclusive) or (value > 0 and not boundary_inclusive)
-
-
 if __name__ == '__main__':
 
     # Create the node
-    node = ImageContactBalanceNode()
+    # node = ImageContactBalanceNode()
 
-    """node = ImageContactBalanceNode(image_field_of_view=28, num_slices=12, image_shape=(685, 684),
+    node = ImageContactBalanceNode(image_field_of_view=28, num_slices=12, image_shape=(685, 684),
                                    imaging_depth_meters=0.05, bottom_distance_to_imaginary_center_meters=0.15,
                                    sides_distance_to_imaginary_center_meters=0.039, start_of_us_image=200,
                                    end_of_us_image_from_bottom=200, image_center_offset_px=0,
                                    down_sampling_rate=3, skin_level_offset=25
-                                   )"""
+                                   )
 
     print("Node initialized.")
     print("Press ctrl+c to terminate.")
 
-    # Uncomment this section to view a single image
+    """# Uncomment this section to view a single image
     print("---")
 
     fig = figure("Sector Test", figsize=(6, 6), dpi=300)
     ax = fig.gca()
 
     # read in an image
-    """image = imread(
+    image = imread(
         '/home/ben/thyroid_ultrasound/src/thyroid_ultrasound_imaging/scripts/Test/Images/Series2/Slice_23.png')
     image = cvtColor(image, COLOR_BGR2GRAY)
 
     node.new_ultrasound_images.append(image)"""
 
-    while len(node.new_ultrasound_images) < 1:
-        pass
+    # while len(node.new_ultrasound_images) < 1:
+    #     pass
 
-    image = node.new_ultrasound_images[0]
-    image = cvtColor(image, COLOR_GRAY2BGR)
+    # image = node.new_ultrasound_images[0]
+    # image = cvtColor(image, COLOR_GRAY2BGR)
 
-    start_time = time()
+    # start_time = time()
 
     while not is_shutdown():
         node.main_loop()
 
-    start_time = display_process_timer(start_time, "Radial Location Time")
-    print("---")
+    # start_time = display_process_timer(start_time, "Radial Location Time")
+    # print("---")
 
-    # Uncomment this section to display one image
+    """# Uncomment this section to display one image
 
     print("Number of points in image: " + str(image.shape[0] * image.shape[1]))
     print("Number of points in sectors: " + str(node.sampled_data_bit_mask.sum()))
@@ -715,7 +479,7 @@ if __name__ == '__main__':
     imshow(
         node.sampled_data_bit_mask[:, :, newaxis] * image + uint8(
             (1 - node.sampled_data_bit_mask)[:, :, newaxis] * image * 0.5)
-    )
+    )"""
 
     # imshow(image)
 
@@ -731,7 +495,7 @@ if __name__ == '__main__':
         '-r', linewidth=0.5
     )"""
 
-    fitted_left_y = []
+    """fitted_left_y = []
     fitted_right_y = []
     fitted_shared_y = []
 
@@ -743,9 +507,9 @@ if __name__ == '__main__':
         fitted_shared_y.append(node.best_fit_shared_line_a * shared_x + node.best_fit_shared_line_b)
 
     for xxxx, yyyy in zip(node.skin_points[0][X_POINTS], node.skin_points[0][Y_POINTS]):
-        ax.add_patch(circ((xxxx, yyyy), 2, color='b', fill=True))
+        ax.add_patch(Circle((xxxx, yyyy), 2, color='b', fill=True))
     for xxxx, yyyy in zip(node.skin_points[1][X_POINTS], node.skin_points[1][Y_POINTS]):
-        ax.add_patch(circ((xxxx, yyyy), 2, color='y', fill=True))
+        ax.add_patch(Circle((xxxx, yyyy), 2, color='y', fill=True))
 
     plot(node.skin_points[0][X_POINTS], array(fitted_left_y), linewidth=1, color='b')
     plot(node.skin_points[1][X_POINTS], array(fitted_right_y), linewidth=1, color='y')
@@ -755,4 +519,4 @@ if __name__ == '__main__':
     start_time = display_process_timer(start_time, "Graphing")
     print("---")
 
-    show()
+    show()"""
