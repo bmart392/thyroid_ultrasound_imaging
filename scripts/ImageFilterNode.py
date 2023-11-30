@@ -143,23 +143,22 @@ class ImageFilterNode(BasicNode):
         init_node('image_filtering')
 
         # Create a subscriber to receive the ultrasound images
-        self.raw_image_subscriber = Subscriber(IMAGE_RAW, image_data_message, self.raw_image_callback)
+        Subscriber(IMAGE_RAW, image_data_message, self.raw_image_callback)
 
         # Create a subscriber to receive the command to start and stop filtering images
-        self.filter_images_subscriber = Subscriber(FILTER_IMAGES, Bool, self.filter_images_callback)
+        Subscriber(FILTER_IMAGES, Bool, self.filter_images_callback)
 
         # Create a subscriber to receive the command to select the crop coordinates for the image
-        self.select_crop_coordinates_subscriber = Subscriber(IMAGE_CROP_COORDINATES, image_crop_coordinates,
-                                                             self.crop_coordinates_callback)
+        Subscriber(IMAGE_CROP_COORDINATES, image_crop_coordinates, self.crop_coordinates_callback)
 
         # Create a subscriber to receive the command to create the grabcut filter mask
-        self.generate_grabcut_mask_subscriber = Subscriber(INITIALIZATION_MASK, initialization_mask_message,
-                                                           self.grabcut_initialization_mask_callback)
+        Subscriber(INITIALIZATION_MASK, initialization_mask_message, self.grabcut_initialization_mask_callback)
 
         # Create a subscriber to receive the command to generate the threshold filter parameters
-        self.generate_threshold_parameters_subscriber = Subscriber(THRESHOLD_PARAMETERS,
-                                                                   threshold_parameters,
-                                                                   self.update_threshold_parameters_callback)
+        Subscriber(THRESHOLD_PARAMETERS, threshold_parameters, self.update_threshold_parameters_callback)
+
+        # Create a subscriber to receive if the patient is in the image
+        Subscriber(IMAGE_PATIENT_CONTACT, Bool, self.patient_contact_callback)
 
         # Create a publisher to publish the error of the centroid
         self.image_based_control_input_publisher = Publisher(RC_IMAGE_ERROR, TwistStamped,
@@ -278,6 +277,9 @@ class ImageFilterNode(BasicNode):
             # Update the status message
             self.publish_status("New threshold parameters saved to the filter")
 
+    def patient_contact_callback(self, data: Bool):
+        self.image_filter.is_in_contact_with_patient = data.data
+
     # endregion
     ######################
 
@@ -371,18 +373,8 @@ class ImageFilterNode(BasicNode):
                 self.newest_image_data.image_title = "Image Filter Node"
                 self.cropped_image_publisher.publish(self.newest_image_data.convert_to_message())
 
-                # Publish if the patient is in contact with the ultrasound image
-                self.patient_contact_publisher.publish(
-                    Bool(self.image_filter.is_patient_in_view(self.newest_image_data)))
-
-                # check if the image needs to be filtered
-                time_since_last_image = time() - self.time_of_last_image_filtered
-
-                if time_since_last_image > (1 / self.filtering_rate) and \
-                        self.filter_images and self.image_filter.ready_to_filter and \
+                if self.filter_images and self.image_filter.ready_to_filter and \
                         self.image_filter.is_in_contact_with_patient:
-                    # record the current time
-                    self.time_of_last_image_filtered = time()
 
                     # Create new image data based on received image
                     self.image_data = copy(self.newest_image_data)

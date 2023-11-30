@@ -16,5 +16,7 @@
     
     <!-- start the image base position control node -->
     <node name="ImagePositioningControllerNode" pkg="thyroid_ultrasound_imaging" type="ImagePositioningControllerNode.py" />
+    
+    <node name="ImageContactBalanceNode" pkg="thyroid_ultrasound_imaging" type="ImageContactBalanceNode.py" />
 
 </launch>

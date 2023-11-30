@@ -19,7 +19,7 @@ class ImageFilterGrabCut(ImageFilter):
 
     def __init__(self, previous_mask_array: np.array = None, image_crop_coordinates: iter = None,
                  image_crop_included: bool = False, include_pre_blurring: bool = False,
-                 increase_contrast=False,
+                 increase_contrast=False, down_sampling_rate: int = 2,
                  debug_mode: bool = False, analysis_mode: bool = False):
 
         """
@@ -58,6 +58,7 @@ class ImageFilterGrabCut(ImageFilter):
         self.debug_mode = debug_mode
         self.analysis_mode = analysis_mode
         self.increase_contrast = increase_contrast
+        self.down_sampling_rate = down_sampling_rate
 
         # Define characteristics of all GrabCut filters
         self.filter_color = COLOR_BGR

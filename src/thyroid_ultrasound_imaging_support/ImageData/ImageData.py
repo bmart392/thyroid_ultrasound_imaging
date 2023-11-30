@@ -4,7 +4,7 @@ Contains code for ImageData class.
 
 # Import standard libraries
 from cv2 import findContours, RETR_EXTERNAL, CHAIN_APPROX_NONE, contourArea, moments
-from numpy import sum, uint8, array, frombuffer, reshape
+from numpy import sum, uint8, array, frombuffer, reshape, product
 from rospy import Time
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge, CvBridgeError
@@ -16,6 +16,29 @@ from thyroid_ultrasound_imaging_support.ImageData.bridge_list_of_points_multi_ar
     bridge_list_of_points_multi_array
 from thyroid_ultrasound_imaging_support.ImageData.bridge_list_of_contours_multi_array import \
     bridge_list_of_contours_multi_array
+
+from thyroid_ultrasound_imaging_support.ImageData.single_line_representations import \
+    create_single_line_simple_data, create_single_line_array_data, create_single_line_time_stamp, \
+    rebuild_data
+
+# Define constants for bridging between the object and its string
+IMAGE_TITLE: str = "image_title"
+IMAGE_COLOR: str = "image_color"
+IMAGE_SIZE_X: str = "image_size_x"
+IMAGE_SIZE_Y: str = "image_size_y"
+SEGMENTATION_INITIALIZATION_MASK: str = "segmentation_initialization_mask"
+ORIGINAL_IMAGE: str = "original_image"
+CROPPED_IMAGE: str = "cropped_image"
+COLORIZED_IMAGE: str = "colorized_image"
+PRE_PROCESSED_IMAGE: str = "pre_processed_image"
+IMAGE_MASK: str = "image_mask"
+EXPANDED_IMAGE_MASK: str = "expanded_image_mask"
+SURE_FOREGROUND_MASK: str = "sure_foreground_mask"
+SURE_BACKGROUND_MASK: str = "sure_background_mask"
+PROBABLE_FOREGROUND_MASK: str = "probable_foreground_mask"
+CONTOURS_IN_IMAGE: str = "contours_in_image"
+CONTOUR_CENTROIDS: str = "contour_centroids"
+IMAGE_CAPTURE_TIME: str = "image_capture_time"
 
 
 class ImageData:
@@ -60,6 +83,9 @@ class ImageData:
         contour_centroids
             A list of centroids of the contours found in the image
 
+        image_capture_time
+            A timestamp of when the image was captured
+
     """
 
     def __init__(self, image_data: array = None,
@@ -68,6 +94,7 @@ class ImageData:
                  image_capture_time: Time = None,
                  segmentation_initialization_mask: array = None,
                  image_data_msg: image_data_message = None,
+                 image_data_str: str = None,
                  display_error_messages: bool = False):
         """
         Creates a new ImageData object.
@@ -90,6 +117,8 @@ class ImageData:
             This is not used in all types of image filters.
         image_data_msg
             an image_data ros message object.
+        image_data_str
+            a string representing all the information stored in an image object.
         """
 
         # Define error behaviour for all cases
@@ -117,6 +146,12 @@ class ImageData:
 
             # Fill in the object properties from the message fields
             self.bridge_image_data_and_message(TO_OBJECT, message=image_data_msg)
+
+        # If the image data object is being created from an image data string
+        elif image_data_str is not None:
+
+            # Fill in the object properties from the string
+            self.bridge_string_to_object(image_data_str)
 
         # Otherwise
         else:
@@ -373,3 +408,94 @@ class ImageData:
         except CvBridgeError:
             if self.display_error_messages:
                 print(error_message + " could not be converted.")
+
+    def bridge_object_to_string(self) -> str:
+
+        # Define the variable that will be returned
+        return_string = ""
+
+        # Add the image title
+        return_string = create_single_line_simple_data(IMAGE_TITLE, self.image_title, return_string)
+
+        # Add the image color
+        return_string = create_single_line_simple_data(IMAGE_COLOR, self.image_color, return_string)
+
+        # Add the image size in x
+        return_string = create_single_line_simple_data(IMAGE_SIZE_X, self.image_size_x, return_string)
+
+        # Add the image size in y
+        return_string = create_single_line_simple_data(IMAGE_SIZE_Y, self.image_size_y, return_string)
+
+        # Add the segmentation_initialization_mask
+        return_string = create_single_line_array_data(SEGMENTATION_INITIALIZATION_MASK,
+                                                      self.segmentation_initialization_mask, return_string)
+
+        # Add the original image
+        return_string = create_single_line_array_data(ORIGINAL_IMAGE, self.original_image, return_string)
+
+        # Add the cropped image
+        return_string = create_single_line_array_data(CROPPED_IMAGE, self.cropped_image, return_string)
+
+        # Add the colorized image
+        return_string = create_single_line_array_data(COLORIZED_IMAGE, self.colorized_image, return_string)
+
+        # Add the pre-processed image
+        return_string = create_single_line_array_data(PRE_PROCESSED_IMAGE, self.pre_processed_image,
+                                                      return_string)
+
+        # Add the image mask
+        return_string = create_single_line_array_data(IMAGE_MASK, self.image_mask, return_string)
+
+        # Add the expanded image mask
+        return_string = create_single_line_array_data(EXPANDED_IMAGE_MASK, self.expanded_image_mask,
+                                                      return_string)
+
+        # Add the sure foreground mask
+        return_string = create_single_line_array_data(SURE_FOREGROUND_MASK, self.sure_foreground_mask,
+                                                      return_string)
+
+        # Add the sure background mask
+        return_string = create_single_line_array_data(SURE_BACKGROUND_MASK, self.sure_background_mask,
+                                                      return_string)
+
+        # Add the probable foreground mask
+        return_string = create_single_line_array_data(PROBABLE_FOREGROUND_MASK, self.probable_foreground_mask,
+                                                      return_string)
+
+        # Add the contours in image
+        return_string = create_single_line_array_data(CONTOURS_IN_IMAGE, self.contours_in_image, return_string)
+
+        # Add the centroids in the image
+        return_string = create_single_line_array_data(CONTOUR_CENTROIDS, self.contour_centroids, return_string)
+
+        # Add the image capture time
+        return create_single_line_time_stamp(IMAGE_CAPTURE_TIME, self.image_capture_time, return_string)
+
+    def bridge_string_to_object(self, object_as_string):
+
+        # Remove the carriage return character at the end of the string
+        object_as_string = object_as_string[:-1]
+
+        # Pull each field from the string by splitting on the carriage returns
+        object_fields = object_as_string.split("\n")
+
+        # Fill in each field from the corresponding string
+        field_name, self.image_title = rebuild_data(object_fields[0])
+        field_name, self.image_color = rebuild_data(object_fields[1])
+        field_name, self.image_size_x = rebuild_data(object_fields[2])
+        field_name, self.image_size_y = rebuild_data(object_fields[3])
+        field_name, self.segmentation_initialization_mask = rebuild_data(object_fields[4])
+        field_name, self.original_image = rebuild_data(object_fields[5])
+        field_name, self.cropped_image = rebuild_data(object_fields[6])
+        field_name, self.colorized_image = rebuild_data(object_fields[7])
+        field_name, self.pre_processed_image = rebuild_data(object_fields[8])
+        field_name, self.image_mask = rebuild_data(object_fields[9])
+        field_name, self.expanded_image_mask = rebuild_data(object_fields[10])
+        field_name, self.sure_foreground_mask = rebuild_data(object_fields[11])
+        field_name, self.sure_background_mask = rebuild_data(object_fields[12])
+        field_name, self.probable_foreground_mask = rebuild_data(object_fields[13])
+        field_name, self.contours_in_image = rebuild_data(object_fields[14])
+        field_name, self.contour_centroids = rebuild_data(object_fields[15])
+        field_name, self.image_capture_time = rebuild_data(object_fields[16])
+
+

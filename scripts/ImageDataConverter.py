@@ -16,6 +16,7 @@ from thyroid_ultrasound_messages.msg import image_data_message
 from thyroid_ultrasound_imaging_support.ImageData.ImageData import ImageData
 from thyroid_ultrasound_imaging_support.ImageFilter.FilterConstants import COLOR_BGR, COLOR_GRAY, COLOR_RGB
 from thyroid_ultrasound_imaging_support.ImageData.convert_image_message_to_array import convert_image_message_to_array
+from thyroid_ultrasound_support.TopicNames import *
 
 
 class ImageDataConverter:
@@ -26,7 +27,7 @@ class ImageDataConverter:
         init_node('ImageDataConverter')
 
         # Create a publisher for the images
-        self.raw_image_publisher = Publisher('image_data/raw', image_data_message, queue_size=100)
+        self.raw_image_publisher = Publisher(IMAGE_RAW, image_data_message, queue_size=100)
 
         # Create a subscriber to listen to commands to start and stop publishing images
         Subscriber('/Clarius/US', Image, self.raw_image_callback)

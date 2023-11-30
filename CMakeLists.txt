@@ -171,6 +171,7 @@ catkin_install_python(PROGRAMS
   scripts/ImageBasedUserInput.py
   scripts/ImagePositionRegistrationNode.py
   scripts/ImageContactBalanceNode.py
+  scripts/ClariusUltrasoundConnectionNode.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

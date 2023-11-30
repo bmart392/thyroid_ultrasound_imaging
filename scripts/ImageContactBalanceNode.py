@@ -7,18 +7,13 @@ File containing code to ensure even patient contact.
 # Import standard ROS packages
 
 # Import standard python packages
-from numpy import zeros, newaxis, uint8, linspace, array, polyfit
-from cv2 import imread, cvtColor, COLOR_GRAY2BGR, COLOR_BGR2GRAY
-from cv_bridge import CvBridge
-from matplotlib.pyplot import imshow, figure, show, plot
-from matplotlib.pyplot import Circle
+from numpy import zeros, linspace, array, polyfit
 
 # Import custom ROS packages
 from thyroid_ultrasound_support.BasicNode import *
-from thyroid_ultrasound_messages.msg import image_data_message
+from thyroid_ultrasound_messages.msg import image_data_message, Float64Stamped
 
 # Import custom python packages
-from thyroid_ultrasound_imaging_support.Visualization.display_process_timer import *
 from thyroid_ultrasound_imaging_support.ImageData.ImageData import ImageData
 from thyroid_ultrasound_imaging_support.ImageBalancing.ImageSector import *
 
@@ -108,13 +103,15 @@ class ImageContactBalanceNode(BasicNode):
         init_node("ImageContactBalanceNode")
 
         # Define a publisher to publish the error
-        self.error_publisher = Publisher('/contact_angle_error', Float64, queue_size=1)
+        self.patient_contact_error_publisher = Publisher(RC_PATIENT_CONTACT_ERROR, Float64Stamped, queue_size=1)
 
         # Define a publisher to publish if the patient is in contact
-        self.patient_contact_publisher = Publisher(IMAGE_PATIENT_CONTACT, Bool, queue_size=1)
+        self.patient_contact_status_publisher = Publisher(IMAGE_PATIENT_CONTACT, Bool, queue_size=1)
 
         # Define a subscriber to listen for the raw image
         Subscriber(IMAGE_RAW, image_data_message, self.new_raw_image_callback)
+
+        # TODO define a way to publish information so that the results can be visualized
 
     ###############
     # ROS Callbacks
@@ -224,299 +221,199 @@ class ImageContactBalanceNode(BasicNode):
         and then the image is published.
         """
 
-        # If there is a new ultrasound image
-        if len(self.new_ultrasound_images) > 0:
+        # Only do things while the node is not shut down
+        while not is_shutdown():
 
-            # Pop out the latest image
-            latest_image = self.new_ultrasound_images.pop(-1)
+            # If there is a new ultrasound image
+            if len(self.new_ultrasound_images) > 0:
 
-            # Save the image shape in case it has changed
-            self.img_num_rows[NEW_VALUE] = latest_image.shape[0]
-            self.img_num_cols[NEW_VALUE] = latest_image.shape[1]
+                # Pop out the latest image
+                latest_image = self.new_ultrasound_images.pop(-1)
 
-            # Rebuild the sectors if the imaging depth has changed
-            self.rebuild_sectors()
+                # Save the image shape in case it has changed
+                self.img_num_rows[NEW_VALUE] = latest_image.shape[0]
+                self.img_num_cols[NEW_VALUE] = latest_image.shape[1]
 
-            # Define the bitmask to use to show the sampled points
-            self.sampled_data_bit_mask = zeros((self.img_num_rows[CURRENT_VALUE],
-                                                self.img_num_cols[CURRENT_VALUE]),
-                                               'uint8')
+                # Rebuild the sectors if the imaging depth has changed
+                self.rebuild_sectors()
 
-            # Define a variable to use to store the last sector where a point was found
-            last_sector_used = 0
+                # Define the bitmask to use to show the sampled points
+                self.sampled_data_bit_mask = zeros((self.img_num_rows[CURRENT_VALUE],
+                                                    self.img_num_cols[CURRENT_VALUE]),
+                                                   'uint8')
 
-            # Iterate through the rows of the original image that contain the ultrasound image
-            for yy in range(self.start_of_us_image[CURRENT_VALUE],
-                            self.img_num_rows[CURRENT_VALUE] - self.end_of_us_image_from_bottom[CURRENT_VALUE],
-                            self.down_sampling_rate):
-
-                # Iterate through the columns that are between the left line of the leftmost column and the right line
-                # of the rightmost column skipping points based on the down-sampling rate
-                for xx in range(round(self.sectors[0].left_line.calc_point_on_line(y_value=yy)) - 2,
-                                round(self.sectors[-1].right_line.calc_point_on_line(y_value=yy)) + 2,
-                                self.down_sampling_rate):
-
-                    # Window the acceptable values of x between 0 and the number of columns in the image
-                    if xx < 0:
-                        xx = 0
-                    if xx > self.img_num_cols[CURRENT_VALUE] - 1:
-                        xx = self.img_num_cols[CURRENT_VALUE] - 1
-
-                    # For each sector, starting at the sector in which the last point was found
-                    for jj in range(last_sector_used, len(self.sectors)):
-                        a = self.sectors[jj]
-                        # Check if the point is in the sector
-                        if self.sectors[jj].is_point_in_sector((xx, yy), latest_image[yy][xx]):
-                            # Update the bitmap correspondingly
-                            # self.sampled_data_bit_mask[yy, xx] = uint8(1)
-
-                            # Update the value of the last sector used
-                            last_sector_used = jj
-                            break
-
-                # Reset the value of the last sector used
+                # Define a variable to use to store the last sector where a point was found
                 last_sector_used = 0
 
-            # Define variables to store the number of dark sectors in each half of the image
-            num_dark_sectors = [0, 0]
+                # Iterate through the rows of the original image that contain the ultrasound image
+                for yy in range(self.start_of_us_image[CURRENT_VALUE],
+                                self.img_num_rows[CURRENT_VALUE] - self.end_of_us_image_from_bottom[CURRENT_VALUE],
+                                self.down_sampling_rate):
 
-            # For each sector in the left half area,
-            for li, ri in zip(self.left_half_sectors, self.right_half_sectors):
+                    # Iterate through the columns that are between the left line of the leftmost column and the right
+                    # line of the rightmost column skipping points based on the down-sampling rate
+                    for xx in range(round(self.sectors[0].left_line.calc_point_on_line(y_value=yy)) - 2,
+                                    round(self.sectors[-1].right_line.calc_point_on_line(y_value=yy)) + 2,
+                                    self.down_sampling_rate):
 
-                # If the average intensity is lower than the minimum
-                if self.sectors[li].avg_data_value < self.min_intensity:
-                    # Increment the counter
-                    num_dark_sectors[0] = num_dark_sectors[0] + 1
+                        # Window the acceptable values of x between 0 and the number of columns in the image
+                        if xx < 0:
+                            xx = 0
+                        if xx > self.img_num_cols[CURRENT_VALUE] - 1:
+                            xx = self.img_num_cols[CURRENT_VALUE] - 1
+
+                        # For each sector, starting at the sector in which the last point was found
+                        for jj in range(last_sector_used, len(self.sectors)):
+
+                            # Check if the point is in the sector
+                            if self.sectors[jj].is_point_in_sector((xx, yy), latest_image[yy][xx]):
+                                # Update the bitmap correspondingly
+                                # self.sampled_data_bit_mask[yy, xx] = uint8(1)
+
+                                # Update the value of the last sector used
+                                last_sector_used = jj
+
+                                break
+
+                    # Reset the value of the last sector used
+                    last_sector_used = 0
+
+                # Define variables to store the number of dark sectors in each half of the image
+                num_dark_sectors = [0, 0]
+
+                # For each sector in the left half area,
+                for li, ri in zip(self.left_half_sectors, self.right_half_sectors):
+
+                    # If the average intensity is lower than the minimum
+                    if self.sectors[li].avg_data_value < self.min_intensity:
+                        # Increment the counter
+                        num_dark_sectors[0] = num_dark_sectors[0] + 1
+                    else:
+                        # Note that the sector is bright
+                        self.sectors[li].is_bright = True
+
+                    # If the average intensity is lower than the minimum
+                    if self.sectors[ri].avg_data_value < self.min_intensity:
+                        # Increment the counter
+                        num_dark_sectors[1] = num_dark_sectors[1] + 1
+                    else:
+                        # Note that the sector is bright
+                        self.sectors[ri].is_bright = True
+
+                # Calculate the difference in the number of dark sectors on each side of the image
+                dark_sector_difference = (num_dark_sectors[1] - num_dark_sectors[0]) / 10  # Scale down the error
+
+                # If patient contact is detected at all
+                if abs(dark_sector_difference) < floor(len(self.sectors) * 0.5):
+
+                    # Publish the true patient contact message
+                    patient_contact_status = True
+
+                    # Calculate the image error based on the number of dark sectors
+                    patient_contact_error = float(dark_sector_difference)
+
+                    # Check if there is enough patient contact to calculate the error from the skin layer
+                    if abs(dark_sector_difference) < floor((len(self.sectors) * 0.1)):
+
+                        # Define an iterator for the sectors
+                        ii = 0
+
+                        # For each half-sector
+                        for half_sector in [self.left_half_sectors, self.right_half_sectors]:
+
+                            # For each sector in each half-sector
+                            for u in half_sector:
+
+                                # Make sure the sector is bright
+                                if self.sectors[u].is_bright:
+
+                                    # Define a variable to store the number of points that qualify along each line
+                                    num_points_found_over_min = 0
+
+                                    # For each y value in the top section of the ultrasound image
+                                    for yyy in range(self.start_of_us_image[CURRENT_VALUE] + self.skin_level_offset,
+                                                     self.img_num_rows[CURRENT_VALUE] -
+                                                     self.end_of_us_image_from_bottom[
+                                                         CURRENT_VALUE],
+                                                     1):
+
+                                        # Calculate the corresponding x value
+                                        xxx = round(self.sectors[u].left_line.calc_point_on_line(y_value=yyy))
+
+                                        # If the intensity of that pixel is bright enough
+                                        if latest_image[yyy][xxx] > 2 * self.min_intensity:
+
+                                            # Increment the number of points found
+                                            num_points_found_over_min = num_points_found_over_min + 1
+
+                                            # If enough points have been found
+                                            if num_points_found_over_min > 5:
+                                                # Save the (x, y) coordinate of the point
+                                                self.skin_points[ii][X_POINTS].append(xxx)
+                                                self.skin_points[ii][Y_POINTS].append(yyy)
+
+                                                # Break and move on to the next sector
+                                                break
+                                        # If the intensity is not bright enough, restart the count
+                                        else:
+                                            num_points_found_over_min = 0
+
+                            # Increment the half-sector count
+                            ii = ii + 1
+
+                        """# Calculate the straight line of best fit for the left half-sector
+                        # noinspection PyTupleAssignmentBalance
+                        self.best_fit_left_line_a, self.best_fit_left_line_b = polyfit(
+                            array(self.skin_points[LEFT_SECTOR][X_POINTS]),
+                            array(self.skin_points[LEFT_SECTOR][Y_POINTS]),
+                            1)
+    
+                        # Calculate the straight line of best fit for the right half-sector
+                        # noinspection PyTupleAssignmentBalance
+                        self.best_fit_right_line_a, self.best_fit_right_line_b = polyfit(
+                            array(self.skin_points[RIGHT_SECTOR][X_POINTS]),
+                            array(self.skin_points[RIGHT_SECTOR][Y_POINTS]), 1)"""
+
+                        if len(self.skin_points[LEFT_SECTOR][X_POINTS]) > 0 and len(self.skin_points[RIGHT_SECTOR][X_POINTS]) > 0:
+
+                            # Calculate the straight line of best fit for the entire image
+                            # noinspection PyTupleAssignmentBalance
+                            self.best_fit_shared_line_a, self.best_fit_shared_line_b = polyfit(
+                                array(self.skin_points[LEFT_SECTOR][X_POINTS] +
+                                      self.skin_points[RIGHT_SECTOR][X_POINTS]),
+                                array(self.skin_points[LEFT_SECTOR][Y_POINTS] +
+                                      self.skin_points[RIGHT_SECTOR][Y_POINTS]), 1)
+
+                            # Add the skin layer error to the image error
+                            patient_contact_error = round(self.best_fit_shared_line_a, 3) * 5  # Scale the error up
+
                 else:
-                    # Note that the sector is bright
-                    self.sectors[li].is_bright = True
+                    # If zero patient contact is detected, publish the contact message accordingly
+                    patient_contact_status = False
 
-                # If the average intensity is lower than the minimum
-                if self.sectors[ri].avg_data_value < self.min_intensity:
-                    # Increment the counter
-                    num_dark_sectors[1] = num_dark_sectors[1] + 1
-                else:
-                    # Note that the sector is bright
-                    self.sectors[ri].is_bright = True
+                    # Publish zero error
+                    patient_contact_error = 0.0
 
-            # Calculate the difference in the number of dark sectors on each side of the image
-            dark_sector_difference = num_dark_sectors[1] - num_dark_sectors[0]
+                # Publish the patient contact and image error
+                self.patient_contact_status_publisher.publish(Bool(patient_contact_status))
+                patient_contact_error_msg = Float64Stamped()
+                patient_contact_error_msg.header.stamp = Time.now()
+                patient_contact_error_msg.data.data = patient_contact_error
+                self.patient_contact_error_publisher.publish(patient_contact_error_msg)
 
-            # If patient contact is detected at all
-            if abs(dark_sector_difference) < floor(len(self.sectors)*0.5):
-
-                # Publish the true patient contact message
-                patient_contact = True
-
-                # Calculate the image error based on the number of dark sectors
-                image_error = float(num_dark_sectors[1] - num_dark_sectors[0])
-
-                # Check if there is enough patient contact to calculate the error from the skin layer
-                if abs(dark_sector_difference) < floor((len(self.sectors)*0.1)):
-
-                    # Define an iterator for the sectors
-                    ii = 0
-
-                    # For each half-sector
-                    for half_sector in [self.left_half_sectors, self.right_half_sectors]:
-
-                        # For each sector in each half-sector
-                        for u in half_sector:
-
-                            # Make sure the sector is bright
-                            if self.sectors[u].is_bright:
-
-                                # Define a variable to store the number of points that qualify along each line
-                                num_points_found_over_min = 0
-
-                                # For each y value in the top section of the ultrasound image
-                                for yyy in range(self.start_of_us_image[CURRENT_VALUE] + self.skin_level_offset,
-                                                 self.img_num_rows[CURRENT_VALUE] - self.end_of_us_image_from_bottom[
-                                                     CURRENT_VALUE],
-                                                 1):
-
-                                    # Calculate the corresponding x value
-                                    xxx = round(self.sectors[u].left_line.calc_point_on_line(y_value=yyy))
-
-                                    # If the intensity of that pixel is bright enough
-                                    if latest_image[yyy][xxx] > 2 * self.min_intensity:
-
-                                        # Increment the number of points found
-                                        num_points_found_over_min = num_points_found_over_min + 1
-
-                                        # If enough points have been found
-                                        if num_points_found_over_min > 5:
-                                            # Save the (x, y) coordinate of the point
-                                            self.skin_points[ii][X_POINTS].append(xxx)
-                                            self.skin_points[ii][Y_POINTS].append(yyy)
-
-                                            # Break and move on to the next sector
-                                            break
-                                    # If the intensity is not bright enough, restart the count
-                                    else:
-                                        num_points_found_over_min = 0
-
-                        # Increment the half-sector count
-                        ii = ii + 1
-
-                    """# Calculate the straight line of best fit for the left half-sector
-                    # noinspection PyTupleAssignmentBalance
-                    self.best_fit_left_line_a, self.best_fit_left_line_b = polyfit(
-                        array(self.skin_points[LEFT_SECTOR][X_POINTS]),
-                        array(self.skin_points[LEFT_SECTOR][Y_POINTS]),
-                        1)
-
-                    # Calculate the straight line of best fit for the right half-sector
-                    # noinspection PyTupleAssignmentBalance
-                    self.best_fit_right_line_a, self.best_fit_right_line_b = polyfit(
-                        array(self.skin_points[RIGHT_SECTOR][X_POINTS]),
-                        array(self.skin_points[RIGHT_SECTOR][Y_POINTS]), 1)"""
-
-                    # Calculate the straight line of best fit for the entire image
-                    # noinspection PyTupleAssignmentBalance
-                    self.best_fit_shared_line_a, self.best_fit_shared_line_b = polyfit(
-                        array(self.skin_points[LEFT_SECTOR][X_POINTS] +
-                              self.skin_points[RIGHT_SECTOR][X_POINTS]),
-                        array(self.skin_points[LEFT_SECTOR][Y_POINTS] +
-                              self.skin_points[RIGHT_SECTOR][Y_POINTS]), 1)
-
-                    image_error = round(self.best_fit_shared_line_a, 3) + image_error
-
-                    """print("Dual Line Flatness error: " + str(
-                        round(self.best_fit_left_line_a + self.best_fit_right_line_a, 3)))
-                    print("Single Line Flatness error: " + str(round(self.best_fit_shared_line_a, 3)))"""
-                    # print("---")
-
-            else:
-                # If zero patient contact is detected, publish false patient contact and publish 0 balance error
-                patient_contact = False
-                image_error = 0.0
-
-                pass
-
-            self.patient_contact_publisher.publish(Bool(patient_contact))
-            self.error_publisher.publish(Float64(image_error))
-
-            """# For each sector in the right half area,
-            for ri in self.right_half_sectors:
-
-                # If the average intensity is lower than the minimum
-                if self.sectors[ri].avg_data_value < self.min_intensity:
-                    # Increment the counter
-                    num_dark_sectors[1] = num_dark_sectors[1] + 1"""
-
-            # Publish the difference between the two numbers as the error
-            # Float64(float(num_dark_sectors[1] - num_dark_sectors[0]))
-
-            # print("Number of dark sectors: " + str(sum(num_dark_sectors)))
-            # print("Error: " + str(num_dark_sectors[1] - num_dark_sectors[0]))
-            # print("---")
-
-        # Reset variables
-        self.sampled_data_bit_mask = None
-        self.skin_points = [[[], []], [[], []]]
+            # Reset variables
+            self.sampled_data_bit_mask = None
+            self.skin_points = [[[], []], [[], []]]
 
 
 if __name__ == '__main__':
-
     # Create the node
-    # node = ImageContactBalanceNode()
-
-    node = ImageContactBalanceNode(image_field_of_view=28, num_slices=12, image_shape=(685, 684),
-                                   imaging_depth_meters=0.05, bottom_distance_to_imaginary_center_meters=0.15,
-                                   sides_distance_to_imaginary_center_meters=0.039, start_of_us_image=200,
-                                   end_of_us_image_from_bottom=200, image_center_offset_px=0,
-                                   down_sampling_rate=3, skin_level_offset=25
-                                   )
+    node = ImageContactBalanceNode()
 
     print("Node initialized.")
     print("Press ctrl+c to terminate.")
 
-    """# Uncomment this section to view a single image
-    print("---")
+    # Run the main code of the node
+    node.main_loop()
 
-    fig = figure("Sector Test", figsize=(6, 6), dpi=300)
-    ax = fig.gca()
-
-    # read in an image
-    image = imread(
-        '/home/ben/thyroid_ultrasound/src/thyroid_ultrasound_imaging/scripts/Test/Images/Series2/Slice_23.png')
-    image = cvtColor(image, COLOR_BGR2GRAY)
-
-    node.new_ultrasound_images.append(image)"""
-
-    # while len(node.new_ultrasound_images) < 1:
-    #     pass
-
-    # image = node.new_ultrasound_images[0]
-    # image = cvtColor(image, COLOR_GRAY2BGR)
-
-    # start_time = time()
-
-    while not is_shutdown():
-        node.main_loop()
-
-    # start_time = display_process_timer(start_time, "Radial Location Time")
-    # print("---")
-
-    """# Uncomment this section to display one image
-
-    print("Number of points in image: " + str(image.shape[0] * image.shape[1]))
-    print("Number of points in sectors: " + str(node.sampled_data_bit_mask.sum()))
-    print("Percentage of points in sectors: " +
-          str(round(100 * node.sampled_data_bit_mask.sum() / (image.shape[0] * image.shape[1]), 2)) +
-          "%")
-    print("---")
-
-    gg = 1
-    for image_sector in node.sectors:
-        print("Sector " + str(gg) + ":")
-        print("Avg Value: " + str(image_sector.avg_data_value))
-        print("Num Points: " + str(image_sector.num_data_values))
-        print("---")
-        gg = gg + 1
-
-    imshow(
-        node.sampled_data_bit_mask[:, :, newaxis] * image + uint8(
-            (1 - node.sampled_data_bit_mask)[:, :, newaxis] * image * 0.5)
-    )"""
-
-    # imshow(image)
-
-    """plot(
-        (node.sectors[0].left_line.pt_1[0], node.sectors[0].left_line.calc_point_on_line(y_value=400)),
-        (node.sectors[0].left_line.pt_1[1], 400),
-        '-g', linewidth=0.5
-    )
-
-    plot(
-        (node.sectors[0].right_line.pt_1[0], node.sectors[0].right_line.calc_point_on_line(y_value=400)),
-        (node.sectors[0].right_line.pt_1[1], 400),
-        '-r', linewidth=0.5
-    )"""
-
-    """fitted_left_y = []
-    fitted_right_y = []
-    fitted_shared_y = []
-
-    for left_x in node.skin_points[0][X_POINTS]:
-        fitted_left_y.append(node.best_fit_left_line_a * left_x + node.best_fit_left_line_b)
-    for right_x in node.skin_points[1][X_POINTS]:
-        fitted_right_y.append(node.best_fit_right_line_a * right_x + node.best_fit_right_line_b)
-    for shared_x in node.skin_points[LEFT_SECTOR][X_POINTS] + node.skin_points[RIGHT_SECTOR][X_POINTS]:
-        fitted_shared_y.append(node.best_fit_shared_line_a * shared_x + node.best_fit_shared_line_b)
-
-    for xxxx, yyyy in zip(node.skin_points[0][X_POINTS], node.skin_points[0][Y_POINTS]):
-        ax.add_patch(Circle((xxxx, yyyy), 2, color='b', fill=True))
-    for xxxx, yyyy in zip(node.skin_points[1][X_POINTS], node.skin_points[1][Y_POINTS]):
-        ax.add_patch(Circle((xxxx, yyyy), 2, color='y', fill=True))
-
-    plot(node.skin_points[0][X_POINTS], array(fitted_left_y), linewidth=1, color='b')
-    plot(node.skin_points[1][X_POINTS], array(fitted_right_y), linewidth=1, color='y')
-    plot(node.skin_points[LEFT_SECTOR][X_POINTS] + node.skin_points[RIGHT_SECTOR][X_POINTS], fitted_shared_y,
-         linewidth=1, color='g')
-
-    start_time = display_process_timer(start_time, "Graphing")
-    print("---")
-
-    show()"""
+    print("Node terminated.")
