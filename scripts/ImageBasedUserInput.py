@@ -89,9 +89,6 @@ class ImageBasedUserInput:
 
                 if next_action == GENERATE_CROP:
 
-                    # TODO - Medium - Figure out why this user input has the colors on the image weird.
-                    # TODO - Low - Stop having the whole window close after giving each input step.
-
                     # Check that there is an image to crop before continuing
                     if self.image_to_crop is not None:
                         # Make a copy of the image to ensure that updates to the class
@@ -116,7 +113,6 @@ class ImageBasedUserInput:
                 elif next_action == GENERATE_INITIALIZATION:
 
                     # TODO - Low - What if it did the expand thing so that you only had to select the foreground?
-                    # TODO - Low - Stop having the whole window close after giving each input step.
 
                     # Check that there is an image to generate the initial mask from before continuing
                     if self.image_for_mask_and_threshold is not None:
@@ -134,11 +130,11 @@ class ImageBasedUserInput:
                         list_of_foreground_points = None
 
                         # Capture the background of the image from the user
-                        list_of_points_for_background_polygon = user_input_polygon_points(
+                        """list_of_points_for_background_polygon = user_input_polygon_points(
                             local_image_to_generate_mask_from,
                             "background",
                             display_result=True,
-                            list_of_points=list_of_background_points)
+                            list_of_points=list_of_background_points)"""
 
                         # Capture the foreground of the image from the user
                         list_of_points_for_foreground_polygon = user_input_polygon_points(
@@ -148,13 +144,13 @@ class ImageBasedUserInput:
                             list_of_points=list_of_foreground_points)
 
                         # Convert the points of the background and foreground polygons to triangles
-                        list_of_background_triangles = create_convex_triangles_from_points(
-                            list_of_points_for_background_polygon)
+                        """list_of_background_triangles = create_convex_triangles_from_points(
+                            list_of_points_for_background_polygon)"""
                         list_of_foreground_triangles = create_convex_triangles_from_points(
                             list_of_points_for_foreground_polygon)
 
                         # Generate the previous image mask using the triangles selected by the user
-                        initialization_mask = create_mask_array_from_triangles(list_of_background_triangles,
+                        initialization_mask = create_mask_array_from_triangles([],  # list_of_background_triangles,
                                                                                list_of_foreground_triangles,
                                                                                local_image_to_generate_mask_from.cropped_image.shape[
                                                                                :2])

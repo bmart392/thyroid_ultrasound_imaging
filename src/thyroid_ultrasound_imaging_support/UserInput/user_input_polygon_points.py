@@ -3,13 +3,12 @@ Contains user_input_polygon_points function.
 """
 # Import standard packages
 from copy import copy
-from cv2 import line, circle
+from cv2 import line, circle, imread, cvtColor, COLOR_GRAY2BGR, COLOR_BGR2GRAY
 
 # Import custom objects
 from thyroid_ultrasound_imaging_support.ImageData.ImageData import ImageData
 
 # Import custom functions
-from thyroid_ultrasound_imaging_support.UserInput.generate_random_color import generate_random_color
 from thyroid_ultrasound_imaging_support.UserInput.display_image_with_callback import display_image_with_callback
 
 
@@ -42,16 +41,17 @@ def user_input_polygon_points(image_data: ImageData, polygon_use: str,
         window_name = 'Image Background Selection'
 
         # Define colors to use for displaying information
-        point_color = (0, 0, 255)
+        point_color = (0, 255, 0)
 
         # Define attributes of the drawn elements
-        point_radius = 3
-        intermediate_line_width = 1
+        point_radius = 4
+        intermediate_line_color = (0, 0, 255)
+        intermediate_line_width = 2
         final_line_color = (255, 255, 255)
         final_line_width = 2
 
         # Create a copy of the image array so that the original is not changed
-        temp_image_array = copy(image_data.colorized_image)
+        temp_image_array = cvtColor(copy(image_data.colorized_image), COLOR_GRAY2BGR)
 
         # Initialize the additional inputs needed for the mouseclick callback function
         list_of_points = []
@@ -59,6 +59,10 @@ def user_input_polygon_points(image_data: ImageData, polygon_use: str,
 
         # Define the default result for the function to return when the window is closed
         default_result = [False]
+
+        # Define empty variables to use to store the figure and axis used to plot each image
+        fig = None
+        axis = None
 
         # Loop until the user selects enough points
         while True:
@@ -81,13 +85,16 @@ def user_input_polygon_points(image_data: ImageData, polygon_use: str,
                                "\nClose the window to finish selecting points.")
 
             # Capture a single point from the user
-            new_point = display_image_with_callback(temp_image_array,
-                                                    image_title,
-                                                    default_result,
-                                                    window_name)
+            new_point, fig, axis = display_image_with_callback(temp_image_array,
+                                                               image_title,
+                                                               default_result,
+                                                               window_name,
+                                                               fig_to_plot_on=fig,
+                                                               axis_to_plot_on=axis,
+                                                               return_fig_and_axes=True)
 
             # Recopy the original image from the object passed in
-            temp_image_array = copy(image_data.colorized_image)
+            temp_image_array = cvtColor(copy(image_data.colorized_image), COLOR_GRAY2BGR)
 
             # If the window was closed
             if new_point == default_result:
@@ -108,15 +115,11 @@ def user_input_polygon_points(image_data: ImageData, polygon_use: str,
                 # Add the newly selected point to the list of points
                 list_of_points.append(new_point)
 
-                # Draw each point selected on the image
-                for point in list_of_points:
-                    temp_image_array = circle(temp_image_array, point, point_radius, point_color, -1)
-
                 # If more than one point has been selected
                 if len(list_of_points) > 1:
 
                     # Generate a new line color
-                    list_of_line_colors.append(generate_random_color())
+                    list_of_line_colors.append(intermediate_line_color)
 
                     # Iterate through the list of points to draw each line using the appropriate color
                     for i in range(1, len(list_of_points)):
@@ -128,6 +131,10 @@ def user_input_polygon_points(image_data: ImageData, polygon_use: str,
                     if len(list_of_points) > 2:
                         temp_image_array = line(temp_image_array, list_of_points[0], list_of_points[-1],
                                                 final_line_color, final_line_width)
+
+                # Draw each point selected on the image
+                for point in list_of_points:
+                    temp_image_array = circle(temp_image_array, point, point_radius, point_color, -1)
 
         # Ensure that at least three points have been selected
         if len(list_of_points) < 3:
@@ -146,9 +153,10 @@ def user_input_polygon_points(image_data: ImageData, polygon_use: str,
 if __name__ == '__main__':
 
     # Create a test image
-    image = ImageData(image_filepath='/home/ben/thyroid_ultrasound/src/thyroid_ultrasound_imaging/' +
-                                     'scripts/Test/Images/Series2/Slice_30.png')
+    image = ImageData(image_data=imread('/home/ben/thyroid_ultrasound/src/thyroid_ultrasound_imaging/' +
+                                        'scripts/Test/Images/Series2/Slice_30.png'))
 
-    image.colorized_image = image.original_image
+    # Recolor the image to properly replicate the system
+    image.colorized_image = cvtColor(image.original_image, COLOR_BGR2GRAY)
 
-    user_input_polygon_points(image, "test")
+    print(user_input_polygon_points(image, "test"))

@@ -2,8 +2,9 @@
 Contains user_input_crop_coordinates and necessary callback functions.
 """
 # Import standard packages
+from rospy import init_node
 from copy import copy
-from cv2 import line, rectangle, imread
+from cv2 import line, rectangle, imread, cvtColor, COLOR_GRAY2BGR, COLOR_BGR2GRAY
 
 # Import custom objects
 from thyroid_ultrasound_imaging_support.ImageData.ImageData import ImageData
@@ -41,25 +42,26 @@ def user_input_crop_coordinates(image_data: ImageData,
             box_thickness = 3
 
             # Create a copy of the original image to prevent damaging the original object
-            temp_image_array = copy(image_data.original_image)
+            temp_image_array = cvtColor(copy(image_data.original_image), COLOR_GRAY2BGR)
 
             # Define a variable to store the result of the user's click
             first_corner = [int(0), int(0)]
 
             # Display the image and get the users input
-            first_corner = display_image_with_callback(temp_image_array,
-                                                       "Select the upper left-hand crop corner." +
-                                                       "\n Press the middle mouse button to restart.",
-                                                       first_corner,
-                                                       window_name,
-                                                       )
+            first_corner, fig, axis = display_image_with_callback(temp_image_array,
+                                                                  "Select the upper left-hand crop corner." +
+                                                                  "\n Press the middle mouse button to restart.",
+                                                                  first_corner,
+                                                                  window_name,
+                                                                  return_fig_and_axes=True
+                                                                  )
 
             # Go back to the top of the loop if no point was selected
             if len(first_corner) == 0:
                 continue
 
             # Recopy the original image to clear the previous text
-            temp_image_array = copy(image_data.original_image)
+            temp_image_array = cvtColor(copy(image_data.original_image), COLOR_GRAY2BGR)
 
             # Display two lines to show how the image has been cropped so far
             temp_image_array = line(temp_image_array, (first_corner[0], first_corner[1]),
@@ -73,12 +75,15 @@ def user_input_crop_coordinates(image_data: ImageData,
             second_corner = [int(image_data.original_image.shape[1] - 1), int(image_data.original_image.shape[0] - 1)]
 
             # Display the image and get the users input
-            second_corner = display_image_with_callback(temp_image_array,
-                                                        "Select the lower right-hand crop corner." +
-                                                        "\nPress the middle mouse button to restart.",
-                                                        second_corner,
-                                                        window_name,
-                                                        )
+            second_corner, fig, axis = display_image_with_callback(temp_image_array,
+                                                                   "Select the lower right-hand crop corner." +
+                                                                   "\nPress the middle mouse button to restart.",
+                                                                   second_corner,
+                                                                   window_name,
+                                                                   fig_to_plot_on=fig,
+                                                                   axis_to_plot_on=axis,
+                                                                   return_fig_and_axes=True
+                                                                   )
 
             # Go back to the top of the loop if no point was selected
             if len(second_corner) == 0:
@@ -90,7 +95,7 @@ def user_input_crop_coordinates(image_data: ImageData,
             else:
 
                 # Recopy the original image to clear the previous annotations
-                temp_image_array = copy(image_data.original_image)
+                temp_image_array = cvtColor(copy(image_data.original_image), COLOR_GRAY2BGR)
 
                 # Draw a rectangle to show how the image will be cropped
                 temp_image_array = rectangle(temp_image_array, first_corner, second_corner, box_color, box_thickness)
@@ -101,10 +106,11 @@ def user_input_crop_coordinates(image_data: ImageData,
                                                        "\nClick on the image to approve." +
                                                        "\nPress the middle mouse button to restart.",
                                                        [],
-                                                       window_name)
+                                                       window_name,
+                                                       fig_to_plot_on=fig,
+                                                       axis_to_plot_on=axis)
                 # If a point was selected
                 if len(approval) == 2:
-
                     # Display the points selected for the user
                     print("1st Corner: (" + str(first_corner[0]) + ", " + str(first_corner[1]) + ")\n" +
                           "2nd Corner: (" + str(second_corner[0]) + ", " + str(second_corner[1]) + ")")
@@ -123,10 +129,14 @@ def user_input_crop_coordinates(image_data: ImageData,
 
 
 if __name__ == '__main__':
+    init_node("name")
 
     # Create a test image
     image = ImageData(image_data=imread('/home/ben/thyroid_ultrasound/src/thyroid_ultrasound_imaging/' +
-                                     'scripts/Test/Images/Series2/Slice_30.png'))
+                                        'scripts/Test/Images/Series2/Slice_30.png'))
+
+    # Recolor the image to properly replicate the system
+    image.original_image = cvtColor(image.original_image, COLOR_BGR2GRAY)
 
     # Test the function
     user_input_crop_coordinates(image)

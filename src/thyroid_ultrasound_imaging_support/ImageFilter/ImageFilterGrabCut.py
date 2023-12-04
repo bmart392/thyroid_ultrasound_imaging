@@ -94,6 +94,15 @@ class ImageFilterGrabCut(ImageFilter):
                                                                                   fast_mode=True,
                                                                                   **patch_kw)))
                                                                                   """
+        # If a down-sampling rate is given,
+        if self.down_sampling_rate is not None:
+
+            # Resize the image appropriately
+            image_data.pre_processed_image = cv2.resize(temp_image, (0, 0),
+                                                        fx=1/self.down_sampling_rate,
+                                                        fy=1/self.down_sampling_rate,
+                                                        interpolation=cv2.INTER_LINEAR)
+
         else:
 
             # Set the pre-processed image as a copy of the colorized image.
@@ -138,14 +147,18 @@ class ImageFilterGrabCut(ImageFilter):
 
     def image_mask_post_process(self, image_data: ImageData):
         """
-        Do nothing to post-process the image. Overrides the super-class definition.
+        Up-sample the image if down-sampling was used. Overrides the super-class definition.
 
         Parameters
         ----------
         image_data
             the ImageData object containing the image.
         """
-        pass
+        if self.down_sampling_rate is not None:
+            image_data.image_mask = cv2.resize(image_data.image_mask, (0, 0),
+                                               fx=self.down_sampling_rate,
+                                               fy=self.down_sampling_rate,
+                                               interpolation=cv2.INTER_CUBIC)
 
     @staticmethod
     def create_sure_foreground_mask(image_data: ImageData):
@@ -193,4 +206,8 @@ class ImageFilterGrabCut(ImageFilter):
         image_data.probable_foreground_mask = 1 - (
                 image_data.sure_foreground_mask + image_data.sure_background_mask
         )
+
+    # TODO - Write this function to down-sample the mask created by the user
+    def update_previous_image_mask(self):
+        pass
 

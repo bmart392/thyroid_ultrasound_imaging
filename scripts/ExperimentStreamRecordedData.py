@@ -133,8 +133,8 @@ if __name__ == '__main__':
     root_path = '/home/ben/thyroid_ultrasound/src/thyroid_ultrasound_imaging/scripts/Test/Images/'
 
     # Define the file path and image offset number to use
-    this_file_path = 'Series2'
-    this_image_offset_number = 20
+    this_file_path = '2023-11-29_19-14'
+    this_image_offset_number = 1
 
     # Define the publishing rate for these images
     this_publishing_rate = 1 / 10  # 1 image / 10 seconds
