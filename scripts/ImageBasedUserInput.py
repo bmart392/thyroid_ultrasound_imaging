@@ -159,7 +159,7 @@ class ImageBasedUserInput:
                         bridge = CvBridge()
 
                         # Create a new image message object to send the initialization mask
-                        #image_message_for_initialization_mask = Image()
+                        # image_message_for_initialization_mask = Image()
 
                         # Convert the initialization mask and save it to the message
                         image_message_for_initialization_mask = bridge.cv2_to_imgmsg(initialization_mask)
