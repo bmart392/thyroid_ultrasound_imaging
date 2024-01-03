@@ -51,7 +51,7 @@ def user_input_polygon_points(image_data: ImageData, polygon_use: str,
         final_line_width = 2
 
         # Create a copy of the image array so that the original is not changed
-        temp_image_array = cvtColor(copy(image_data.colorized_image), COLOR_GRAY2BGR)
+        temp_image_array = copy(image_data.colorized_image)
 
         # Initialize the additional inputs needed for the mouseclick callback function
         list_of_points = []
@@ -94,7 +94,7 @@ def user_input_polygon_points(image_data: ImageData, polygon_use: str,
                                                                return_fig_and_axes=True)
 
             # Recopy the original image from the object passed in
-            temp_image_array = cvtColor(copy(image_data.colorized_image), COLOR_GRAY2BGR)
+            temp_image_array = copy(image_data.colorized_image)
 
             # If the window was closed
             if new_point == default_result:

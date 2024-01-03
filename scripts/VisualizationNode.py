@@ -27,7 +27,7 @@ class VisualizationNode:
 
         # Define visualization object ot use to visualize images showing the result of the image filter
         self.image_visualizer = Visualization(image_mode, [SHOW_ORIGINAL, SHOW_CROPPED,
-                                                           SHOW_EXPANDED_MASK, SHOW_CENTROIDS_ONLY,
+                                                           SHOW_POST_PROCESSED_MASK, SHOW_CENTROIDS_ONLY,
                                                            SHOW_FOREGROUND])
 
         init_node('visualizer')
@@ -100,7 +100,7 @@ class VisualizationNode:
         else:
             self.image_to_visualize.pre_processed_image = temp_image_to_visualize.pre_processed_image
             self.image_to_visualize.image_mask = temp_image_to_visualize.image_mask
-            self.image_to_visualize.expanded_image_mask = temp_image_to_visualize.expanded_image_mask
+            self.image_to_visualize.expanded_image_mask = temp_image_to_visualize.post_processed_mask
             self.image_to_visualize.sure_foreground_mask = temp_image_to_visualize.sure_foreground_mask
             self.image_to_visualize.sure_background_mask = temp_image_to_visualize.sure_background_mask
             self.image_to_visualize.probable_foreground_mask = temp_image_to_visualize.probable_foreground_mask

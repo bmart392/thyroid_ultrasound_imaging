@@ -16,6 +16,7 @@ from thyroid_ultrasound_imaging_support.Visualization.VisualizationConstants imp
 # Import custom objects
 from thyroid_ultrasound_imaging_support.ImageData.ImageData import ImageData
 
+
 # TODO - Low - Fill in missing visualization schemes
 
 
@@ -132,33 +133,33 @@ class Visualization:
                         image_to_show = self.create_mask_display_array(image_data.image_mask)
                     image_title = "Image Mask\nfrom Segmentation"
 
-                elif visual == SHOW_EXPANDED_MASK:
-                    if image_data.expanded_image_mask is not None:
-                        image_to_show = self.create_mask_display_array(image_data.expanded_image_mask)
+                elif visual == SHOW_POST_PROCESSED_MASK:
+                    if image_data.post_processed_mask is not None:
+                        image_to_show = self.create_mask_display_array(image_data.post_processed_mask)
                     image_title = "Full Size Image Mask\nfrom Segmentation"
 
                 elif visual == SHOW_FOREGROUND:
-                    if image_data.original_image is not None and image_data.expanded_image_mask is not None:
+                    if image_data.original_image is not None and image_data.post_processed_mask is not None:
                         image_to_show = self.create_mask_overlay_array(image_data.original_image,
-                                                                          image_data.expanded_image_mask)
+                                                                       image_data.post_processed_mask)
                     image_title = "Foreground of the Image"
 
                 elif visual == SHOW_SURE_FOREGROUND:
                     if image_data.sure_foreground_mask is not None:
                         image_to_show = self.create_mask_overlay_array(image_data.original_image,
-                                                                   image_data.sure_foreground_mask)
+                                                                       image_data.sure_foreground_mask)
                     image_title = "Sure Foreground of Image"
 
                 elif visual == SHOW_SURE_BACKGROUND:
                     if image_data.sure_background_mask is not None:
                         image_to_show = self.create_mask_overlay_array(image_data.original_image,
-                                                                   image_data.sure_background_mask)
+                                                                       image_data.sure_background_mask)
                     image_title = "Sure Background of Image"
 
                 elif visual == SHOW_PROBABLE_FOREGROUND:
                     if image_data.probable_foreground_mask is not None:
                         image_to_show = self.create_mask_overlay_array(image_data.original_image,
-                                                                   image_data.probable_foreground_mask)
+                                                                       image_data.probable_foreground_mask)
                     image_title = "Probable Foreground of Image"
 
                 elif visual == SHOW_INITIALIZED_MASK:
@@ -175,7 +176,7 @@ class Visualization:
                     if image_data.segmentation_initialization_mask is not None:
                         initialization_mask = image_data.segmentation_initialization_mask[:, :, newaxis]
                         image_to_show = image_data.cropped_image * where((initialization_mask == GC_BGD) |
-                                                                     (initialization_mask == GC_PR_BGD), 0, 1)
+                                                                         (initialization_mask == GC_PR_BGD), 0, 1)
                     image_title = "Initialized Region of Image"
 
                 elif visual == SHOW_CENTROIDS_ONLY:
@@ -192,7 +193,6 @@ class Visualization:
                 elif visual == SHOW_CENTROIDS_CROSS_ONLY:
 
                     if len(image_data.contour_centroids) > 0:
-
                         # Create an empty mask
                         image_to_show = zeros(image_data.original_image.shape, uint8)
 
@@ -335,7 +335,7 @@ class Visualization:
         else:
             return base_image * mask + uint8(
                 base_image * (1 - mask) * fade_rate
-        )
+            )
 
     @staticmethod
     def add_cross_to_image(image_to_show: array, vertical_line_color: tuple = (255, 255, 255),
@@ -426,5 +426,3 @@ def test_imshow():
     imshow("test", zeros((100, 100), uint8))
     waitKey(0)
     print("shown")
-
-

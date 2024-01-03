@@ -7,8 +7,13 @@ import _tkinter
 from matplotlib.pyplot import imshow, title, draw, figure, ginput, close
 from matplotlib.figure import Figure
 from matplotlib.image import AxesImage
-from numpy import array, asarray
+from numpy import array, asarray, ceil, floor
 from cv2 import imread
+
+# Define rounding behavior
+ROUND_STANDARD: int = int(0)
+ROUND_UP: int = int(1)
+ROUND_DOWN: int = int(-1)
 
 
 def display_image_with_callback(image_array: array, message_to_display: str,
@@ -16,7 +21,8 @@ def display_image_with_callback(image_array: array, message_to_display: str,
                                 window_name: str = "",
                                 fig_to_plot_on: Figure = None,
                                 axis_to_plot_on: AxesImage = None,
-                                return_fig_and_axes: bool = False):
+                                return_fig_and_axes: bool = False,
+                                rounding: int = ROUND_STANDARD):
     """
     Display an image and capture a point selected by the user.
 
@@ -30,8 +36,14 @@ def display_image_with_callback(image_array: array, message_to_display: str,
         The result to return if no point is selected by the user.
     window_name
         The name to display as the window name.
+    fig_to_plot_on
+        The figure to use to display the image.
+    axis_to_plot_on
+        The axis on which to plot the image.
     return_fig_and_axes
         When true, the figure and axis used to show the image are returned to the user rather than being destroyed.
+    rounding
+        Determines how the values selected by the user are rounded.
     """
 
     # Try to use the figure and axes passed in to plot the image
@@ -49,17 +61,35 @@ def display_image_with_callback(image_array: array, message_to_display: str,
     # Display a message to the user as the title of the window
     title(message_to_display, fontsize=8)
 
-    # Capture the point selected by the user and convert the position to an integer
+    # Capture the point selected by the user and convert the position to an integer using the proper rounding method
     try:
         selected_points = asarray(ginput(1, timeout=-1))
         if len(selected_points) == 0:
             result = selected_points
         else:
-            result = [int(j) for j in selected_points[0]]
+            if rounding == ROUND_STANDARD:
+                result = [int(j) for j in selected_points[0]]
+            elif rounding == ROUND_UP:
+                result = [int(ceil(j)) for j in selected_points[0]]
+            elif rounding == ROUND_DOWN:
+                result = [int(floor(j)) for j in selected_points[0]]
+            else:
+                raise Exception("Rounding type of " + str(rounding) + " is not recognized.")
 
     # If the user closes the window
     except _tkinter.TclError:
         result = default_result
+
+    # Ensure the result is within the bounds of the image
+    if len(result) > 0 and not type(result[0]) == bool:
+        if result[0] < 0:
+            result[0] = 0
+        elif result[0] > image_array.shape[1]:
+            result[0] = image_array.shape[1]
+        elif result[1] < 0:
+            result[1] = 0
+        elif result[1] > image_array.shape[0]:
+            result[1] = image_array.shape[0]
 
     # Return the figure and axis, if requested by the user
     if return_fig_and_axes:

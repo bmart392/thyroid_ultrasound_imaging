@@ -47,7 +47,7 @@ class ImageFilterNode(BasicNode):
     A class for defining a ROS node to filter ultrasound images.
     """
 
-    def __init__(self, filter_type: int, visualizations_included: list, filtering_rate: float = -1,
+    def __init__(self, filter_type: int, visualizations_included: list,
                  debug_mode: bool = False, analysis_mode: bool = False):
         """
         Create a ROS node to filter raw ultrasound images and publish data about them.
@@ -59,9 +59,6 @@ class ImageFilterNode(BasicNode):
 
         visualizations_included
             a list of integers representing the visualizations to show for each image filtered.
-
-        filtering_rate
-            rate in Hz at which the image filter will attempt to filter images. Defaults to as fast as possible.
 
         debug_mode
             display graphics and additional print statements helpful in the debugging process.
@@ -95,16 +92,6 @@ class ImageFilterNode(BasicNode):
         self.received_images = []
         self.max_images_to_store = 20
 
-        # check that a valid filtering rate was given
-        try:
-            1 / filtering_rate
-        except ValueError:
-            raise Exception("Filtering rate must be a non-zero value. A value of " + str(filtering_rate) +
-                            " Hz was given.")
-
-        # save the filtering rate passed to the function
-        self.filtering_rate: float = filtering_rate  # hz
-
         # Create the image filter used in this node and define a title for it.
         if filter_type == THRESHOLD_FILTER:
             self.image_filter = ImageFilterThreshold(debug_mode=self.debug_mode, analysis_mode=self.analysis_mode)
@@ -114,6 +101,7 @@ class ImageFilterNode(BasicNode):
 
         elif filter_type == GRABCUT_FILTER:
             self.image_filter = ImageFilterGrabCut(None, debug_mode=self.debug_mode, analysis_mode=self.analysis_mode,
+                                                   down_sampling_rate=1/4  # originally 0.5
                                                    # image_crop_included=True,
                                                    # image_crop_coordinates=[[171, 199], [530, 477]],
                                                    # image_crop_coordinates=[[585, 455], [639, 479]],
@@ -125,6 +113,7 @@ class ImageFilterNode(BasicNode):
         else:
             raise Exception("Image filter type not recognized.")
 
+        # TODO Get rid of this since this node does not visualize things anymore
         # store the visualization object to use in this node
         self.visualization = Visualization(IMG_CONTINUOUS, visualizations_included, visualization_title)
 
@@ -256,7 +245,7 @@ class ImageFilterNode(BasicNode):
                                                                 data.previous_image_mask.width))
 
             # Save the mask to the image filter
-            self.image_filter.previous_image_mask_array = initialization_mask
+            self.image_filter.update_previous_image_mask(initialization_mask)
 
             # update status message
             self.publish_status("New initialization mask saved to the filter")
@@ -298,7 +287,7 @@ class ImageFilterNode(BasicNode):
         start_of_process_time = time()
 
         # filter the image
-        self.image_filter.fully_filter_image(self.image_data)
+        self.image_filter.filter_image(self.image_data)
 
         # find the contours in the mask
         self.image_data.generate_contours_in_image()
@@ -313,7 +302,7 @@ class ImageFilterNode(BasicNode):
         self.filtered_image_publisher.publish(self.image_data.convert_to_message())
 
         # note the time required to visualize the image
-        start_of_process_time = self.display_process_timer(start_of_process_time, "Time to visualize image")
+        start_of_process_time = self.display_process_timer(start_of_process_time, "Time to publish the filtered image")
 
         # Determine if the thyroid is present in the image
         thyroid_in_image = (len(self.image_data.contours_in_image) > 0 and
@@ -353,56 +342,56 @@ class ImageFilterNode(BasicNode):
 
     def main_loop(self):
         """
-        Loop continuously until the node has been shut down. On every loop, process the newest available image.
+        Process the newest available image.
         """
 
-        while not is_shutdown():
+        if len(self.received_images) > 0:
+            # record the current time for timing of processes
+            start_of_process_time = time()
 
-            if len(self.received_images) > 0:
-                # record the current time for timing of processes
-                start_of_process_time = time()
+            # Create new image data based on received image
+            self.newest_image_data = copy(self.received_images.pop(-1))
+
+            # Crop and recolorize the newest image
+            self.image_filter.crop_image(self.newest_image_data)
+            self.image_filter.colorize_image(self.newest_image_data)
+
+            # Publish this data so that it can be monitored before any filtering is completed
+            self.newest_image_data.image_title = "Image Filter Node"
+            self.cropped_image_publisher.publish(self.newest_image_data.convert_to_message())
+
+            if self.filter_images and self.image_filter.ready_to_filter and \
+                    self.image_filter.is_in_contact_with_patient:
 
                 # Create new image data based on received image
-                self.newest_image_data = copy(self.received_images.pop(-1))
+                self.image_data = copy(self.newest_image_data)
 
-                # Crop and recolorize the newest image
-                self.image_filter.crop_image(self.newest_image_data)
-                self.image_filter.colorize_image(self.newest_image_data)
+                # note the amount of time required to create an image data object
+                start_of_process_time = self.display_process_timer(start_of_process_time,
+                                                                   "Image_data object creation time")
 
-                # Publish this data so that it can be monitored before any filtering is completed
-                self.newest_image_data.image_title = "Image Filter Node"
-                self.cropped_image_publisher.publish(self.newest_image_data.convert_to_message())
+                # mark that a new image is available
+                self.is_new_image_available = True
 
-                if self.filter_images and self.image_filter.ready_to_filter and \
-                        self.image_filter.is_in_contact_with_patient:
+                # analyze the new image
+                self.analyze_image()
 
-                    # Create new image data based on received image
-                    self.image_data = copy(self.newest_image_data)
-
-                    # note the amount of time required to create an image data object
-                    start_of_process_time = self.display_process_timer(start_of_process_time,
-                                                                       "Image_data object creation time")
-
-                    # mark that a new image is available
-                    self.is_new_image_available = True
-
-                    # analyze the new image
-                    self.analyze_image()
-
-                    # note the amount of time required to analyze the image
-                    self.display_process_timer(start_of_process_time, "Image analysis time")
+                # note the amount of time required to analyze the image
+                self.display_process_timer(start_of_process_time, "Image analysis time")
 
 
 if __name__ == '__main__':
     # create node object
     filter_node = ImageFilterNode(filter_type=GRABCUT_FILTER, visualizations_included=[SHOW_ORIGINAL, SHOW_FOREGROUND,
                                                                                        SHOW_CENTROIDS_ONLY],
-                                  filtering_rate=10, debug_mode=False, analysis_mode=True)
+                                  debug_mode=False, analysis_mode=True)
 
     print("Node initialized.")
     print("Press ctrl+c to terminate.")
 
-    # Run the main loop until the program terminates
-    filter_node.main_loop()
+    while not is_shutdown():
+
+        # Run the main loop until the program terminates
+        filter_node.main_loop()
 
     print("Node Terminated.")

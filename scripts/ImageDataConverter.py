@@ -5,8 +5,6 @@ File containing code to receive raw ultrasound images and rebroadcast them as Im
 """
 
 # Import standard ROS specific packages
-from rospy import init_node, Publisher, Subscriber, spin
-from numpy import frombuffer, reshape, uint8
 from sensor_msgs.msg import Image
 
 # Import custom ROS specific packages
@@ -16,12 +14,15 @@ from thyroid_ultrasound_messages.msg import image_data_message
 from thyroid_ultrasound_imaging_support.ImageData.ImageData import ImageData
 from thyroid_ultrasound_imaging_support.ImageFilter.FilterConstants import COLOR_BGR, COLOR_GRAY, COLOR_RGB
 from thyroid_ultrasound_imaging_support.ImageData.convert_image_message_to_array import convert_image_message_to_array
-from thyroid_ultrasound_support.TopicNames import *
+from thyroid_ultrasound_support.BasicNode import *
 
 
-class ImageDataConverter:
+class ImageDataConverter(BasicNode):
 
     def __init__(self):
+
+        # Call init of super class
+        super().__init__()
 
         # Create a ROS node
         init_node('ImageDataConverter')
@@ -32,7 +33,7 @@ class ImageDataConverter:
         # Create a subscriber to listen to commands to start and stop publishing images
         Subscriber('/Clarius/US', Image, self.raw_image_callback)
 
-    def raw_image_callback(self, data: Image):
+    def raw_image_callback(self, data: Image) -> image_data_message:
         """
         Receives a raw image, converts it to an ImageData object, and then publishes that object.
         """
@@ -52,6 +53,9 @@ class ImageDataConverter:
 
         # Publish the new_image_data_message
         self.raw_image_publisher.publish(new_image_data_message)
+
+        # Return the image data message to allow for validation
+        return new_image_data_message
 
 
 if __name__ == '__main__':

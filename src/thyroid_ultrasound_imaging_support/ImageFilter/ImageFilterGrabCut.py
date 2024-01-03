@@ -5,12 +5,6 @@ Define object class for GrabCut based image filters.
 # Import the super-class for all image filters
 from thyroid_ultrasound_imaging_support.ImageFilter.ImageFilter import *
 
-from thyroid_ultrasound_imaging_support.Boundaries.create_convex_triangles_from_points import \
-    create_convex_triangles_from_points
-from thyroid_ultrasound_imaging_support.Boundaries.create_mask_array_from_triangles import create_mask_array_from_triangles
-from thyroid_ultrasound_imaging_support.UserInput.user_input_polygon_points import user_input_polygon_points
-from thyroid_ultrasound_imaging_support.Visualization.Visualization import Visualization
-
 
 class ImageFilterGrabCut(ImageFilter):
     """
@@ -19,7 +13,8 @@ class ImageFilterGrabCut(ImageFilter):
 
     def __init__(self, previous_mask_array: np.array = None, image_crop_coordinates: iter = None,
                  image_crop_included: bool = False, include_pre_blurring: bool = False,
-                 increase_contrast=False, down_sampling_rate: int = 2,
+                 increase_contrast=False, down_sampling_rate: float = 0.5,
+                 segmentation_iteration_count: int = 5,
                  debug_mode: bool = False, analysis_mode: bool = False):
 
         """
@@ -40,6 +35,9 @@ class ImageFilterGrabCut(ImageFilter):
         include_pre_blurring
             a flag to indicate that the image should be filtered prior to segmentation.
 
+        segmentation_iteration_count
+            the number of iterations that the grabcut filter runs on each image.
+
         debug_mode
             a flag indicating that helpful information should be displayed in the terminal during runtime.
 
@@ -59,10 +57,24 @@ class ImageFilterGrabCut(ImageFilter):
         self.analysis_mode = analysis_mode
         self.increase_contrast = increase_contrast
         self.down_sampling_rate = down_sampling_rate
+        self.up_sampling_rate = 1 / down_sampling_rate
+        self.segmentation_iteration_count = segmentation_iteration_count
 
         # Define characteristics of all GrabCut filters
         self.filter_color = COLOR_BGR
         self.previous_image_mask_array = previous_mask_array
+
+    def filter_image(self, image_data: ImageData):
+
+        # Perform the basic image filtering actions
+        self.basic_filter_image(image_data)
+
+        # Note the current time
+        start_of_process_time = time()
+
+        # Create mask for segmentation of next image
+        self.create_previous_image_mask(image_data)
+        self.display_process_timer(start_of_process_time, "Previous Image Mask Creation")
 
     def pre_process_image(self, image_data: ImageData):
         """
@@ -74,7 +86,7 @@ class ImageFilterGrabCut(ImageFilter):
             the ImageData object containing the image to be pre-processed.
         """
         # Create a temporary copy of the image
-        temp_image = copy(image_data.colorized_image)
+        temp_image = copy(image_data.down_sampled_image)
 
         # Increase the contrast of the image, if required
         if self.increase_contrast:
@@ -94,14 +106,6 @@ class ImageFilterGrabCut(ImageFilter):
                                                                                   fast_mode=True,
                                                                                   **patch_kw)))
                                                                                   """
-        # If a down-sampling rate is given,
-        if self.down_sampling_rate is not None:
-
-            # Resize the image appropriately
-            image_data.pre_processed_image = cv2.resize(temp_image, (0, 0),
-                                                        fx=1/self.down_sampling_rate,
-                                                        fy=1/self.down_sampling_rate,
-                                                        interpolation=cv2.INTER_LINEAR)
 
         else:
 
@@ -136,7 +140,7 @@ class ImageFilterGrabCut(ImageFilter):
                     rect=initialized_rectangle_cords,
                     bgdModel=np.zeros((1, 65), np.float64),
                     fgdModel=np.zeros((1, 65), np.float64),
-                    iterCount=15,
+                    iterCount=self.segmentation_iteration_count,  # 15
                     mode=cv2.GC_INIT_WITH_MASK
                     )
 
@@ -145,20 +149,21 @@ class ImageFilterGrabCut(ImageFilter):
             (image_data.segmentation_initialization_mask == cv2.GC_PR_BGD) |
             (image_data.segmentation_initialization_mask == cv2.GC_BGD), 0, 1).astype('uint8')
 
-    def image_mask_post_process(self, image_data: ImageData):
+    def post_process_image_mask(self, image_data: ImageData):
         """
-        Up-sample the image if down-sampling was used. Overrides the super-class definition.
+        Do nothing to the image mask. Overrides the super-class definition.
 
         Parameters
         ----------
         image_data
-            the ImageData object containing the image.
+            the ImageData object containing the image mask.
         """
-        if self.down_sampling_rate is not None:
+        """if self.down_sampling_rate is not None:
             image_data.image_mask = cv2.resize(image_data.image_mask, (0, 0),
                                                fx=self.down_sampling_rate,
                                                fy=self.down_sampling_rate,
-                                               interpolation=cv2.INTER_CUBIC)
+                                               interpolation=cv2.INTER_CUBIC)"""
+        image_data.post_processed_mask = image_data.image_mask
 
     @staticmethod
     def create_sure_foreground_mask(image_data: ImageData):
@@ -172,8 +177,8 @@ class ImageFilterGrabCut(ImageFilter):
             the ImageData object containing the image mask.
         """
         image_data.sure_foreground_mask = cv2.morphologyEx(
-            image_data.expanded_image_mask, cv2.MORPH_ERODE,
-            np.ones((6, 6), np.uint8), iterations=4  # 10, 2
+            image_data.post_processed_mask, cv2.MORPH_ERODE,
+            np.ones((6, 6), np.uint8), iterations=2  # 4 # 10, 2
         )
 
     @staticmethod
@@ -188,8 +193,8 @@ class ImageFilterGrabCut(ImageFilter):
             the ImageData object containing the image mask.
         """
         image_data.sure_background_mask = 1 - cv2.morphologyEx(
-            image_data.expanded_image_mask, cv2.MORPH_DILATE,
-            np.ones((6, 6), np.uint8), iterations=6
+            image_data.post_processed_mask, cv2.MORPH_DILATE,
+            np.ones((6, 6), np.uint8), iterations=3  # 6
         )
 
     @staticmethod
@@ -207,7 +212,45 @@ class ImageFilterGrabCut(ImageFilter):
                 image_data.sure_foreground_mask + image_data.sure_background_mask
         )
 
-    # TODO - Write this function to down-sample the mask created by the user
-    def update_previous_image_mask(self):
-        pass
+    def create_previous_image_mask(self, image_data: ImageData):
+        """
+        Creates the image mask to use to segment the next image.
 
+        Parameters
+        ----------
+        image_data
+            The image data object containing the masks generated from the current image.
+        """
+
+        # Create the image mask to use for the next iteration
+        self.previous_image_mask_array = (image_data.sure_foreground_mask * cv2.GC_FGD +
+                                          image_data.sure_background_mask * cv2.GC_BGD +
+                                          image_data.probable_foreground_mask * cv2.GC_PR_FGD)
+
+        """# Crop the image mask if necessary
+        if self.image_crop_included:
+            crop_x_0 = self.image_crop_coordinates[0][0]
+            crop_y_0 = self.image_crop_coordinates[0][1]
+            crop_x_1 = self.image_crop_coordinates[1][0]
+            crop_y_1 = self.image_crop_coordinates[1][1]
+            image_mask_for_next_image = image_mask_for_next_image[crop_y_0:crop_y_1, crop_x_0:crop_x_1]
+
+        # Shrink the image mask if necessary
+        self.update_previous_image_mask(image_mask_for_next_image)"""
+
+    def update_previous_image_mask(self, new_previous_image_mask: np.array):
+        """
+        Updates the previous image mask array of the filter by down-sampling the given mask.
+
+        Parameters
+        ----------
+        new_previous_image_mask
+            the array containing the mask to use to generate the new previous image mask.
+        """
+        if self.down_sampling_rate is not None:
+            self.previous_image_mask_array = cv2.resize(new_previous_image_mask, RESIZE_SHAPE,
+                                                        fx=self.down_sampling_rate,
+                                                        fy=self.down_sampling_rate,
+                                                        interpolation=DOWN_SAMPLING_MODE)
+        else:
+            self.previous_image_mask_array = new_previous_image_mask

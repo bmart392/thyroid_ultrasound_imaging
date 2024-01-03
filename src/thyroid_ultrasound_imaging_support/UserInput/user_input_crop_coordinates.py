@@ -10,7 +10,8 @@ from cv2 import line, rectangle, imread, cvtColor, COLOR_GRAY2BGR, COLOR_BGR2GRA
 from thyroid_ultrasound_imaging_support.ImageData.ImageData import ImageData
 
 # Import custom functions
-from thyroid_ultrasound_imaging_support.UserInput.display_image_with_callback import display_image_with_callback
+from thyroid_ultrasound_imaging_support.UserInput.display_image_with_callback import display_image_with_callback, \
+    ROUND_DOWN, ROUND_UP
 
 
 def user_input_crop_coordinates(image_data: ImageData,
@@ -53,7 +54,8 @@ def user_input_crop_coordinates(image_data: ImageData,
                                                                   "\n Press the middle mouse button to restart.",
                                                                   first_corner,
                                                                   window_name,
-                                                                  return_fig_and_axes=True
+                                                                  return_fig_and_axes=True,
+                                                                  rounding=ROUND_DOWN
                                                                   )
 
             # Go back to the top of the loop if no point was selected
@@ -82,7 +84,8 @@ def user_input_crop_coordinates(image_data: ImageData,
                                                                    window_name,
                                                                    fig_to_plot_on=fig,
                                                                    axis_to_plot_on=axis,
-                                                                   return_fig_and_axes=True
+                                                                   return_fig_and_axes=True,
+                                                                   rounding=ROUND_UP
                                                                    )
 
             # Go back to the top of the loop if no point was selected

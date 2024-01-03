@@ -12,11 +12,13 @@ from cv_bridge import CvBridge
 from sensor_msgs.msg import Image
 
 # Import standard packages
-from os import listdir
-from os.path import isdir, isfile
 from cv2 import imread, cvtColor, COLOR_BGR2GRAY, imshow
 from sys import stdout
 from time import time
+
+# Import custom python packages
+from thyroid_ultrasound_imaging_support.ImageManipulation.generate_list_of_image_arrays import \
+    generate_list_of_image_arrays
 
 # Define global variable to control image streaming
 stream_images = False
@@ -27,34 +29,37 @@ ii = 0
 
 def main(file_path: str, image_number_offset: int = None, publishing_rate: float = 1):
 
-    # Check if the file path to the images is valid.
-    if not isdir(file_path):
-        raise "File path is not valid."
+    # Pull out the images from the given folder location
+    created_objects = generate_list_of_image_arrays(file_path)
 
-    # Set the offset number to 0 if none is provided
-    if image_number_offset is None:
-        image_number_offset = 0
-
-    # Get a list of the files in the directory
-    file_names = listdir(file_path)
-
-    # Create an empty list in which to store the image data objects
-    created_objects: list = list([None]) * (len(file_names))
-
-    # Iterate through the list of file names found to ensure that
-    # the image data objects are added to the list in sequential order.
-    for file_name in file_names:
-
-        # Append the file path to the file name.
-        file_name_with_path = file_path + '/' + file_name
-
-        # Check that the file name is valid.
-        if not isfile(file_name_with_path):
-            raise "File name is not valid."
-
-        # Add the next image to the list of images in the correct position.
-        image_position = int(int(file_name[file_name.find("_") + 1: file_name.find(".")]) - image_number_offset)
-        created_objects[image_position] = imread(file_name_with_path)
+    # # Check if the file path to the images is valid.
+    # if not isdir(file_path):
+    #     raise "File path is not valid."
+    #
+    # # Set the offset number to 0 if none is provided
+    # if image_number_offset is None:
+    #     image_number_offset = 0
+    #
+    # # Get a list of the files in the directory
+    # file_names = listdir(file_path)
+    #
+    # # Create an empty list in which to store the image data objects
+    # created_objects: list = list([None]) * (len(file_names))
+    #
+    # # Iterate through the list of file names found to ensure that
+    # # the image data objects are added to the list in sequential order.
+    # for file_name in file_names:
+    #
+    #     # Append the file path to the file name.
+    #     file_name_with_path = file_path + '/' + file_name
+    #
+    #     # Check that the file name is valid.
+    #     if not isfile(file_name_with_path):
+    #         raise "File name is not valid."
+    #
+    #     # Add the next image to the list of images in the correct position.
+    #     image_position = int(int(file_name[file_name.find("_") + 1: file_name.find(".")]) - image_number_offset)
+    #     created_objects[image_position] = imread(file_name_with_path)
 
     # Ensure stream_images references the global variable
     global stream_images
@@ -137,7 +142,7 @@ if __name__ == '__main__':
     this_image_offset_number = 1
 
     # Define the publishing rate for these images
-    this_publishing_rate = 1 / 10  # 1 image / 10 seconds
+    this_publishing_rate = 20  # Hz
 
     # Call the main function
     main(root_path + this_file_path, this_image_offset_number)

@@ -19,6 +19,11 @@ from thyroid_ultrasound_imaging_support.Visualization.Visualization import Visua
 from thyroid_ultrasound_imaging_support.Visualization.display_process_timer import display_process_timer
 from thyroid_ultrasound_imaging_support.UserInput.user_input_crop_coordinates import user_input_crop_coordinates
 
+# Define constants for down-sampling related tasks
+DOWN_SAMPLING_MODE: int = cv2.INTER_LINEAR
+UP_SAMPLING_MODE: int = cv2.INTER_CUBIC
+RESIZE_SHAPE: tuple = (0, 0)
+
 
 class ImageFilter:
     """
@@ -46,15 +51,29 @@ class ImageFilter:
         self.analysis_mode: bool = False
         self.increase_contrast: bool = False
         self.is_in_contact_with_patient: bool = False
-        self.down_sampling_rate: int = 2
+        self.down_sampling_rate: float = 0.5
+        self.up_sampling_rate: float = 1 / self.down_sampling_rate
 
     ###########################
     # Image filtering functions
     # region
 
-    def fully_filter_image(self, image_data: ImageData):
+    def filter_image(self, image_data: ImageData):
         """
-        Fully filter an ImageData object using the process defined in the ImageFilter
+        Filters an ImageData object using the process defined in the ImageFilter.
+
+        Parameters
+        ----------
+        image_data
+            the ImageData object containing the image to be filtered.
+        """
+        # Perform the basic image filtering actions
+        self.basic_filter_image(image_data)
+
+    def basic_filter_image(self, image_data: ImageData):
+        """
+        Perform the basic image filtering operations on the ImageData object using the process defined in the
+        ImageFilter
 
         Parameters
         ----------
@@ -75,6 +94,11 @@ class ImageFilter:
         start_of_process_time = self.display_process_timer(start_of_process_time,
                                                            "Recolor image time")
 
+        # Down-sample the image
+        self.down_sample_image(image_data)
+        start_of_process_time = self.display_process_timer(start_of_process_time,
+                                                           "Down-sample time")
+
         # Pre-process the image
         self.pre_process_image(image_data)
         start_of_process_time = self.display_process_timer(start_of_process_time,
@@ -86,14 +110,14 @@ class ImageFilter:
                                                            "Mask creation time")
 
         # Post-process the image mask
-        self.image_mask_post_process(image_data)
+        self.post_process_image_mask(image_data)
         start_of_process_time = self.display_process_timer(start_of_process_time,
                                                            "Post-process image mask time")
 
         # Expand the image mask if the image was cropped
-        self.expand_image_mask(image_data)
+        """self.expand_image_mask(image_data)
         start_of_process_time = self.display_process_timer(start_of_process_time,
-                                                           "Mask expansion time")
+                                                           "Mask expansion time")"""
 
         # Create sure foreground mask
         self.create_sure_foreground_mask(image_data)
@@ -107,20 +131,8 @@ class ImageFilter:
 
         # Create probable foreground mask
         self.create_probable_foreground_mask(image_data)
-        self.display_process_timer(start_of_process_time,
-                                   "Probable foreground mask creation time")
-
-        # Set the image mask to use for the next iteration
-        self.previous_image_mask_array = (np.zeros(image_data.original_image.shape[:2], np.uint8) +
-                                          image_data.sure_foreground_mask * cv2.GC_FGD +
-                                          image_data.sure_background_mask * cv2.GC_BGD +
-                                          image_data.probable_foreground_mask * cv2.GC_PR_FGD)
-        if self.image_crop_included:
-            crop_x_0 = self.image_crop_coordinates[0][0]
-            crop_y_0 = self.image_crop_coordinates[0][1]
-            crop_x_1 = self.image_crop_coordinates[1][0]
-            crop_y_1 = self.image_crop_coordinates[1][1]
-            self.previous_image_mask_array = self.previous_image_mask_array[crop_y_0:crop_y_1, crop_x_0:crop_x_1]
+        start_of_process_time = self.display_process_timer(start_of_process_time,
+                                                           "Probable foreground mask creation time")
 
     def pre_process_image(self, image_data: ImageData):
         raise Exception("This function was not implemented in the sub-class.")
@@ -128,7 +140,7 @@ class ImageFilter:
     def create_image_mask(self, image_data: ImageData):
         raise Exception("This function was not implemented in the sub-class.")
 
-    def image_mask_post_process(self, image_data: ImageData):
+    def post_process_image_mask(self, image_data: ImageData):
         raise Exception("This function was not implemented in the sub-class.")
 
     @staticmethod
@@ -223,33 +235,53 @@ class ImageFilter:
         # return the image data object
         return image_data
 
-    def expand_image_mask(self, image_data: ImageData):
+    def down_sample_image(self, image_data: ImageData):
         """
-            Expand the image mask generated by the filter to the full size of the image, if necessary.
+        Down-sample the colorized image using the down-sampling rate of the filter.
 
-            Parameters
-            ----------
-            image_data: ImageData
-                the image data object containing the image to be expanded.
+        Parameters
+        ----------
+        image_data
+            The image data object containing the colorized image to down-sample.
         """
+        image_data.down_sampled_image = cv2.resize(image_data.colorized_image, RESIZE_SHAPE,
+                                                   fx=self.down_sampling_rate,
+                                                   fy=self.down_sampling_rate,
+                                                   interpolation=DOWN_SAMPLING_MODE)
 
-        # Expand the mask if it is not the same size as the original image
-        if not image_data.original_image.shape[:2] == image_data.image_mask.shape:
-
-            # Create an empty image mask
-            image_data.expanded_image_mask = np.zeros(image_data.original_image.shape[:2], np.uint8)
-
-            # Copy the smaller mask data on to the original data
-            for row in range(image_data.image_mask.shape[0]):
-                for column in range(image_data.image_mask.shape[1]):
-                    image_data.expanded_image_mask[row + self.image_crop_coordinates[0][1],
-                                                   column + self.image_crop_coordinates[0][0]] = copy(
-                        image_data.image_mask[row, column]
-                    )
-
-        # Else copy the image mask to the expanded mask
-        else:
-            image_data.expanded_image_mask = image_data.image_mask
+    # def expand_image_mask(self, image_data: ImageData):
+    #     """
+    #         Expand the image mask generated by the filter to the full size of the image, if necessary.
+    #
+    #         Parameters
+    #         ----------
+    #         image_data: ImageData
+    #             the image data object containing the image to be expanded.
+    #     """
+    #     # Up-sample the image mask
+    #     image_data.expanded_image_mask = cv2.resize(image_data.image_mask, (0, 0), fx=self.down_sampling_rate,
+    #                                                 fy=self.down_sampling_rate, interpolation=cv2.INTER_CUBIC)
+    #
+    #     # Expand the mask if it is not the same size as the original image
+    #     if not image_data.original_image.shape[:2] == image_data.expanded_image_mask.shape:
+    #
+    #         # Calculate the number of zeros to pad in each dimension
+    #         padding = [(self.image_crop_coordinates[0][1], self.image_crop_coordinates[1][1])]
+    #
+    #         # Create an empty image mask
+    #         image_data.expanded_image_mask = np.zeros(image_data.original_image.shape[:2], np.uint8)
+    #
+    #         # Copy the smaller mask data on to the original data
+    #         for row in range(image_data.image_mask.shape[0]):
+    #             for column in range(image_data.image_mask.shape[1]):
+    #                 image_data.expanded_image_mask[row + self.image_crop_coordinates[0][1],
+    #                                                column + self.image_crop_coordinates[0][0]] = copy(
+    #                     image_data.image_mask[row, column]
+    #                 )
+    #
+    #     # Else copy the image mask to the expanded mask
+    #     else:
+    #         image_data.expanded_image_mask = image_data.image_mask
 
     def display_process_timer(self, start_of_process_time, message) -> float:
         """
@@ -280,4 +312,3 @@ class ImageFilter:
 
     # endregion
     ##################
-

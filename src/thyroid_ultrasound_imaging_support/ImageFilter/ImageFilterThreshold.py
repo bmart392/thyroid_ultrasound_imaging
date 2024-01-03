@@ -175,7 +175,7 @@ class ImageFilterThreshold(ImageFilter):
 
             image_data.image_mask = np.uint8(image_data.image_mask / 255)
 
-    def image_mask_post_process(self, image_data: ImageData):
+    def post_process_image_mask(self, image_data: ImageData):
         """
         Conduct morphological operations on the final mask to improve the segmentation result.
         Overrides the super-class definition.
