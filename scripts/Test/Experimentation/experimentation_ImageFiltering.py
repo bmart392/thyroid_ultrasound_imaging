@@ -6,7 +6,7 @@ from copy import copy
 
 from cv2 import cvtColor, COLOR_BGR2GRAY, resize, GC_PR_BGD, GC_BGD, GC_FGD, COLOR_GRAY2RGB
 from matplotlib.pyplot import matshow, subplots
-from numpy import load, where, uint8, array
+from numpy import load, where, uint8, array, median, average, std, zeros
 
 from std_msgs.msg import Bool
 from thyroid_ultrasound_imaging_support.ImageData.ImageData import ImageData
@@ -35,7 +35,7 @@ PREVIOUS_IMAGE_MASK_SOURCE = '/home/ben/thyroid_ultrasound/src/thyroid_ultrasoun
 GROUND_TRUTH_SOURCE = '/home/ben/thyroid_ultrasound/src/thyroid_ultrasound_imaging/scripts' \
                       '/Test/Experimentation/ground_truth.npy'
 RESULTS_DESTINATION = '/home/ben/thyroid_ultrasound/src/thyroid_ultrasound_imaging/scripts' \
-                      '/Test/Experimentation/results.csv'
+                      '/Test/Experimentation/results2.csv'
 
 # Plotting axis counter
 ii = 0
@@ -62,10 +62,15 @@ filter_node.patient_contact_callback(Bool(True))
 blurring = [False, True]
 opening = [False, True]
 accuracies_of_initial_mask = [0.3, 0.6, 0.9]
-down_sampling_rates = [1, 1/2, 1/3, 1/4, 1/5]
+down_sampling_rates = [1, 1 / 2, 1 / 3, 1 / 4, 1 / 5]
 iteration_counts = [1, 5, 10, 15]
+probable_background_expansion_factors = [0.25, 0.50, 0.75, 1.00]
 
-num_tests = len(accuracies_of_initial_mask) * len(down_sampling_rates) * len(iteration_counts)
+# Define the number of tests to perform on each set of parameters
+num_test_per_parameter_set = 3
+
+num_tests = len(accuracies_of_initial_mask) * len(down_sampling_rates) * len(iteration_counts) * \
+            len(probable_background_expansion_factors)
 
 # Load the image that will be segmented
 image_start_index = 50
@@ -107,76 +112,106 @@ ii = ii + 1
 dice_images = {}
 
 # For each initialization mask score,
-# TODO - HIGH - Add a way to make this a variable in my testing
-for accuracy_of_initial_mask in accuracies_of_initial_mask:
+"""for accuracy_of_initial_mask in accuracies_of_initial_mask:
     # Generate an initialization mask with a matching score and save it in the dictionary
     dice_images[accuracy_of_initial_mask] = build_previous_image_mask_from_ground_truth(ground_truth_mask,
                                                                                         accuracy_of_initial_mask,
-                                                                                        1.0)
+                                                                                        1.0)"""
 
 # Show the ground truth mask as it was loaded
-axes[int((ii - (ii % NUM_COLS)) / NUM_ROWS)][int(ii % NUM_COLS)].imshow(
+"""axes[int((ii - (ii % NUM_COLS)) / NUM_ROWS)][int(ii % NUM_COLS)].imshow(
     cvtColor(dice_images[accuracies_of_initial_mask[0]], COLOR_GRAY2RGB) * array([25, 0, 0]).astype('uint8') +
     cvtColor(new_image_data.cropped_image, COLOR_GRAY2RGB))
 axes[int((ii - (ii % NUM_COLS)) / NUM_ROWS)][int(ii % NUM_COLS)].set_title(
     'Previous Image Mask\nas Generated', fontsize=24)
-ii = ii + 1
+ii = ii + 1"""
 
 # Generate a csv file that will be used to save the data from the test
 results_file = open(RESULTS_DESTINATION, mode='w')
 results_file_writer = writer(results_file, delimiter=',')
+results_file_writer.writerow(["Test #", "Initial Mask DICE Score", "Down-sampling Rate", "# of "
+                                                                                               "Iterations",
+                              "Prob. Bkgd. Exp. Factor", "Segmentation Time ms - Median", "Segmentation Time "
+                                                                                            "ms - Average",
+                              "Segmentation Time ms - Std. Dev.", "DICE Score Median", "DICE Score Average",
+                              "DICE Score Std. Dev."])
 
 # Define a counter to count which test is being conducted
 test_number = 0
 
 # For each possible combination
+# TODO - HIGH - Try each set of parameters on multiple images
+# TODO - HIGH - Save the resulting images for each parameters
 for accuracy_of_initial_mask in accuracies_of_initial_mask:
     for down_sampling_rate in down_sampling_rates:
         for iteration_count in iteration_counts:
+            for probable_background_expansion_factor in probable_background_expansion_factors:
 
-            # TODO - HIGH - Test each set of parameters multiple times
+                # Define two arrays to store the results from each set of tests
+                parameter_set_results_time = zeros((num_test_per_parameter_set, 1))
+                parameter_set_results_accuracy = zeros((num_test_per_parameter_set, 1))
 
-            # Add the test parameters to the data to save
-            row_data = [test_number, accuracy_of_initial_mask, down_sampling_rate, iteration_count]
+                # Add the test parameters to the data to save
+                row_data = [test_number, accuracy_of_initial_mask, down_sampling_rate, iteration_count,
+                            probable_background_expansion_factor]
 
-            # Populate the relevant filter parameters in the image filter
-            filter_node.image_filter.down_sampling_rate = down_sampling_rate
-            filter_node.image_filter.segmentation_iteration_count = iteration_count
-            previous_image_mask_msg = initialization_mask_message(previous_image_mask=convert_array_to_image_message(
-                dice_images[accuracy_of_initial_mask]))
-            filter_node.grabcut_initialization_mask_callback(previous_image_mask_msg)
+                # Complete multiple tests to ensure that the results are valid
+                for test_case_number in range(num_test_per_parameter_set):
+                    # Populate the relevant filter parameters in the image filter
+                    filter_node.image_filter.down_sampling_rate = down_sampling_rate
+                    filter_node.image_filter.segmentation_iteration_count = iteration_count
+                    previous_image_mask_msg = initialization_mask_message(
+                        previous_image_mask=convert_array_to_image_message(
+                            build_previous_image_mask_from_ground_truth(ground_truth_mask,
+                                                                        accuracy_of_initial_mask,
+                                                                        probable_background_expansion_factor)))
+                    filter_node.grabcut_initialization_mask_callback(previous_image_mask_msg)
 
-            # Create a new image data message
-            new_image_data_message = ImageData(image_data=cvtColor(copy(image_for_test), COLOR_BGR2GRAY),
-                                               image_color=COLOR_GRAY).convert_to_message()
+                    # Create a new image data message
+                    new_image_data_message = ImageData(image_data=cvtColor(copy(image_for_test), COLOR_BGR2GRAY),
+                                                       image_color=COLOR_GRAY).convert_to_message()
 
-            # Feed the image into the filter_node
-            filter_node.raw_image_callback(new_image_data_message)
+                    # Feed the image into the filter_node
+                    filter_node.raw_image_callback(new_image_data_message)
 
-            # Mark the start time
-            start_time = time()
+                    # Mark the start time
+                    start_time = time()
 
-            # Analyze the image
-            filter_node.main_loop()
+                    # Analyze the image
+                    filter_node.main_loop()
 
-            # Save how long it took to filter the image
-            elapsed_time = display_process_timer(start_time, "", mode=False, return_time=True)
+                    # Save how long it took to filter the image
+                    elapsed_time = display_process_timer(start_time, "", mode=False, return_time=True)
 
-            # Calculate the DICE score of the result of the segmentation
-            result_dice_score = calculate_dice_score(ground_truth_mask,
-                                                     resize(filter_node.image_data.image_mask,
-                                                            dsize=(ground_truth_mask.shape[1],
-                                                                   ground_truth_mask.shape[0]),
-                                                            # fx=1 / down_sampling_rate, fy=1 / down_sampling_rate,
-                                                            interpolation=UP_SAMPLING_MODE))
+                    # Calculate the DICE score of the result of the segmentation
+                    result_dice_score = calculate_dice_score(ground_truth_mask,
+                                                             resize(filter_node.image_data.image_mask,
+                                                                    dsize=(ground_truth_mask.shape[1],
+                                                                           ground_truth_mask.shape[0]),
+                                                                    # fx=1 / down_sampling_rate, fy=1 / down_sampling_rate,
+                                                                    interpolation=UP_SAMPLING_MODE))
 
-            # Save the accuracy statistics
-            row_data = row_data + [elapsed_time[1], result_dice_score]
-            results_file_writer.writerow(row_data)
+                    # Add the corresponding results to their arrays
+                    parameter_set_results_time[test_case_number] = elapsed_time[1]
+                    parameter_set_results_accuracy[test_case_number] = result_dice_score
 
-            test_number = test_number + 1
 
-            print('Test ' + str(test_number) + ' of ' + str(num_tests) + ' completed')
+                # Calculate the statistics of the data
+                time_median = median(parameter_set_results_time)
+                time_average = average(parameter_set_results_time)
+                time_std_dev = std(parameter_set_results_time)
+                accuracy_median = median(parameter_set_results_accuracy)
+                accuracy_average = average(parameter_set_results_accuracy)
+                accuracy_std_dev = std(parameter_set_results_accuracy)
+
+                # Save the accuracy statistics
+                row_data = row_data + [time_median, time_average, time_std_dev,
+                                       accuracy_median, accuracy_average, accuracy_std_dev]
+                results_file_writer.writerow(row_data)
+
+                test_number = test_number + 1
+
+                print('Test ' + str(test_number) + ' of ' + str(num_tests) + ' completed')
 
 # Close the results file
 results_file.close()
