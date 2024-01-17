@@ -5,6 +5,10 @@ File containing VisualizationNode class definition and ROS running code.
 """
 
 # TODO - Low - Improve comments in this file.
+# TODO - Low - Fix visualization titling issues
+
+# TODO - HIGH - Why is this not visualizing things properly
+# TODO - HIGH - Why is th centroid showing up in the wrong spot (x and y are reversed)?
 
 # Import ROS packages
 from rospy import init_node, Subscriber, Rate, is_shutdown
@@ -98,9 +102,11 @@ class VisualizationNode:
         if self.image_to_visualize is None:
             self.image_to_visualize = temp_image_to_visualize
         else:
+            self.image_to_visualize.colorized_image = temp_image_to_visualize.colorized_image
+            self.image_to_visualize.down_sampled_image = temp_image_to_visualize.down_sampled_image
             self.image_to_visualize.pre_processed_image = temp_image_to_visualize.pre_processed_image
             self.image_to_visualize.image_mask = temp_image_to_visualize.image_mask
-            self.image_to_visualize.expanded_image_mask = temp_image_to_visualize.post_processed_mask
+            self.image_to_visualize.post_processed_mask = temp_image_to_visualize.post_processed_mask
             self.image_to_visualize.sure_foreground_mask = temp_image_to_visualize.sure_foreground_mask
             self.image_to_visualize.sure_background_mask = temp_image_to_visualize.sure_background_mask
             self.image_to_visualize.probable_foreground_mask = temp_image_to_visualize.probable_foreground_mask

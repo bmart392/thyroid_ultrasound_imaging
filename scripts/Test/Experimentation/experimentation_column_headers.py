@@ -1,0 +1,13 @@
+# Define the column headings to use in the CSV results file
+TEST_NUM: str = "Test #"
+IMAGE_NUM: str = "Image #"
+INITIAL_MASK_DICE_SCORE: str = "Initial Mask DICE Score"
+DOWN_SAMPLING_RATE: str = "Down-sampling Rate"
+NUM_ITERATIONS: str = "# of Iterations"
+PROB_BKGD_EXP_FACTOR: str = "Prob. Bkgd. Exp. Factor"
+SEGMENTATION_TIME_MEDIAN: str = "Segmentation Time ms - Median"
+SEGMENTATION_TIME_AVERAGE: str = "Segmentation Time ms - Average"
+SEGMENTATION_TIME_STD_DEV: str = "Segmentation Time ms - Std. Dev."
+DICE_SCORE_MEDIAN: str = "DICE Score Median"
+DICE_SCORE_AVERAGE: str = "DICE Score Average"
+DICE_SCORE_STD_DEV: str = "DICE Score Std. Dev."

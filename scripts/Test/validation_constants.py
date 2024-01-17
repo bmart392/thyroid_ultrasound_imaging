@@ -1,5 +1,5 @@
 # Define constants
-FOLDER_PATH = '/home/ben/thyroid_ultrasound/src/thyroid_ultrasound_imaging/scripts/Test/InitializationInformation/'
+FOLDER_PATH = '/home/ben/thyroid_ultrasound/src/thyroid_ultrasound_imaging/scripts/Test/'
 IMAGE_DATA_OBJECTS_PATH = FOLDER_PATH + 'ImageData/'
 INITIALIZATION_INFORMATION_PATH = FOLDER_PATH + 'InitializationInformation/'
 RESULTS_PATH = FOLDER_PATH + 'Results/'

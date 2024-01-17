@@ -53,6 +53,8 @@ CONTOUR_CENTROIDS: str = "contour_centroids"
 IMAGE_CAPTURE_TIME: str = "image_capture_time"
 
 
+# TODO - HIGH - Add fields for the width and height of the down-sampled image
+# TODO - HIGH - Add a field for the down-sampling rate
 class ImageData:
     """
     A class for holding image data and its filtered components.
@@ -108,7 +110,7 @@ class ImageData:
                  image_capture_time: Time = None,
                  segmentation_initialization_mask: array = None,
                  image_data_msg: image_data_message = None,
-                 image_data_str: str = None,
+                 image_data_location: str = None,
                  display_error_messages: bool = False):
         """
         Creates a new ImageData object.
@@ -131,8 +133,8 @@ class ImageData:
             This is not used in all types of image filters.
         image_data_msg
             an image_data ros message object.
-        image_data_str
-            a string representing all the information stored in an image object.
+        image_data_location
+            a string representing the filepath to a saved image data object.
         """
 
         # Define error behaviour for all cases
@@ -163,10 +165,10 @@ class ImageData:
             self.bridge_image_data_and_message(TO_OBJECT, message=image_data_msg)
 
         # If the image data object is being created from an image data string
-        elif image_data_str is not None:
+        elif image_data_location is not None:
 
             # Fill in the object properties from the string
-            self.build_object_from_string(image_data_str)
+            self.build_object_from_files(image_data_location)
 
         # Otherwise
         else:
@@ -241,7 +243,6 @@ class ImageData:
                 if contourArea(contour) > minimum_contour_area:
                     self.contours_in_image.append(contour)
 
-    # TODO - Since this is using the cropped downsampled image now, account for that in the calculation of the centroids by just adding offsets to each one
     def calculate_image_centroids(self):
         """
         Calculate the centroids of each contour in the list of contours. Returns the result as a
@@ -523,7 +524,7 @@ class ImageData:
         # Return the location where the data was saved
         return save_folder_path
 
-    def build_object_from_string(self, object_file_location: str):
+    def build_object_from_files(self, object_file_location: str):
         """
         Builds the image data object using the data stored in the given file location. The image data object must have
         been saved as a folder containing a text file and a single numpy array file.

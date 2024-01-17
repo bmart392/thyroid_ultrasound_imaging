@@ -50,13 +50,19 @@ def user_input_crop_coordinates(image_data: ImageData,
 
             # Display the image and get the users input
             first_corner, fig, axis = display_image_with_callback(temp_image_array,
-                                                                  "Select the upper left-hand crop corner." +
+                                                                  "Select the depth at which to start cropping the "
+                                                                  "image."
+                                                                  "\nClose the window to select the upper left hand "
+                                                                  "corner of the image."
                                                                   "\n Press the middle mouse button to restart.",
                                                                   first_corner,
                                                                   window_name,
                                                                   return_fig_and_axes=True,
                                                                   rounding=ROUND_DOWN
                                                                   )
+
+            # Ignore the X value of the selection
+            first_corner[0] = int(0)
 
             # Go back to the top of the loop if no point was selected
             if len(first_corner) == 0:
@@ -66,9 +72,9 @@ def user_input_crop_coordinates(image_data: ImageData,
             temp_image_array = cvtColor(copy(image_data.original_image), COLOR_GRAY2BGR)
 
             # Display two lines to show how the image has been cropped so far
-            temp_image_array = line(temp_image_array, (first_corner[0], first_corner[1]),
-                                    (first_corner[0], temp_image_array.shape[0]),
-                                    line_color, line_thickness)
+            # temp_image_array = line(temp_image_array, (first_corner[0], first_corner[1]),
+            #                         (first_corner[0], temp_image_array.shape[0]),
+            #                         line_color, line_thickness)
             temp_image_array = line(temp_image_array, (first_corner[0], first_corner[1]),
                                     (temp_image_array.shape[1], first_corner[1]),
                                     line_color, line_thickness)
@@ -78,7 +84,10 @@ def user_input_crop_coordinates(image_data: ImageData,
 
             # Display the image and get the users input
             second_corner, fig, axis = display_image_with_callback(temp_image_array,
-                                                                   "Select the lower right-hand crop corner." +
+                                                                   "Select the depth at which to stop cropping the "
+                                                                   "image."
+                                                                   "\nClose the window to select the lower right hand "
+                                                                   "corner of the image."
                                                                    "\nPress the middle mouse button to restart.",
                                                                    second_corner,
                                                                    window_name,
@@ -87,6 +96,9 @@ def user_input_crop_coordinates(image_data: ImageData,
                                                                    return_fig_and_axes=True,
                                                                    rounding=ROUND_UP
                                                                    )
+
+            # Ignore the X value of the selection
+            second_corner[1] = int(image_data.original_image.shape[0] - 1)
 
             # Go back to the top of the loop if no point was selected
             if len(second_corner) == 0:

@@ -89,7 +89,6 @@ class ImageBasedUserInput:
             # Pop the next action out of the list
             next_action = self.actions.pop(0)
 
-            # TODO - HIGH - Change this to only crop in the depth of the image and then round it to a multiple of the down-sampling rate
             if next_action == GENERATE_CROP:
 
                 # Check that there is an image to crop before continuing

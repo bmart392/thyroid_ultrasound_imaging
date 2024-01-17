@@ -17,8 +17,8 @@ from sys import stdout
 from time import time
 
 # Import custom python packages
-from thyroid_ultrasound_imaging_support.ImageManipulation.generate_list_of_image_arrays import \
-    generate_list_of_image_arrays
+from thyroid_ultrasound_imaging_support.ImageManipulation.load_folder_of_image_files import \
+    load_folder_of_image_files
 
 # Define global variable to control image streaming
 stream_images = False
@@ -30,7 +30,7 @@ ii = 0
 def main(file_path: str, image_number_offset: int = None, publishing_rate: float = 1):
 
     # Pull out the images from the given folder location
-    created_objects = generate_list_of_image_arrays(file_path)
+    created_objects = load_folder_of_image_files(file_path)
 
     # # Check if the file path to the images is valid.
     # if not isdir(file_path):

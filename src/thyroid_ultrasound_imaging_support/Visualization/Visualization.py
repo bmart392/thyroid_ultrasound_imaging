@@ -10,8 +10,12 @@ from cv2 import GC_BGD, GC_PR_BGD, imshow, waitKey, line, circle, \
     destroyAllWindows
 from threading import Thread
 
+from thyroid_ultrasound_imaging_support.ImageFilter.FilterConstants import COLOR_RGB
 # Import custom constants
 from thyroid_ultrasound_imaging_support.Visualization.VisualizationConstants import *
+from thyroid_ultrasound_imaging_support.Visualization.create_mask_display_array import create_mask_display_array
+from thyroid_ultrasound_imaging_support.Visualization.create_mask_overlay_image import create_mask_overlay_array, FADED, \
+    COLORIZED
 
 # Import custom objects
 from thyroid_ultrasound_imaging_support.ImageData.ImageData import ImageData
@@ -130,46 +134,50 @@ class Visualization:
 
                 elif visual == SHOW_MASK:
                     if image_data.image_mask is not None:
-                        image_to_show = self.create_mask_display_array(image_data.image_mask)
+                        image_to_show = create_mask_display_array(image_data.image_mask)
                     image_title = "Image Mask\nfrom Segmentation"
 
                 elif visual == SHOW_POST_PROCESSED_MASK:
                     if image_data.post_processed_mask is not None:
-                        image_to_show = self.create_mask_display_array(image_data.post_processed_mask)
+                        image_to_show = create_mask_display_array(image_data.post_processed_mask)
                     image_title = "Full Size Image Mask\nfrom Segmentation"
 
                 elif visual == SHOW_FOREGROUND:
                     if image_data.original_image is not None and image_data.post_processed_mask is not None:
-                        image_to_show = self.create_mask_overlay_array(image_data.original_image,
-                                                                       image_data.post_processed_mask)
+                        image_to_show = create_mask_overlay_array(image_data.down_sampled_image, 3,
+                                                                  image_data.post_processed_mask, COLOR_RGB,
+                                                                  COLORIZED)
                     image_title = "Foreground of the Image"
 
                 elif visual == SHOW_SURE_FOREGROUND:
                     if image_data.sure_foreground_mask is not None:
-                        image_to_show = self.create_mask_overlay_array(image_data.original_image,
-                                                                       image_data.sure_foreground_mask)
+                        image_to_show = create_mask_overlay_array(image_data.down_sampled_image, 3,
+                                                                  image_data.sure_foreground_mask, COLOR_RGB,
+                                                                  COLORIZED)
                     image_title = "Sure Foreground of Image"
 
                 elif visual == SHOW_SURE_BACKGROUND:
                     if image_data.sure_background_mask is not None:
-                        image_to_show = self.create_mask_overlay_array(image_data.original_image,
-                                                                       image_data.sure_background_mask)
+                        image_to_show = create_mask_overlay_array(image_data.down_sampled_image, 3,
+                                                                  image_data.sure_background_mask, COLOR_RGB,
+                                                                  COLORIZED)
                     image_title = "Sure Background of Image"
 
                 elif visual == SHOW_PROBABLE_FOREGROUND:
                     if image_data.probable_foreground_mask is not None:
-                        image_to_show = self.create_mask_overlay_array(image_data.original_image,
-                                                                       image_data.probable_foreground_mask)
+                        image_to_show = create_mask_overlay_array(image_data.down_sampled_image, 3,
+                                                                       image_data.probable_foreground_mask, COLOR_RGB,
+                                                                  COLORIZED)
                     image_title = "Probable Foreground of Image"
 
                 elif visual == SHOW_INITIALIZED_MASK:
                     if image_data.segmentation_initialization_mask is not None:
-                        image_to_show = self.create_mask_display_array(image_data.segmentation_initialization_mask,
+                        image_to_show = create_mask_display_array(image_data.segmentation_initialization_mask,
                                                                        multiplier=INITIALIZED_MASK_MULTIPLIER)
                         image_title = "Mask for Initializing\nSegmentation"
 
                     else:
-                        image_to_show = self.create_mask_display_array(ones(image_data.image_mask.shape, uint8), 255)
+                        image_to_show = create_mask_display_array(ones(image_data.image_mask.shape, uint8), 255)
                         image_title = "No Initialization Mask\nProvided"
 
                 elif visual == SHOW_GRABCUT_USER_INITIALIZATION_0:
@@ -183,7 +191,7 @@ class Visualization:
 
                     if len(image_data.contour_centroids) > 0:
                         # Create an empty mask
-                        image_to_show = zeros(image_data.original_image.shape, uint8)
+                        image_to_show = zeros(image_data.down_sampled_image.shape, uint8)
 
                         # Draw each centroid from the image
                         image_to_show = self.add_centroids_on_image(image_to_show, image_data)
@@ -194,7 +202,7 @@ class Visualization:
 
                     if len(image_data.contour_centroids) > 0:
                         # Create an empty mask
-                        image_to_show = zeros(image_data.original_image.shape, uint8)
+                        image_to_show = zeros(image_data.down_sampled_image.shape, uint8)
 
                         # Draw each centroid from the image and a cross
                         image_to_show = self.add_cross_and_centroids_on_image(image_to_show, image_data)
@@ -311,31 +319,31 @@ class Visualization:
         else:
             raise Exception("Image mode not recognized.")
 
-    @staticmethod
-    def create_mask_overlay_array(base_image: array, mask: array, fade_rate: float = 0.5):
-        """
-        Returns an array that overlays a binary mask over an image array.
-
-        Parameters
-        ----------
-        base_image
-            a numpy array containing the base image.
-        mask
-            a numpy array representing the mask to be overlaid.
-        fade_rate
-            the fade ratio to apply to the inverse of the mask.
-            A smaller number darkens the remainder of the image.
-        """
-
-        if len(base_image.shape) == 3:
-            mask = mask[:, :, newaxis]
-            inverted_mask = (1 - mask)[:, :, newaxis]
-        if mask is None:
-            return array([])
-        else:
-            return base_image * mask + uint8(
-                base_image * (1 - mask) * fade_rate
-            )
+    # @staticmethod
+    # def create_mask_overlay_array(base_image: array, mask: array, fade_rate: float = 0.5):
+    #     """
+    #     Returns an array that overlays a binary mask over an image array.
+    #
+    #     Parameters
+    #     ----------
+    #     base_image
+    #         a numpy array containing the base image.
+    #     mask
+    #         a numpy array representing the mask to be overlaid.
+    #     fade_rate
+    #         the fade ratio to apply to the inverse of the mask.
+    #         A smaller number darkens the remainder of the image.
+    #     """
+    #
+    #     if len(base_image.shape) == 3:
+    #         mask = mask[:, :, newaxis]
+    #         inverted_mask = (1 - mask)[:, :, newaxis]
+    #     if mask is None:
+    #         return array([])
+    #     else:
+    #         return base_image * mask + uint8(
+    #             base_image * (1 - mask) * fade_rate
+    #         )
 
     @staticmethod
     def add_cross_to_image(image_to_show: array, vertical_line_color: tuple = (255, 255, 255),
@@ -407,19 +415,19 @@ class Visualization:
         """
         return self.add_cross_to_image(self.add_centroids_on_image(image_to_show, image_data))
 
-    @staticmethod
-    def create_mask_display_array(mask: array, multiplier: int = 255):
-        """
-        Modifies a mask array so that it can be properly displayed.
-
-        Parameters
-        ----------
-        mask
-            a numpy array of the mask to display
-        multiplier
-            the value that all values in the mask will be multiplied by.
-        """
-        return uint8(mask * multiplier)
+    # @staticmethod
+    # def create_mask_display_array(mask: array, multiplier: int = 255):
+    #     """
+    #     Modifies a mask array so that it can be properly displayed.
+    #
+    #     Parameters
+    #     ----------
+    #     mask
+    #         a numpy array of the mask to display
+    #     multiplier
+    #         the value that all values in the mask will be multiplied by.
+    #     """
+    #     return uint8(mask * multiplier)
 
 
 def test_imshow():

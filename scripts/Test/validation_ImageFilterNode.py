@@ -12,18 +12,23 @@ from matplotlib.pyplot import subplots, show, matshow, savefig
 from std_msgs.msg import Bool
 
 # Import custom python packages
-from thyroid_ultrasound_imaging_support.ImageManipulation.generate_list_of_image_arrays import \
-    generate_list_of_image_arrays
+from thyroid_ultrasound_imaging_support.ImageManipulation.load_folder_of_image_files import \
+    load_folder_of_image_files
 from thyroid_ultrasound_imaging_support.ImageFilter.FilterConstants import COLOR_GRAY
 from thyroid_ultrasound_imaging_support.Visualization.display_process_timer import display_process_timer, time
 from thyroid_ultrasound_imaging_support.Visualization.stitch_image_arrays import stitch_image_arrays
 from validation_constants import *
+from thyroid_ultrasound_imaging_support.Visualization.create_mask_overlay_image import create_mask_overlay_array
+from thyroid_ultrasound_imaging_support.Visualization.create_mask_display_array import create_mask_display_array
 
 # Import custom ROS packages
 from thyroid_ultrasound_imaging_support.ImageData.ImageData import ImageData
 from thyroid_ultrasound_imaging_support.ImageData.convert_array_to_image_message import convert_array_to_image_message
 from ImageFilterNode import ImageFilterNode, GRABCUT_FILTER, SHOW_ORIGINAL, SHOW_FOREGROUND, SHOW_CENTROIDS_ONLY
 from thyroid_ultrasound_messages.msg import image_crop_coordinates, initialization_mask_message
+
+# Validation Options
+save_image_data = False
 
 # Image Filter Options
 blurring = [False, True]
@@ -50,7 +55,7 @@ filter_node = ImageFilterNode(filter_type=GRABCUT_FILTER,
 
 # Read in a list of images from a folder
 image_start_index = 51
-images_as_arrays = generate_list_of_image_arrays('/home/ben/thyroid_ultrasound/src/thyroid_ultrasound_imaging/scripts'
+images_as_arrays = load_folder_of_image_files('/home/ben/thyroid_ultrasound/src/thyroid_ultrasound_imaging/scripts'
                                                  '/Test/Images/2023-11-29_19-14', image_start_index)
 
 # Load the arrays to use for the image crop coordinates and the initialization array
@@ -64,7 +69,7 @@ ii = ii + 1
 
 
 # Define the maximum rate at which images should be processed
-rate = Rate(10)  # Hz
+rate = Rate(20)  # Hz
 
 # Send the image crop coordinates to use for cropping the images
 image_crop_coordinates_msg = image_crop_coordinates(first_coordinate_x=crop_coords[0][0],
@@ -101,45 +106,66 @@ for image_array in images_as_arrays:
     # Analyze the image
     filter_node.main_loop()
 
-    break
+    imshow("Current Image", filter_node.image_data.pre_processed_image)
+    waitKey(1)
+    imshow("Foreground", cvtColor(filter_node.image_data.image_mask * uint8(125), COLOR_GRAY2RGB))
+    waitKey(1)
+    imshow("Previous-Image Mask for next image", cvtColor(filter_node.image_filter.previous_image_mask_array * uint8(125), COLOR_GRAY2RGB))
+    waitKey(1)
 
     rate.sleep()
 
-# Change this to generate folder structure
-start_time = time()
-object_string = filter_node.image_data.save_object_to_file(IMAGE_DATA_OBJECTS_PATH)
-start_time = display_process_timer(start_time, "Object Saving Time")
-result_object = ImageData(image_data_str=object_string)
-display_process_timer(start_time, "Object Recreation Time")
+# If this script is testing the save data functionality
+if save_image_data:
+    # Note the time the process started
+    start_time = time()
 
+    # Convert the image data to a zipped folder
+    object_location = filter_node.image_data.save_object_to_file(IMAGE_DATA_OBJECTS_PATH)
+
+    # Calculate how long it took to save the image
+    start_time = display_process_timer(start_time, "Object Saving Time")
+
+    # Rebuild the data from the file
+    result_object = ImageData(image_data_location=object_location)
+
+    # Calculate how long it took to rebuild the data
+    display_process_timer(start_time, "Object Recreation Time")
+else:
+    # Otherwise just look at the data in the node
+    result_object = filter_node.image_data
 
 # Show the original image
-axes[int((ii - (ii % NUM_COLS))/NUM_ROWS)][int(ii % NUM_COLS)].imshow(cvtColor(filter_node.image_data.original_image, COLOR_GRAY2RGB))
+axes[int((ii - (ii % NUM_COLS))/NUM_ROWS)][int(ii % NUM_COLS)].imshow(cvtColor(result_object.original_image, COLOR_GRAY2RGB))
 axes[int((ii - (ii % NUM_COLS))/NUM_ROWS)][int(ii % NUM_COLS)].set_title('Original Image', fontsize=24)
 ii = ii + 1
 
-axes[int((ii - (ii % NUM_COLS))/NUM_ROWS)][int(ii % NUM_COLS)].imshow(cvtColor(filter_node.image_data.cropped_image, COLOR_GRAY2RGB))
+axes[int((ii - (ii % NUM_COLS))/NUM_ROWS)][int(ii % NUM_COLS)].imshow(cvtColor(result_object.cropped_image, COLOR_GRAY2RGB))
 axes[int((ii - (ii % NUM_COLS))/NUM_ROWS)][int(ii % NUM_COLS)].set_title('Cropped Image', fontsize=24)
 ii = ii + 1
 
-axes[int((ii - (ii % NUM_COLS))/NUM_ROWS)][int(ii % NUM_COLS)].imshow(cvtColor(filter_node.image_data.colorized_image, COLOR_BGR2RGB))
+axes[int((ii - (ii % NUM_COLS))/NUM_ROWS)][int(ii % NUM_COLS)].imshow(cvtColor(result_object.colorized_image, COLOR_BGR2RGB))
 axes[int((ii - (ii % NUM_COLS))/NUM_ROWS)][int(ii % NUM_COLS)].set_title('Colorized Image', fontsize=24)
 ii = ii + 1
 
-axes[int((ii - (ii % NUM_COLS))/NUM_ROWS)][int(ii % NUM_COLS)].imshow(cvtColor(filter_node.image_data.down_sampled_image, COLOR_BGR2RGB))
+axes[int((ii - (ii % NUM_COLS))/NUM_ROWS)][int(ii % NUM_COLS)].imshow(cvtColor(result_object.down_sampled_image, COLOR_BGR2RGB))
 axes[int((ii - (ii % NUM_COLS))/NUM_ROWS)][int(ii % NUM_COLS)].set_title('Down-sampled Image', fontsize=24)
 ii = ii + 1
 
-axes[int((ii - (ii % NUM_COLS))/NUM_ROWS)][int(ii % NUM_COLS)].imshow(cvtColor(filter_node.image_data.pre_processed_image, COLOR_BGR2RGB))
+axes[int((ii - (ii % NUM_COLS))/NUM_ROWS)][int(ii % NUM_COLS)].imshow(cvtColor(result_object.pre_processed_image, COLOR_BGR2RGB))
 axes[int((ii - (ii % NUM_COLS))/NUM_ROWS)][int(ii % NUM_COLS)].set_title('Pre-processed Image', fontsize=24)
 ii = ii + 1
 
-axes[int((ii - (ii % NUM_COLS))/NUM_ROWS)][int(ii % NUM_COLS)].imshow(cvtColor(filter_node.image_data.image_mask * uint8(125), COLOR_GRAY2RGB))
+axes[int((ii - (ii % NUM_COLS))/NUM_ROWS)][int(ii % NUM_COLS)].imshow(cvtColor(result_object.image_mask * uint8(125), COLOR_GRAY2RGB))
 axes[int((ii - (ii % NUM_COLS))/NUM_ROWS)][int(ii % NUM_COLS)].set_title('Result Image Mask', fontsize=24)
 ii = ii + 1
 
-axes[int((ii - (ii % NUM_COLS))/NUM_ROWS)][int(ii % NUM_COLS)].imshow(cvtColor(filter_node.image_data.post_processed_mask * uint8(125), COLOR_GRAY2RGB))
+axes[int((ii - (ii % NUM_COLS))/NUM_ROWS)][int(ii % NUM_COLS)].imshow(cvtColor(result_object.post_processed_mask * uint8(125), COLOR_GRAY2RGB))
 axes[int((ii - (ii % NUM_COLS))/NUM_ROWS)][int(ii % NUM_COLS)].set_title('Post-processed Image Mask', fontsize=24)
+ii = ii + 1
+
+axes[int((ii - (ii % NUM_COLS))/NUM_ROWS)][int(ii % NUM_COLS)].imshow(cvtColor(filter_node.image_filter.previous_image_mask_array * uint8(125), COLOR_GRAY2RGB))
+axes[int((ii - (ii % NUM_COLS))/NUM_ROWS)][int(ii % NUM_COLS)].set_title('Previous Image Mask', fontsize=24)
 ii = ii + 1
 
 

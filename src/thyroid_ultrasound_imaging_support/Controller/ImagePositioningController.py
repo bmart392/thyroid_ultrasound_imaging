@@ -62,7 +62,7 @@ class ImagePositioningController:
         centroid = image_data.contour_centroids[0]
 
         # In X in the image frame, measure the distance to the middle of the image
-        x_error = (centroid[0] - (image_data.image_size_x / 2)) * self.calculate_resolution(image_data.image_size_y)
+        x_error = (centroid[0] - (image_data.down_sampled_image.shape[1] / 2)) * self.calculate_resolution(image_data.image_size_y)
 
         # In Y in the image frame, measure the distance to the top of the image
         y_error = centroid[1] * self.calculate_resolution(image_data.image_size_y)

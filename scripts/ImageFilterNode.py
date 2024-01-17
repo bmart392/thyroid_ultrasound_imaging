@@ -5,9 +5,7 @@ File containing ImageFiterNode class definition and ROS running code.
 """
 
 # TODO - Medium - Create fusion filter of Grabcut & Threshold types. Combine using Beysian probability.
-# TODO - HIGH - Downsample the image before filtering it
-# TODO - HIGH - Publish if there is anything in the image
-# TODO - High - Add logic to prevent force control from occurring if the patient is not in view in the ultrasound image
+# TODO - Medium - Fix image data object titling issues
 # Import standard ROS packages
 from geometry_msgs.msg import TwistStamped
 from sensor_msgs.msg import Image
@@ -101,7 +99,7 @@ class ImageFilterNode(BasicNode):
 
         elif filter_type == GRABCUT_FILTER:
             self.image_filter = ImageFilterGrabCut(None, debug_mode=self.debug_mode, analysis_mode=self.analysis_mode,
-                                                   down_sampling_rate=1/4  # originally 0.5
+                                                   #down_sampling_rate=1/4  # originally 0.5
                                                    # image_crop_included=True,
                                                    # image_crop_coordinates=[[171, 199], [530, 477]],
                                                    # image_crop_coordinates=[[585, 455], [639, 479]],
@@ -149,9 +147,9 @@ class ImageFilterNode(BasicNode):
         # Create a subscriber to receive if the patient is in the image
         Subscriber(IMAGE_PATIENT_CONTACT, Bool, self.patient_contact_callback)
 
-        # Create a publisher to publish the error of the centroid
-        self.image_based_control_input_publisher = Publisher(RC_IMAGE_ERROR, TwistStamped,
-                                                             queue_size=1)
+        # # Create a publisher to publish the error of the centroid
+        # self.image_based_control_input_publisher = Publisher(RC_IMAGE_ERROR, TwistStamped,
+        #                                                      queue_size=1)
 
         # Create a publisher to publish if the thyroid is visible in the image
         self.is_thyroid_in_image_status_publisher = Publisher('/status/thyroid_shown', Bool, queue_size=1)

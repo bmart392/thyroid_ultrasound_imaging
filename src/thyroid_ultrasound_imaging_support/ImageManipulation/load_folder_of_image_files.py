@@ -1,5 +1,5 @@
 """
-Defines the generate_list_of_image_arrays function.
+Defines the load_folder_of_image_files function.
 """
 
 # Import standard packages
@@ -12,9 +12,10 @@ from matplotlib.pyplot import pause
 from thyroid_ultrasound_imaging_support.Visualization.display_process_timer import *
 
 
-def generate_list_of_image_arrays(folder_path: str,
-                                  starting_index: int,
-                                  ending_index: int = None) -> list:
+def load_folder_of_image_files(folder_path: str,
+                               starting_index: int = None,
+                               ending_index: int = None,
+                               return_image_numbers: bool = False):
     """
     Generate a list of image arrays from images saved in the given folder. Images MUST be named in the form of
     <WORD>_####.<FILE EXTENSION>, such as 'Slice_00001.png'.
@@ -27,6 +28,8 @@ def generate_list_of_image_arrays(folder_path: str,
         The index at which to start saving images.
     ending_index
         The index at which to stop saving images.
+    return_image_numbers
+        If True, returns the identifying index number of each image generated.
     """
 
     # Check if the folder path to the images is valid.
@@ -36,17 +39,22 @@ def generate_list_of_image_arrays(folder_path: str,
     # Get a list of the files in the directory
     file_names = listdir(folder_path)
 
-    # Calculate the largest allowed index
-    max_index = len(file_names)
+    # Create a dictionary to store the resulting images
+    image_dictionary = {}
 
-    # Calculate the ending offset
+    # Create a list to store the result of the function in
+    created_objects = []
+
+    # Ensure that the starting and ending indices are valid
+    if starting_index is None:
+        starting_index = 0
+    elif starting_index < 0:
+        raise Exception("Invalid starting index of " + str(starting_index) + " given.")
     if ending_index is None:
-        ending_index = starting_index + max_index - 1
-    elif ending_index > max_index:
-        ending_index = max_index
-
-    # Create an empty list in which to store the image data objects
-    created_objects: list = list([None]) * (ending_index - starting_index + 1)
+        ending_index = 10**10
+    elif ending_index < starting_index:
+        raise Exception("Ending index of " + str(ending_index) + " cannot be bigger than the starting index of"
+                        + str(starting_index) + ".")
 
     # Iterate through the list of file names found to ensure that
     # the image data objects are added to the list in sequential order.
@@ -60,13 +68,24 @@ def generate_list_of_image_arrays(folder_path: str,
             raise "File name is not valid."
 
         # Calculate the position in the list to store the image
-        image_position = int(int(file_name[file_name.find("_") + 1: file_name.find(".")]) - starting_index)
+        image_number = int(int(file_name[file_name.find("_") + 1: file_name.find(".")]))
 
-        # Place the read-in file at the correct position
-        created_objects[image_position] = imread(file_name_with_path)
+        # Only add images that are within the bounds selected
+        if starting_index <= image_number <= ending_index:
+            image_dictionary[image_number] = imread(file_name_with_path)
 
-    # Ensure stream_images references the global variable
-    return created_objects
+    # Store a sorted list of keys used in the dictionary
+    sorted_keys = sorted(image_dictionary.keys())
+
+    # Add the images to the resulting list in order
+    for key in sorted_keys:
+        created_objects.append(image_dictionary[key])
+
+    # Return the correct objects based on the user selection
+    if return_image_numbers:
+        return created_objects, sorted_keys
+    else:
+        return created_objects
 
 
 if __name__ == '__main__':
@@ -76,13 +95,14 @@ if __name__ == '__main__':
 
     # Define the folder location and image offset
     test_path = '/home/ben/thyroid_ultrasound/src/thyroid_ultrasound_imaging/scripts/Test/Images/2023-11-29_19-14'
-    test_starting_index = 1
+    test_starting_index = None
 
     # Note the current time
     start_of_process_time = time()
 
     # Create the list of images
-    temp_result = generate_list_of_image_arrays(test_path, test_starting_index)
+    temp_result, image_names = load_folder_of_image_files(test_path, test_starting_index,
+                                                          return_image_numbers=True)
 
     # Display how long it took to generate the list and how many images were generated
     display_process_timer(start_of_process_time, "Image-array Generation from Folder")
