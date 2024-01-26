@@ -4,14 +4,14 @@
 File containing code to ensure even patient contact.
 """
 
-# Import standard ROS packages
+# TODO - Dream - Add logging through BasicNode class
 
 # Import standard python packages
 from numpy import zeros, linspace, array, polyfit
 
 # Import custom ROS packages
 from thyroid_ultrasound_support.BasicNode import *
-from thyroid_ultrasound_messages.msg import image_data_message, Float64Stamped
+from thyroid_ultrasound_messages.msg import image_data_message, Float64Stamped, SkinContactLines
 
 # Import custom python packages
 from thyroid_ultrasound_imaging_support.ImageData.ImageData import ImageData
@@ -27,7 +27,11 @@ RIGHT_SECTOR: int = int(1)
 X_POINTS: int = int(0)
 Y_POINTS: int = int(1)
 
+SINGLE_LINE_APPROXIMATION: int = int(1)
+DOUBLE_LINE_APPROXIMATION: int = int(2)
 
+
+# TODO - Dream - Create an easy way to update the parameters of this node
 class ImageContactBalanceNode(BasicNode):
 
     def __init__(self, image_field_of_view: float = 30, num_slices: int = 20, image_shape: tuple = (640, 480),
@@ -35,8 +39,42 @@ class ImageContactBalanceNode(BasicNode):
                  sides_distance_to_imaginary_center_meters: float = 0.074, start_of_us_image: int = 0,
                  end_of_us_image_from_bottom: int = 0, image_center_offset_px: int = 0,
                  down_sampling_rate: int = 5, sector_angles: list = None,
-                 skin_level_offset: int = 100,
+                 skin_level_offset: int = 100, skin_approximation_mode: int = SINGLE_LINE_APPROXIMATION
                  ):
+        """
+        Creates a ROS node to calculate the balance of the ultrasound image.
+
+        Parameters
+        ----------
+        image_field_of_view :
+            The angular field of view of the ultrasound image in degrees.
+        num_slices :
+            The number of slices to create to balance the image.
+        image_shape :
+            The total size of the ultrasound image being balanced.
+        imaging_depth_meters :
+            The depth of the image in meters.
+        bottom_distance_to_imaginary_center_meters :
+            The imaginary distance to the center of the bottom arc of the ultrasound image from the top of the image.
+        sides_distance_to_imaginary_center_meters :
+            The imaginary distance to the intersection point of the two angled sides of the ultrasound image
+            from the top of the image.
+        start_of_us_image :
+            The start of the ultrasound image from the top of the transmitted image in pixels.
+        end_of_us_image_from_bottom :
+            The end of the ultrasound image from the bottom of the transmitted image in pixels.
+        image_center_offset_px :
+            An offset to handle if the ultrasound image is not centered in the transmitted image, measured in pixels.
+        down_sampling_rate :
+            The rate at which to down-sample the image when calculating the image balance.
+        sector_angles :
+            The angles to use to define each sector of the image, otherwise they are generated evenly spaced.
+        skin_level_offset :
+            An offset measured from the top of the image in pixels used to skip over any artifacts found at the top
+            of the image which would interfere with finding the skin layer.
+        skin_approximation_mode :
+            Determines the method of approximating the skin layer.
+        """
 
         # Call to super class init
         super().__init__()
@@ -56,6 +94,13 @@ class ImageContactBalanceNode(BasicNode):
 
         # Define an offset for finding the skin level
         self.skin_level_offset = skin_level_offset
+
+        # Define the method to use to approximate the skin layer
+        if skin_approximation_mode == SINGLE_LINE_APPROXIMATION or \
+                skin_approximation_mode == DOUBLE_LINE_APPROXIMATION:
+            self.skin_approximation_mode = skin_approximation_mode
+        else:
+            raise Exception("Skin approximation mode of " + str(skin_approximation_mode) + " was not recognized.")
 
         # Define a variable to store each sector of the image in
         self.sectors = []
@@ -108,10 +153,11 @@ class ImageContactBalanceNode(BasicNode):
         # Define a publisher to publish if the patient is in contact
         self.patient_contact_status_publisher = Publisher(IMAGE_PATIENT_CONTACT, Bool, queue_size=1)
 
+        # Define a publisher to publish the approximation lines of the skin layer
+        self.skin_approximation_publisher = Publisher(IMAGE_SKIN_APPROXIMATION, SkinContactLines, queue_size=1)
+
         # Define a subscriber to listen for the raw image
         Subscriber(IMAGE_RAW, image_data_message, self.new_raw_image_callback)
-
-        # TODO define a way to publish information so that the results can be visualized
 
     ###############
     # ROS Callbacks
@@ -362,31 +408,47 @@ class ImageContactBalanceNode(BasicNode):
                         # Increment the half-sector count
                         ii = ii + 1
 
-                    """# Calculate the straight line of best fit for the left half-sector
-                    # noinspection PyTupleAssignmentBalance
-                    self.best_fit_left_line_a, self.best_fit_left_line_b = polyfit(
-                        array(self.skin_points[LEFT_SECTOR][X_POINTS]),
-                        array(self.skin_points[LEFT_SECTOR][Y_POINTS]),
-                        1)
+                    # If there are points in both the left and right sectors,
+                    if len(self.skin_points[LEFT_SECTOR][X_POINTS]) > 0 and len(
+                            self.skin_points[RIGHT_SECTOR][X_POINTS]) > 0:
 
-                    # Calculate the straight line of best fit for the right half-sector
-                    # noinspection PyTupleAssignmentBalance
-                    self.best_fit_right_line_a, self.best_fit_right_line_b = polyfit(
-                        array(self.skin_points[RIGHT_SECTOR][X_POINTS]),
-                        array(self.skin_points[RIGHT_SECTOR][Y_POINTS]), 1)"""
+                        # If approximating with a single line,
+                        if self.skin_approximation_mode == SINGLE_LINE_APPROXIMATION:
 
-                    if len(self.skin_points[LEFT_SECTOR][X_POINTS]) > 0 and len(self.skin_points[RIGHT_SECTOR][X_POINTS]) > 0:
+                            # Calculate the straight line of best fit for the entire image
+                            # noinspection PyTupleAssignmentBalance
+                            self.best_fit_shared_line_a, self.best_fit_shared_line_b = polyfit(
+                                array(self.skin_points[LEFT_SECTOR][X_POINTS] +
+                                      self.skin_points[RIGHT_SECTOR][X_POINTS]),
+                                array(self.skin_points[LEFT_SECTOR][Y_POINTS] +
+                                      self.skin_points[RIGHT_SECTOR][Y_POINTS]), 1)
 
-                        # Calculate the straight line of best fit for the entire image
-                        # noinspection PyTupleAssignmentBalance
-                        self.best_fit_shared_line_a, self.best_fit_shared_line_b = polyfit(
-                            array(self.skin_points[LEFT_SECTOR][X_POINTS] +
-                                  self.skin_points[RIGHT_SECTOR][X_POINTS]),
-                            array(self.skin_points[LEFT_SECTOR][Y_POINTS] +
-                                  self.skin_points[RIGHT_SECTOR][Y_POINTS]), 1)
+                            # Add the skin layer error to the image error
+                            patient_contact_error = round(self.best_fit_shared_line_a, 3) + patient_contact_error
 
-                        # Add the skin layer error to the image error
-                        patient_contact_error = round(self.best_fit_shared_line_a, 3) * 5  # Scale the error up
+                        # If approximating with a double line,
+                        elif self.skin_approximation_mode == DOUBLE_LINE_APPROXIMATION:
+
+                            # Calculate the straight line of best fit for the left half-sector
+                            # noinspection PyTupleAssignmentBalance
+                            self.best_fit_left_line_a, self.best_fit_left_line_b = polyfit(
+                                array(self.skin_points[LEFT_SECTOR][X_POINTS]),
+                                array(self.skin_points[LEFT_SECTOR][Y_POINTS]),
+                                1)
+
+                            # Calculate the straight line of best fit for the right half-sector
+                            # noinspection PyTupleAssignmentBalance
+                            self.best_fit_right_line_a, self.best_fit_right_line_b = polyfit(
+                                array(self.skin_points[RIGHT_SECTOR][X_POINTS]),
+                                array(self.skin_points[RIGHT_SECTOR][Y_POINTS]), 1)
+
+                            # Add the skin layer error to the image error
+                            patient_contact_error = round(self.best_fit_left_line_a + self.best_fit_right_line_a,
+                                                          3) + patient_contact_error
+
+                        else:
+                            raise Exception("Skin approximation mode of " + str(self.skin_approximation_mode) +
+                                            " was not recognized.")
 
             else:
                 # If zero patient contact is detected, publish the contact message accordingly
@@ -394,6 +456,25 @@ class ImageContactBalanceNode(BasicNode):
 
                 # Publish zero error
                 patient_contact_error = 0.0
+
+            # Fill out the skin approximation message
+            skin_approximation_msg = SkinContactLines()
+            if self.skin_approximation_mode == SINGLE_LINE_APPROXIMATION:
+                skin_approximation_msg.skin_approximation_mode = SINGLE_LINE_APPROXIMATION
+                skin_approximation_msg.best_fit_shared_line_a = self.best_fit_shared_line_a
+                skin_approximation_msg.best_fit_shared_line_b = self.best_fit_shared_line_b
+            elif self.skin_approximation_mode == DOUBLE_LINE_APPROXIMATION:
+                skin_approximation_msg.skin_approximation_mode = DOUBLE_LINE_APPROXIMATION
+                skin_approximation_msg.best_fit_left_line_a = self.best_fit_left_line_a
+                skin_approximation_msg.best_fit_left_line_b = self.best_fit_left_line_b
+                skin_approximation_msg.best_fit_right_line_a = self.best_fit_right_line_a
+                skin_approximation_msg.best_fit_right_line_b = self.best_fit_right_line_b
+            else:
+                raise Exception("Skin approximation mode of " + str(self.skin_approximation_mode) +
+                                " was not recognized.")
+
+            # Publish the skin approximation
+            self.skin_approximation_publisher.publish(skin_approximation_msg)
 
             # Publish the patient contact and image error
             self.patient_contact_status_publisher.publish(Bool(patient_contact_status))
@@ -412,7 +493,6 @@ if __name__ == '__main__':
 
     # While the node is not shut down
     while not is_shutdown():
-
         # Run the main code of the node
         node.main_loop()
 

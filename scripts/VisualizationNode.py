@@ -4,51 +4,62 @@
 File containing VisualizationNode class definition and ROS running code.
 """
 
-# TODO - Low - Improve comments in this file.
-# TODO - Low - Fix visualization titling issues
+# TODO - Dream - Add logging with the BasicNode class
 
-# TODO - HIGH - Why is this not visualizing things properly
-# TODO - HIGH - Why is th centroid showing up in the wrong spot (x and y are reversed)?
-
-# Import ROS packages
-from rospy import init_node, Subscriber, Rate, is_shutdown
+# Import standard python packages
+from copy import deepcopy
+from cv2 import imshow, waitKey
 
 # Import custom ROS messages and services
-from thyroid_ultrasound_messages.msg import image_data_message
+from thyroid_ultrasound_messages.msg import image_data_message, SkinContactLines
 
 # Import custom functions, classes, and constants
 from thyroid_ultrasound_imaging_support.Visualization.VisualizationConstants import *
 from thyroid_ultrasound_imaging_support.Visualization.Visualization import Visualization
 from thyroid_ultrasound_imaging_support.ImageData.ImageData import ImageData
+from thyroid_ultrasound_support.BasicNode import *
+
+# Define constants for use in the node
+IMAGE: int = int(0)
+VISUALIZATIONS: int = int(1)
+SKIN_CONTACT_PARAMETERS: int = int(2)
 
 
-class VisualizationNode:
-    def __init__(self,
-                 image_mode,
-                 visualizations_included: list = None,
-                 debug_mode=True,
-                 analysis_mode=True):
+class VisualizationNode(BasicNode):
+    def __init__(self, image_mode):
+
+        # Call the init of the super class
+        super().__init__()
 
         # Define visualization object ot use to visualize images showing the result of the image filter
-        self.image_visualizer = Visualization(image_mode, [SHOW_ORIGINAL, SHOW_CROPPED,
-                                                           SHOW_POST_PROCESSED_MASK, SHOW_CENTROIDS_ONLY,
-                                                           SHOW_FOREGROUND])
+        self.image_visualizer = Visualization(image_mode, [])
 
+        # noinspection PyTypeChecker
+        # Define a place to store the Image Data object that will be visualized
+        self.images_to_visualize = {IMAGE_RAW: [None, [SHOW_ORIGINAL]],
+                                    IMAGE_CROPPED: [None, [SHOW_CROPPED]],
+                                    IMAGE_FILTERED: [None, [SHOW_FOREGROUND, SHOW_CENTROIDS_ONLY]],
+                                    IMAGE_SKIN_APPROXIMATION: [None, [SHOW_SKIN_APPROXIMATION], None]}
+
+        # Create the node
         init_node('visualizer')
 
         # Define a subscriber to listen for raw images
-        Subscriber('image_data/raw', image_data_message, self.raw_image_data_message_callback)
+        Subscriber(IMAGE_RAW, image_data_message, self.raw_image_data_message_callback)
 
         # Define a subscriber to listen for cropped images
-        Subscriber('image_data/cropped', image_data_message, self.cropped_image_data_message_callback)
+        Subscriber(IMAGE_CROPPED, image_data_message, self.cropped_image_data_message_callback)
 
         # Define a subscriber to listen for fully filtered images
-        Subscriber('image_data/filtered', image_data_message,
+        Subscriber(IMAGE_FILTERED, image_data_message,
                    self.filtered_image_data_message_callback)
 
-        # noinspection PyTypeChecker
-        self.image_to_visualize: ImageData = None
+        # Define a subscriber to listen for the skin approximation lines
+        Subscriber(IMAGE_SKIN_APPROXIMATION, SkinContactLines, self.skin_contact_approximation_callback)
 
+    ###########################
+    # Define callback functions
+    # region
     def raw_image_data_message_callback(self, message: image_data_message):
         """
         Converts the received raw image data message to an image data object and then visualizes it.
@@ -63,10 +74,10 @@ class VisualizationNode:
         temp_image_to_visualize = ImageData(image_data_msg=message)
 
         # Copy the original image field into the data to visualize
-        if self.image_to_visualize is None:
-            self.image_to_visualize = temp_image_to_visualize
+        if self.images_to_visualize[IMAGE_RAW][IMAGE] is None:
+            self.images_to_visualize[IMAGE_RAW][IMAGE] = temp_image_to_visualize
         else:
-            self.image_to_visualize.original_image = temp_image_to_visualize.original_image
+            self.images_to_visualize[IMAGE_RAW][IMAGE].original_image = temp_image_to_visualize.original_image
 
     def cropped_image_data_message_callback(self, message: image_data_message):
         """
@@ -81,10 +92,10 @@ class VisualizationNode:
         temp_image_to_visualize = ImageData(image_data_msg=message)
 
         # Copy the cropped image field into the data to visualize
-        if self.image_to_visualize is None:
-            self.image_to_visualize = temp_image_to_visualize
+        if self.images_to_visualize[IMAGE_CROPPED][IMAGE] is None:
+            self.images_to_visualize[IMAGE_CROPPED][IMAGE] = temp_image_to_visualize
         else:
-            self.image_to_visualize.cropped_image = temp_image_to_visualize.cropped_image
+            self.images_to_visualize[IMAGE_CROPPED][IMAGE].cropped_image = temp_image_to_visualize.cropped_image
 
     def filtered_image_data_message_callback(self, message: image_data_message):
         """
@@ -99,23 +110,82 @@ class VisualizationNode:
         temp_image_to_visualize = ImageData(image_data_msg=message)
 
         # Copy the relevant image fields into the data to visualize
-        if self.image_to_visualize is None:
-            self.image_to_visualize = temp_image_to_visualize
+        if self.images_to_visualize[IMAGE_FILTERED][IMAGE] is None:
+            self.images_to_visualize[IMAGE_FILTERED][IMAGE] = temp_image_to_visualize
         else:
-            self.image_to_visualize.colorized_image = temp_image_to_visualize.colorized_image
-            self.image_to_visualize.down_sampled_image = temp_image_to_visualize.down_sampled_image
-            self.image_to_visualize.pre_processed_image = temp_image_to_visualize.pre_processed_image
-            self.image_to_visualize.image_mask = temp_image_to_visualize.image_mask
-            self.image_to_visualize.post_processed_mask = temp_image_to_visualize.post_processed_mask
-            self.image_to_visualize.sure_foreground_mask = temp_image_to_visualize.sure_foreground_mask
-            self.image_to_visualize.sure_background_mask = temp_image_to_visualize.sure_background_mask
-            self.image_to_visualize.probable_foreground_mask = temp_image_to_visualize.probable_foreground_mask
-            self.image_to_visualize.contours_in_image = temp_image_to_visualize.contours_in_image
-            self.image_to_visualize.contour_centroids = temp_image_to_visualize.contour_centroids
+            self.images_to_visualize[IMAGE_FILTERED][IMAGE].colorized_image = temp_image_to_visualize.colorized_image
+            self.images_to_visualize[IMAGE_FILTERED][
+                IMAGE].down_sampled_image = temp_image_to_visualize.down_sampled_image
+            self.images_to_visualize[IMAGE_FILTERED][
+                IMAGE].pre_processed_image = temp_image_to_visualize.pre_processed_image
+            self.images_to_visualize[IMAGE_FILTERED][IMAGE].image_mask = temp_image_to_visualize.image_mask
+            self.images_to_visualize[IMAGE_FILTERED][
+                IMAGE].post_processed_mask = temp_image_to_visualize.post_processed_mask
+            self.images_to_visualize[IMAGE_FILTERED][
+                IMAGE].sure_foreground_mask = temp_image_to_visualize.sure_foreground_mask
+            self.images_to_visualize[IMAGE_FILTERED][
+                IMAGE].sure_background_mask = temp_image_to_visualize.sure_background_mask
+            self.images_to_visualize[IMAGE_FILTERED][
+                IMAGE].probable_foreground_mask = temp_image_to_visualize.probable_foreground_mask
+            self.images_to_visualize[IMAGE_FILTERED][
+                IMAGE].contours_in_image = temp_image_to_visualize.contours_in_image
+            self.images_to_visualize[IMAGE_FILTERED][
+                IMAGE].contour_centroids = temp_image_to_visualize.contour_centroids
 
+    def skin_contact_approximation_callback(self, message: SkinContactLines):
+        """
+        Pulls the skin contact parameters out of the message and saves them for use later.
+        Parameters
+        ----------
+        message :
+            The message containing the skin approximation parameters to visualize.
+        """
+
+        # If a raw image has already been saved
+        if self.images_to_visualize[IMAGE_RAW][IMAGE] is not None:
+
+            # Create a temporary data object to use to visualize the skin approximation result
+            temp_image_to_visualize: ImageData = deepcopy(self.images_to_visualize[IMAGE_RAW][IMAGE])
+
+            # Rename the temp image title
+            temp_image_to_visualize.image_title = "Image Contact Balance"
+
+            # Save the image to use in the visualization
+            self.images_to_visualize[IMAGE_SKIN_APPROXIMATION][IMAGE] = temp_image_to_visualize
+
+            # Save the skin approximation parameters
+            self.images_to_visualize[IMAGE_SKIN_APPROXIMATION][SKIN_CONTACT_PARAMETERS] = {
+                SKIN_APPROXIMATION_MODE: message.skin_approximation_mode,
+                BEST_FIT_LEFT_LINE_A: message.best_fit_left_line_a,
+                BEST_FIT_LEFT_LINE_B: message.best_fit_left_line_b,
+                BEST_FIT_RIGHT_LINE_A: message.best_fit_right_line_a,
+                BEST_FIT_RIGHT_LINE_B: message.best_fit_right_line_b,
+                BEST_FIT_SHARED_LINE_A: message.best_fit_shared_line_a,
+                BEST_FIT_SHARED_LINE_B: message.best_fit_shared_line_b,
+            }
+
+    # endregion
+    ###########################
     def publish_updated_image(self):
-        if self.image_to_visualize is not None:
-            self.image_visualizer.visualize_images(self.image_to_visualize)
+        """
+        Display all available images.
+        """
+
+        # For each type of image in the data set
+        for key in self.images_to_visualize.keys():
+
+            # If the image exists
+            if self.images_to_visualize[key][IMAGE] is not None:
+                # Visualize it
+                if key == IMAGE_SKIN_APPROXIMATION:
+                    self.image_visualizer.visualize_images(
+                        deepcopy(self.images_to_visualize[key][IMAGE]),  # Coping avoids issues with data modification
+                        specific_visualizations=self.images_to_visualize[key][VISUALIZATIONS],
+                        skin_approximation_parameters=self.images_to_visualize[key][SKIN_CONTACT_PARAMETERS])
+                else:
+                    self.image_visualizer.visualize_images(
+                        deepcopy(self.images_to_visualize[key][IMAGE]),  # Coping avoids issues with data modification
+                        specific_visualizations=self.images_to_visualize[key][VISUALIZATIONS])
 
 
 if __name__ == '__main__':

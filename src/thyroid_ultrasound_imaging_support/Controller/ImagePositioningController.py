@@ -26,7 +26,7 @@ class ImagePositioningController:
         self.imaging_depth = imaging_depth  # cm
 
         # Define the acceptable position error of the centroid in the image for each dimension in the probe's space
-        self.acceptable_errors = [0.005,  # meters in x
+        self.acceptable_errors = [0.002,  # meters in x
                                   0.005,  # meters in y
                                   1.01,  # meters in z
                                   10,  # deg in x
@@ -40,6 +40,7 @@ class ImagePositioningController:
     def calculate_position_error(self, image_data: ImageData):
 
         # Declare the error values that cannot be determined from the image
+        y_error = 0
         z_error = 0
         x_angle_error = 0
         y_angle_error = 0
@@ -62,10 +63,12 @@ class ImagePositioningController:
         centroid = image_data.contour_centroids[0]
 
         # In X in the image frame, measure the distance to the middle of the image
-        x_error = (centroid[0] - (image_data.down_sampled_image.shape[1] / 2)) * self.calculate_resolution(image_data.image_size_y)
+        x_error = ((centroid[0] - (image_data.down_sampled_image.shape[1] / 2)) *
+                   self.calculate_resolution(image_data.image_size_y)) * \
+                  (image_data.image_size_x / image_data.down_sampled_image.shape[1])
 
         # In Y in the image frame, measure the distance to the top of the image
-        y_error = centroid[1] * self.calculate_resolution(image_data.image_size_y)
+        # y_error = centroid[1] * self.calculate_resolution(image_data.image_size_y)
 
         """else:
 

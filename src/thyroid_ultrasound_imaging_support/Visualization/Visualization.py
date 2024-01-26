@@ -6,9 +6,7 @@ from math import ceil
 from matplotlib.pyplot import axes, figure, show
 from numpy import array, zeros, ones, uint8, newaxis, where, repeat
 from cv2 import GC_BGD, GC_PR_BGD, imshow, waitKey, line, circle, \
-    namedWindow, startWindowThread, setMouseCallback, destroyWindow, \
-    destroyAllWindows
-from threading import Thread
+    namedWindow, startWindowThread, setMouseCallback, destroyWindow
 
 from thyroid_ultrasound_imaging_support.ImageFilter.FilterConstants import COLOR_RGB
 # Import custom constants
@@ -53,7 +51,7 @@ class Visualization:
 
     def visualize_images(self, image_data: ImageData, specific_visualizations: list = None,
                          image_array: array = None, image_title: str = None, callback_function=None,
-                         callback_inputs: list = None):
+                         callback_inputs: list = None, skin_approximation_parameters: dict = None):
         """
             Visualize the data within an image_data object as a single image or part of an image stream.
 
@@ -146,14 +144,14 @@ class Visualization:
                     if image_data.original_image is not None and image_data.post_processed_mask is not None:
                         image_to_show = create_mask_overlay_array(image_data.down_sampled_image, 3,
                                                                   image_data.post_processed_mask, COLOR_RGB,
-                                                                  COLORIZED)
+                                                                  COLORIZED, overlay_color=(35, 0, 0))
                     image_title = "Foreground of the Image"
 
                 elif visual == SHOW_SURE_FOREGROUND:
                     if image_data.sure_foreground_mask is not None:
                         image_to_show = create_mask_overlay_array(image_data.down_sampled_image, 3,
                                                                   image_data.sure_foreground_mask, COLOR_RGB,
-                                                                  COLORIZED)
+                                                                  COLORIZED, overlay_color=(0, 35, 0))
                     image_title = "Sure Foreground of Image"
 
                 elif visual == SHOW_SURE_BACKGROUND:
@@ -166,14 +164,14 @@ class Visualization:
                 elif visual == SHOW_PROBABLE_FOREGROUND:
                     if image_data.probable_foreground_mask is not None:
                         image_to_show = create_mask_overlay_array(image_data.down_sampled_image, 3,
-                                                                       image_data.probable_foreground_mask, COLOR_RGB,
+                                                                  image_data.probable_foreground_mask, COLOR_RGB,
                                                                   COLORIZED)
                     image_title = "Probable Foreground of Image"
 
                 elif visual == SHOW_INITIALIZED_MASK:
                     if image_data.segmentation_initialization_mask is not None:
                         image_to_show = create_mask_display_array(image_data.segmentation_initialization_mask,
-                                                                       multiplier=INITIALIZED_MASK_MULTIPLIER)
+                                                                  multiplier=INITIALIZED_MASK_MULTIPLIER)
                         image_title = "Mask for Initializing\nSegmentation"
 
                     else:
@@ -229,6 +227,22 @@ class Visualization:
                     image_to_show = image_data.original_image
 
                     image_title = "Mask, Centroids, and Cross\nOverlaid on Original Image."
+
+                elif visual == SHOW_SKIN_APPROXIMATION:
+
+                    # Copy the original image
+                    image_to_show = image_data.original_image
+
+                    image_to_show = line(image_to_show,
+                                         (0, int(skin_approximation_parameters[BEST_FIT_SHARED_LINE_B])),
+                                         (image_to_show.shape[1], int((skin_approximation_parameters[
+                                                                           BEST_FIT_SHARED_LINE_A] *
+                                                                       image_to_show.shape[1]) +
+                                                                      skin_approximation_parameters[
+                                                                          BEST_FIT_SHARED_LINE_B])),
+                                         color=(255, 0, 0), thickness=2)
+
+                    image_title = "Skin Approximation"
 
                 else:
                     raise Exception("Visualization type not recognized.")

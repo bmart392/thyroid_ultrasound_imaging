@@ -1,16 +1,20 @@
 #!/usr/bin/env python3
 
-# TODO - Medium - Properly comment this file.
+"""
+Contains all code for the ImageBasedUserInput node.
+"""
+
+# TODO - Dream - Allow the user to either select just the foreground or the foreground and the background of the image
+# TODO - Dream - Stop having the whole window close after giving each input step when generating threshold parameters.
+# TODO - Dream - Add logging through BasicNode class
 
 # Import ROS packages
-from rospy import init_node, Subscriber, Publisher, is_shutdown
-from std_msgs.msg import Bool
 from cv_bridge import CvBridge
-from cv2 import CV_8UC1
 
 # Import custom ROS specific packages
 from thyroid_ultrasound_messages.msg import image_data_message, image_crop_coordinates, \
     initialization_mask_message, threshold_parameters
+from thyroid_ultrasound_support.BasicNode import *
 
 # Import from standard packages
 from copy import copy
@@ -36,38 +40,12 @@ GENERATE_PARAMETERS: int = 2
 GENERATE_GROUND_TRUTH_MASK: int = 3
 
 
-class ImageBasedUserInput:
+class ImageBasedUserInput(BasicNode):
 
     def __init__(self):
 
-        # Create the node object
-        init_node('ImageBasedUserInput')
-
-        # Define a subscriber to listen for the raw images
-        Subscriber('image_data/raw', image_data_message, self.raw_image_callback)
-
-        # Define a subscriber to listen for the cropped images
-        Subscriber('image_data/cropped', image_data_message, self.cropped_image_callback)
-
-        # Define a subscriber to listen for commands to crop the image
-        Subscriber('command/generate_new_image_cropping', Bool, self.generate_crop_coordinates_callback)
-
-        # Define a subscriber to listen for commands to generate the grabcut mask
-        Subscriber('command/identify_thyroid_from_points', Bool, self.generate_grabcut_initialization_mask_callback)
-
-        # Define a subscriber to listen for commands to generate the threshold filter parameters
-        Subscriber('command/generate_threshold_parameters', Bool, self.generate_threshold_parameters_callback)
-
-        # Create a publisher to publish the resulting coordinates from the user image cropping
-        self.coordinate_publisher = Publisher('/ib_ui/image_crop_coordinates', image_crop_coordinates, queue_size=1)
-
-        # Create a publisher to publish the resulting mask from the user image mask generation
-        self.initialization_mask_publisher = Publisher('/ib_ui/initialization_mask', initialization_mask_message,
-                                                       queue_size=1)
-
-        # Create a publisher to publish the results of the user thresholding
-        self.threshold_publisher = Publisher('/ib_ui/threshold_parameters', threshold_parameters,
-                                             queue_size=1)
+        # Add the call to the super class
+        super().__init__()
 
         # Define a place to store the image that will be cropped
         # noinspection PyTypeChecker
@@ -81,6 +59,35 @@ class ImageBasedUserInput:
         # Define a list to store the actions that need to be taken in the order they need to be taken
         self.actions = []
 
+        # Create the node object
+        init_node('ImageBasedUserInput')
+
+        # Create a publisher to publish the resulting coordinates from the user image cropping
+        self.coordinate_publisher = Publisher(IMAGE_CROP_COORDINATES, image_crop_coordinates, queue_size=1)
+
+        # Create a publisher to publish the resulting mask from the user image mask generation
+        self.initialization_mask_publisher = Publisher(INITIALIZATION_MASK, initialization_mask_message,
+                                                       queue_size=1)
+
+        # Create a publisher to publish the results of the user thresholding
+        self.threshold_publisher = Publisher(THRESHOLD_PARAMETERS, threshold_parameters,
+                                             queue_size=1)
+
+        # Define a subscriber to listen for the raw images
+        Subscriber(IMAGE_RAW, image_data_message, self.raw_image_callback)
+
+        # Define a subscriber to listen for the cropped images
+        Subscriber(IMAGE_CROPPED, image_data_message, self.cropped_image_callback)
+
+        # Define a subscriber to listen for commands to crop the image
+        Subscriber(CROP_IMAGE_FROM_POINTS, Bool, self.generate_crop_coordinates_callback)
+
+        # Define a subscriber to listen for commands to generate the grabcut mask
+        Subscriber(IDENTIFY_THYROID_FROM_POINTS, Bool, self.generate_grabcut_initialization_mask_callback)
+
+        # Define a subscriber to listen for commands to generate the threshold filter parameters
+        Subscriber(GENERATE_THRESHOLD_PARAMETERS, Bool, self.generate_threshold_parameters_callback)
+
     def main_loop(self):
 
         # If an action needs to occur
@@ -89,6 +96,7 @@ class ImageBasedUserInput:
             # Pop the next action out of the list
             next_action = self.actions.pop(0)
 
+            # If the next action is to crop the image,
             if next_action == GENERATE_CROP:
 
                 # Check that there is an image to crop before continuing
@@ -112,9 +120,10 @@ class ImageBasedUserInput:
                     # Publish the response
                     self.coordinate_publisher.publish(result_msg)
 
+                    # Return the resulting message
                     return result_msg
 
-            # TODO - LOW - Change this to allow selection of the background and the foregound
+            # If the next action is to generate a segmentation initialization,
             elif next_action == GENERATE_INITIALIZATION:
 
                 # Check that there is an image to generate the initial mask from before continuing
@@ -123,12 +132,7 @@ class ImageBasedUserInput:
                     # parameter do not break the function
                     local_image_to_generate_mask_from = copy(self.image_for_mask_and_threshold)
 
-                    # Define default values for lists of points for the background and foreground of the image
-                    # list_of_background_points = [(14, 194), (47, 14), (285, 7), (322, 154), (292, 148), (265, 135),
-                    #                              (234, 128), (186, 131), (139, 135), (106, 144), (80, 161), (58, 179),
-                    #                              (38, 198), (30, 218), (31, 245), (55, 262), (65, 275), (35, 271), (8, 270)]
-                    # list_of_foreground_points = [(63, 213), (81, 195), (114, 174), (134, 166), (131, 186), (125, 203),
-                    #                              (115, 222), (113, 235), (109, 250), (96, 246), (72, 231), (65, 228)]
+                    # Define variables to store the selected points
                     list_of_background_points = None
                     list_of_foreground_points = None
 
@@ -142,7 +146,7 @@ class ImageBasedUserInput:
                     # Capture the foreground of the image from the user
                     list_of_points_for_foreground_polygon = user_input_polygon_points(
                         local_image_to_generate_mask_from,
-                        "foreground",
+                        "area of interest",
                         display_result=True,
                         list_of_points=list_of_foreground_points)
 
@@ -161,9 +165,6 @@ class ImageBasedUserInput:
                     # Create a CV bridge to convert the initialization mask to a message
                     bridge = CvBridge()
 
-                    # Create a new image message object to send the initialization mask
-                    # image_message_for_initialization_mask = Image()
-
                     # Convert the initialization mask and save it to the message
                     image_message_for_initialization_mask = bridge.cv2_to_imgmsg(initialization_mask)
 
@@ -177,11 +178,11 @@ class ImageBasedUserInput:
                     # Publish the result message
                     self.initialization_mask_publisher.publish(result_message)
 
+                    # Return the resulting message
                     return result_message
 
+            # If the next action is to generate the parameters for a thresholding filter,
             elif next_action == GENERATE_PARAMETERS:
-
-                # TODO - Low - Stop having the whole window close after giving each input step.
 
                 # Check that there is an image to generate the threshold parameters from before continuing
                 if self.image_for_mask_and_threshold is not None:
@@ -203,6 +204,10 @@ class ImageBasedUserInput:
                     # Publish the result of the threshold generation
                     self.threshold_publisher.publish(result_message)
 
+                    # Return the resulting message
+                    return result_message
+
+            # If the next action is to generate a ground truth mask,
             elif next_action == GENERATE_GROUND_TRUTH_MASK:
 
                 # Check that there is an image to generate the ground truth mask from before continuing
@@ -217,38 +222,36 @@ class ImageBasedUserInput:
                     # Capture the foreground of the image from the user
                     list_of_points_for_foreground_polygon = user_input_polygon_points(
                         local_image_to_generate_mask_from,
-                        "foreground",
+                        "foreground ground truth",
                         display_result=True,
                         list_of_points=list_of_foreground_points)
 
-                    # Convert the points of the background and foreground polygons to triangles
+                    # Convert the points of the foreground polygons to triangles
                     list_of_foreground_triangles = create_convex_triangles_from_points(
                         list_of_points_for_foreground_polygon)
 
-                    # Generate the previous image mask using the triangles selected by the user
-                    initialization_mask = create_mask_array_from_triangles(
+                    # Generate the ground-truth mask using the triangles selected by the user
+                    ground_truth_mask = create_mask_array_from_triangles(
                         list_of_foreground_triangles,
                         local_image_to_generate_mask_from.colorized_image.shape[:2])
 
-                    # Create a CV bridge to convert the initialization mask to a message
+                    # Create a CV bridge to convert the ground-truth mask to a message
                     bridge = CvBridge()
 
-                    # Create a new image message object to send the initialization mask
-                    # image_message_for_initialization_mask = Image()
-
-                    # Convert the initialization mask and save it to the message
-                    image_message_for_initialization_mask = bridge.cv2_to_imgmsg(initialization_mask)
+                    # Convert the ground-truth mask and save it to the message
+                    image_message_for_ground_truth_mask = bridge.cv2_to_imgmsg(ground_truth_mask)
 
                     # Create a previous_image_mask_message to save the result the user of the user input in
                     result_message = initialization_mask_message()
 
                     # Fill in each field of the result message
                     result_message.image_data = local_image_to_generate_mask_from.convert_to_message()
-                    result_message.previous_image_mask = image_message_for_initialization_mask
+                    result_message.previous_image_mask = image_message_for_ground_truth_mask
 
                     # Publish the result message
                     self.initialization_mask_publisher.publish(result_message)
 
+                    # Return the resulting message
                     return result_message
 
             else:

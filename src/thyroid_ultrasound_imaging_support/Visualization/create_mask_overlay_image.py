@@ -4,7 +4,7 @@ Contains the code for the create_mask_overlay_array function.
 
 # Import standard python files
 from numpy import newaxis, array, uint8, where
-from cv2 import GC_FGD, GC_PR_BGD, GC_BGD
+from cv2 import GC_FGD, GC_PR_BGD, GC_BGD, GC_PR_FGD
 
 # Import custom python files
 from thyroid_ultrasound_imaging_support.ImageFilter.FilterConstants import COLOR_GRAY, COLOR_RGB, COLOR_BGR
@@ -20,7 +20,7 @@ PREV_IMG_MASK: int = 2
 def create_mask_overlay_array(base_image: array, base_image_num_channels: int,
                               overlay_mask: array, output_image_color: int,
                               overlay_method: int, fade_rate: float = 0.5, overlay_color=(25, 25, 25),
-                              color_fg=(0, 35, 0), color_pr_bgd=(35, 0, 0), color_bgd=(0, 0, 0)):
+                              color_fg=(0, 35, 0), color_pr_fgd=(35, 0, 0), color_bgd=(0, 0, 0)):
     """
     Returns an array that overlays a binary mask or previous-image mask over an image array.
 
@@ -43,8 +43,8 @@ def create_mask_overlay_array(base_image: array, base_image_num_channels: int,
         The color to apply to the masked area formatted in RGB order.
     color_fg
         the color to apply to the foreground of the previous-image mask.
-    color_pr_bgd
-        the color to apply to the probable background area of the previous-image mask.
+    color_pr_fgd
+        the color to apply to the probable foreground area of the previous-image mask.
     color_bgd
         the color to apply to the background area of the previous-image mask.
     """
@@ -89,10 +89,10 @@ def create_mask_overlay_array(base_image: array, base_image_num_channels: int,
     # If the mask is a previous-image mask
     elif overlay_method == PREV_IMG_MASK:
         fg_mask = uint8(where(overlay_mask == GC_FGD, 1, 0))
-        pr_bgd_mask = uint8(where(overlay_mask == GC_PR_BGD, 1, 0))
+        pr_fgd_mask = uint8(where(overlay_mask == GC_PR_FGD, 1, 0))
         bgd_mask = uint8(where(overlay_mask == GC_BGD, 1, 0))
 
-        return base_image + uint8(fg_mask * color_fg + pr_bgd_mask * color_pr_bgd + bgd_mask * color_bgd)
+        return base_image + uint8(fg_mask * color_fg + pr_fgd_mask * color_pr_fgd + bgd_mask * color_bgd)
 
     else:
         raise Exception("Image overlay method is not recognized.")

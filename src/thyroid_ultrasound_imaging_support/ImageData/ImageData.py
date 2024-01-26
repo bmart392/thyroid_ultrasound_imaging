@@ -55,6 +55,7 @@ IMAGE_CAPTURE_TIME: str = "image_capture_time"
 
 # TODO - HIGH - Add fields for the width and height of the down-sampled image
 # TODO - HIGH - Add a field for the down-sampling rate
+# TODO - HIGH - Attach the crop coordinates to the image data
 class ImageData:
     """
     A class for holding image data and its filtered components.

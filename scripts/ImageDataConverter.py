@@ -4,6 +4,8 @@
 File containing code to receive raw ultrasound images and rebroadcast them as ImageData objects.
 """
 
+# TODO - Dream - Add logging through BasicNode class
+
 # Import standard ROS specific packages
 from sensor_msgs.msg import Image
 
@@ -12,7 +14,7 @@ from thyroid_ultrasound_messages.msg import image_data_message
 
 # Import from custom packages
 from thyroid_ultrasound_imaging_support.ImageData.ImageData import ImageData
-from thyroid_ultrasound_imaging_support.ImageFilter.FilterConstants import COLOR_BGR, COLOR_GRAY, COLOR_RGB
+from thyroid_ultrasound_imaging_support.ImageFilter.FilterConstants import COLOR_GRAY
 from thyroid_ultrasound_imaging_support.ImageData.convert_image_message_to_array import convert_image_message_to_array
 from thyroid_ultrasound_support.BasicNode import *
 
@@ -20,6 +22,9 @@ from thyroid_ultrasound_support.BasicNode import *
 class ImageDataConverter(BasicNode):
 
     def __init__(self):
+        """
+        Creates a ROS node to convert image messages into ImageData messages.
+        """
 
         # Call init of super class
         super().__init__()
@@ -31,7 +36,7 @@ class ImageDataConverter(BasicNode):
         self.raw_image_publisher = Publisher(IMAGE_RAW, image_data_message, queue_size=100)
 
         # Create a subscriber to listen to commands to start and stop publishing images
-        Subscriber('/Clarius/US', Image, self.raw_image_callback)
+        Subscriber(IMAGE_SOURCE, Image, self.raw_image_callback)
 
     def raw_image_callback(self, data: Image) -> image_data_message:
         """

@@ -52,14 +52,19 @@ CSV_RESULTS_DESTINATION = '/home/ben/thyroid_ultrasound/src/thyroid_ultrasound_i
 IMAGE_RESULTS_DESTINATION = '/home/ben/thyroid_ultrasound/src/thyroid_ultrasound_imaging/scripts' \
                             '/Test/Experimentation/Experiment_2024-01-12/Results/Images'
 
+# Standard Test Factors
+#   Accuracy: 0.5
+#   DS Rate: 0.5
+#   Iteration Count: 2
+#   Background Expansion: 1.5
 # Define image filter parameters that will be tested
 blurring = [False, True]
 opening = [False, True]
-accuracies_of_initial_mask = [0.3, 0.4, 0.5]
-down_sampling_rates = [0.75, 0.5, 1/3, 0.25]  # [1, 1 / 2, 1 / 3, 1 / 4, 1 / 5]
-iteration_counts = [1, 2, 3]  # [1, 5, 10, 15]
-probable_background_expansion_factors = [1.25]  # [0.50, 0.75, 1.00, 1.25, 1.50]
-capture_image_results = True
+accuracies_of_initial_mask = [0.5]
+down_sampling_rates = [0.5]  # [1, 1 / 2, 1 / 3, 1 / 4, 1 / 5]
+iteration_counts = [2]  # [1, 5, 10, 15]
+probable_background_expansion_factors = [1.0,1.1,1.2,1.3,1.4,1.5,1.6,1.7,1.8,1.9,2,2.1,2.2,2.3,2.4,2.5,2.6,2.7,2.8,2.9,3]  # [0.50, 0.75, 1.00, 1.25, 1.50]
+capture_image_results = False
 
 # Load the images that will be segmented and their corresponding crop coordinates and ground truth segmentations
 images_for_test, image_names_for_test = load_folder_of_image_files(IMAGE_SOURCE, return_image_numbers=True)

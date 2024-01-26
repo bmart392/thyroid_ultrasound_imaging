@@ -6,7 +6,7 @@
     <node name="ImageDataConverter" pkg="thyroid_ultrasound_imaging" type="ImageDataConverter.py" />
 
     <!-- start the image filter -->
-    <!-- <node name="ImageFilterNode" pkg="thyroid_ultrasound_imaging" type="ImageFilterNode.py" /> -->
+    <node name="ImageFilterNode" pkg="thyroid_ultrasound_imaging" type="ImageFilterNode.py" />
 
     <!-- start the image visualization node -->
     <node name="VisualizationNode" pkg="thyroid_ultrasound_imaging" type="VisualizationNode.py" />

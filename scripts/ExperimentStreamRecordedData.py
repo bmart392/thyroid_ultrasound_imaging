@@ -3,22 +3,25 @@
 """
 File containing code to stream recorded data as ROS Topic.
 """
-import cv2
+
+# TODO - Dream - Convert this into standard node format
+# TODO - Dream - Add logging through BasicNode class
 
 # Import ROS specific packages
-from rospy import init_node, Publisher, Rate, is_shutdown, Subscriber, Time
+from rospy import init_node, Publisher, is_shutdown, Subscriber, Time
 from std_msgs.msg import Bool
 from cv_bridge import CvBridge
 from sensor_msgs.msg import Image
 
 # Import standard packages
-from cv2 import imread, cvtColor, COLOR_BGR2GRAY, imshow
+from cv2 import cvtColor, COLOR_BGR2GRAY
 from sys import stdout
 from time import time
 
 # Import custom python packages
 from thyroid_ultrasound_imaging_support.ImageManipulation.load_folder_of_image_files import \
     load_folder_of_image_files
+from thyroid_ultrasound_support.TopicNames import *
 
 # Define global variable to control image streaming
 stream_images = False
@@ -30,36 +33,7 @@ ii = 0
 def main(file_path: str, image_number_offset: int = None, publishing_rate: float = 1):
 
     # Pull out the images from the given folder location
-    created_objects = load_folder_of_image_files(file_path)
-
-    # # Check if the file path to the images is valid.
-    # if not isdir(file_path):
-    #     raise "File path is not valid."
-    #
-    # # Set the offset number to 0 if none is provided
-    # if image_number_offset is None:
-    #     image_number_offset = 0
-    #
-    # # Get a list of the files in the directory
-    # file_names = listdir(file_path)
-    #
-    # # Create an empty list in which to store the image data objects
-    # created_objects: list = list([None]) * (len(file_names))
-    #
-    # # Iterate through the list of file names found to ensure that
-    # # the image data objects are added to the list in sequential order.
-    # for file_name in file_names:
-    #
-    #     # Append the file path to the file name.
-    #     file_name_with_path = file_path + '/' + file_name
-    #
-    #     # Check that the file name is valid.
-    #     if not isfile(file_name_with_path):
-    #         raise "File name is not valid."
-    #
-    #     # Add the next image to the list of images in the correct position.
-    #     image_position = int(int(file_name[file_name.find("_") + 1: file_name.find(".")]) - image_number_offset)
-    #     created_objects[image_position] = imread(file_name_with_path)
+    created_objects = load_folder_of_image_files(file_path, starting_index=image_number_offset)
 
     # Ensure stream_images references the global variable
     global stream_images
@@ -68,13 +42,13 @@ def main(file_path: str, image_number_offset: int = None, publishing_rate: float
     init_node('ClariusPublisherSpoof', anonymous=True)
 
     # Create a publisher for the images
-    us_pub = Publisher('Clarius/US', Image, queue_size=100)
+    us_pub = Publisher(IMAGE_SOURCE, Image, queue_size=100)
 
     # Create a subscriber to listen to commands to start and stop publishing images
-    Subscriber('/command/image_streaming_control', Bool, streaming_commands_callback)
+    Subscriber(IMAGE_STREAMING_CONTROL, Bool, streaming_commands_callback)
 
     # Create a subscriber to listen to commands to restart publishing images
-    Subscriber('/command/restart_image_streaming', Bool, restart_streaming_command_callback)
+    Subscriber(IMAGE_STREAMING_RESTART, Bool, restart_streaming_command_callback)
 
     # Define the time to wait between publishing the images
     delay_time = 1 / publishing_rate  # seconds

@@ -4,7 +4,7 @@ Define object class for GrabCut based image filters.
 
 # Import standard python packages
 from numpy import uint8, where
-from cv2 import GC_FGD, GC_PR_BGD, GC_BGD
+from cv2 import GC_FGD, GC_PR_BGD, GC_BGD, GC_PR_FGD
 
 # Import the super-class for all image filters
 from thyroid_ultrasound_imaging_support.ImageFilter.ImageFilter import *
@@ -17,8 +17,10 @@ class ImageFilterGrabCut(ImageFilter):
 
     def __init__(self, previous_mask_array: np.array = None, image_crop_coordinates: iter = None,
                  image_crop_included: bool = False, include_pre_blurring: bool = False,
-                 increase_contrast=False, down_sampling_rate: float = 0.5,
-                 segmentation_iteration_count: int = 1,
+                 increase_contrast=False, down_sampling_rate: float = 0.4,  # 0.5
+                 segmentation_iteration_count: int = 1,  # 1
+                 sure_foreground_creation_iterations: int = 2,
+                 sure_background_creation_iterations: int = 8,
                  debug_mode: bool = False, analysis_mode: bool = False):
 
         """
@@ -63,6 +65,8 @@ class ImageFilterGrabCut(ImageFilter):
         self.down_sampling_rate = down_sampling_rate
         self.up_sampling_rate = 1 / down_sampling_rate
         self.segmentation_iteration_count = segmentation_iteration_count
+        self.sure_foreground_creation_iterations = sure_foreground_creation_iterations
+        self.sure_background_creation_iterations = sure_background_creation_iterations
 
         # Define characteristics of all GrabCut filters
         self.filter_color = COLOR_BGR
@@ -169,8 +173,7 @@ class ImageFilterGrabCut(ImageFilter):
                                                interpolation=cv2.INTER_CUBIC)"""
         image_data.post_processed_mask = image_data.image_mask
 
-    @staticmethod
-    def create_sure_foreground_mask(image_data: ImageData):
+    def create_sure_foreground_mask(self, image_data: ImageData):
         """
         Create a mask representing the area of the image that is surely the foreground by
         shrinking the segmentation result.
@@ -182,12 +185,11 @@ class ImageFilterGrabCut(ImageFilter):
         """
         image_data.sure_foreground_mask = cv2.morphologyEx(
             image_data.post_processed_mask, cv2.MORPH_ERODE,
-            np.ones((3, 3), np.uint8), iterations=1,  # 4 # 10, 2,
+            np.ones((3, 3), np.uint8), iterations=self.sure_foreground_creation_iterations,  # 4 # 10, # 2
             anchor=(1, 1)
         )
 
-    @staticmethod
-    def create_sure_background_mask(image_data: ImageData):
+    def create_sure_background_mask(self, image_data: ImageData):
         """
         Create a mask representing the area of the image that is surely the background by
         expanding the segmentation result and inverting the mask.
@@ -199,7 +201,7 @@ class ImageFilterGrabCut(ImageFilter):
         """
         image_data.sure_background_mask = 1 - cv2.morphologyEx(
             image_data.post_processed_mask, cv2.MORPH_DILATE,
-            np.ones((3, 3), np.uint8), iterations=6,  # 6
+            np.ones((3, 3), np.uint8), iterations=self.sure_background_creation_iterations,  # 6 # 10
             anchor=(1, 1)
         )
 
@@ -232,7 +234,7 @@ class ImageFilterGrabCut(ImageFilter):
         # Create the image mask to use for the next iteration
         self.previous_image_mask_array = uint8(image_data.sure_foreground_mask * cv2.GC_FGD +
                                                image_data.sure_background_mask * cv2.GC_BGD +
-                                               image_data.probable_foreground_mask * cv2.GC_PR_BGD)
+                                               image_data.probable_foreground_mask * cv2.GC_PR_FGD)
 
         """# Crop the image mask if necessary
         if self.image_crop_included:
@@ -245,9 +247,6 @@ class ImageFilterGrabCut(ImageFilter):
         # Shrink the image mask if necessary
         self.update_previous_image_mask(image_mask_for_next_image)"""
 
-    # TODO - HIGH - This resize is messing up the image mask and leaving artifacts.
-    #  Use numpy where instead and resize separately and then odd back together and use where again to make sure 3s
-    #  dont show up see create_mask_overlay_function for help on this
     def update_previous_image_mask(self, new_previous_image_mask: np.array):
         """
         Updates the previous image mask array of the filter by down-sampling the given mask.
@@ -261,35 +260,31 @@ class ImageFilterGrabCut(ImageFilter):
 
             # Separate each area of the mask
             fg_mask = uint8(where(new_previous_image_mask == GC_FGD, GC_FGD, 0))
-            pr_bgd_mask = uint8(where(new_previous_image_mask == GC_PR_BGD, GC_PR_BGD, 0))
+            pr_fgd_mask = uint8(where(new_previous_image_mask == GC_PR_FGD, GC_PR_FGD, 0))
 
             # Resize each area as its own mask
             fg_mask = cv2.resize(fg_mask, RESIZE_SHAPE,
                                  fx=self.down_sampling_rate,
                                  fy=self.down_sampling_rate,
                                  interpolation=DOWN_SAMPLING_MODE)
-            pr_bgd_mask = cv2.resize(pr_bgd_mask, RESIZE_SHAPE,
+            pr_fgd_mask = cv2.resize(pr_fgd_mask, RESIZE_SHAPE,
                                      fx=self.down_sampling_rate,
                                      fy=self.down_sampling_rate,
                                      interpolation=DOWN_SAMPLING_MODE)
 
             # Remove any artifacts leftover from the resizing process
-            pr_bgd_mask = uint8(where(pr_bgd_mask != GC_BGD, GC_PR_BGD, 0))
+            pr_fgd_mask = uint8(where(pr_fgd_mask != GC_BGD, GC_PR_FGD, 0))
 
             # Combine them back together
-            combined_mask = fg_mask + pr_bgd_mask
+            combined_mask = fg_mask + pr_fgd_mask
 
             # Separate each area of the mask
             fg_mask = uint8(where(combined_mask == GC_FGD, GC_FGD, 0))
-            pr_bgd_mask = uint8(where(combined_mask == GC_PR_BGD, GC_PR_BGD, 0))
-            error_adjustment_mask = uint8(where(combined_mask == GC_FGD + GC_PR_BGD, GC_PR_BGD, 0))
+            pr_fgd_mask = uint8(where(combined_mask == GC_PR_FGD, GC_PR_FGD, 0))
+            error_adjustment_mask = uint8(where(combined_mask == GC_FGD + GC_PR_FGD, GC_PR_FGD, 0))
 
             # Combine the masks back together to get the final previous-image mask
-            self.previous_image_mask_array = fg_mask + pr_bgd_mask + error_adjustment_mask
+            self.previous_image_mask_array = fg_mask + pr_fgd_mask + error_adjustment_mask
 
-            # self.previous_image_mask_array = cv2.resize(new_previous_image_mask, RESIZE_SHAPE,
-            #                                             fx=self.down_sampling_rate,
-            #                                             fy=self.down_sampling_rate,
-            #                                             interpolation=DOWN_SAMPLING_MODE)
         else:
             self.previous_image_mask_array = new_previous_image_mask

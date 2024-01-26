@@ -55,6 +55,7 @@ This node should read the location of the centroid off of the filtered image mes
             """
 
 
+# TODO - Medium - Change topic names to use constants from topics files
 class ImagePositioningControllerNode:
 
     def __init__(self):

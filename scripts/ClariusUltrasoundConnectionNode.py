@@ -3,6 +3,9 @@
 """
 File containing ImageFiterNode class definition and ROS running code.
 """
+
+# TODO - Dream - Add proper logging stuff using the BasicNode class
+
 # Import standard python packages
 from numpy import zeros, uint8, array
 import ctypes
@@ -28,7 +31,7 @@ IMAGE_HEIGHT: int = 480
 PORT: int = 5828
 
 # Define node behavior
-IP: str = "192.168.0.103"
+IP: str = "192.168.0.101"
 VISUALIZATION_INCLUDED: bool = False
 
 # Define file saving behavior
@@ -98,7 +101,7 @@ class ClariusUltrasoundConnectionNode(BasicNode):
         init_node('ClariusPublisher', anonymous=True)
 
         # Define the image publisher
-        self.image_publisher = Publisher('Clarius/US', Image, queue_size=100)
+        self.image_publisher = Publisher(IMAGE_SOURCE, Image, queue_size=100)
 
         Subscriber(SAVE_IMAGES, Bool, self.save_images_callback)
 

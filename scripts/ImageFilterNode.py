@@ -4,12 +4,12 @@
 File containing ImageFiterNode class definition and ROS running code.
 """
 
-# TODO - Medium - Create fusion filter of Grabcut & Threshold types. Combine using Beysian probability.
-# TODO - Medium - Fix image data object titling issues
-# Import standard ROS packages
-from geometry_msgs.msg import TwistStamped
-from sensor_msgs.msg import Image
-from std_msgs.msg import Bool, String
+# TODO - Dream - Create fusion filter of Grabcut & Threshold types. Combine using Beysian probability.
+# TODO - Dream - Add logging through BasicNode class
+# TODO - Dream - Add a comparison between the image used to generate the initialization mask and the current image to
+#  ensure mask is still good
+# TODO - Medium - Fix why selecting a new image mask a second time doesn't work
+# TODO - HIGH - Add a try catch to prevent the node from crashing if the segmentation dies
 
 # Import standard packages
 from numpy import frombuffer, reshape, uint8
@@ -25,10 +25,6 @@ from thyroid_ultrasound_imaging_support.ImageData.ImageData import ImageData
 
 from thyroid_ultrasound_imaging_support.ImageFilter.ImageFilterThreshold import ImageFilterThreshold
 from thyroid_ultrasound_imaging_support.ImageFilter.ImageFilterGrabCut import ImageFilterGrabCut
-from thyroid_ultrasound_imaging_support.ImageFilter.FilterConstants import COLOR_GRAY
-
-from thyroid_ultrasound_imaging_support.Visualization.VisualizationConstants import *
-from thyroid_ultrasound_imaging_support.Visualization.Visualization import Visualization
 
 from thyroid_ultrasound_imaging_support.Controller.ImagePositioningController import ImagePositioningController
 from thyroid_ultrasound_imaging_support.Visualization.display_process_timer import display_process_timer
@@ -45,7 +41,7 @@ class ImageFilterNode(BasicNode):
     A class for defining a ROS node to filter ultrasound images.
     """
 
-    def __init__(self, filter_type: int, visualizations_included: list,
+    def __init__(self, filter_type: int,
                  debug_mode: bool = False, analysis_mode: bool = False):
         """
         Create a ROS node to filter raw ultrasound images and publish data about them.
@@ -54,9 +50,6 @@ class ImageFilterNode(BasicNode):
         ----------
         filter_type
             selector to determine which kind of filter is associated with this node.
-
-        visualizations_included
-            a list of integers representing the visualizations to show for each image filtered.
 
         debug_mode
             display graphics and additional print statements helpful in the debugging process.
@@ -90,16 +83,19 @@ class ImageFilterNode(BasicNode):
         self.received_images = []
         self.max_images_to_store = 20
 
+        # Set the basic name to attach to each image
+        image_title = "Image Filter Node - "
+
         # Create the image filter used in this node and define a title for it.
         if filter_type == THRESHOLD_FILTER:
             self.image_filter = ImageFilterThreshold(debug_mode=self.debug_mode, analysis_mode=self.analysis_mode)
 
             # Define the title to use in the visualization
-            visualization_title = "Threshold Filter"
+            image_title = image_title + "Threshold Filter"
 
         elif filter_type == GRABCUT_FILTER:
             self.image_filter = ImageFilterGrabCut(None, debug_mode=self.debug_mode, analysis_mode=self.analysis_mode,
-                                                   #down_sampling_rate=1/4  # originally 0.5
+                                                   # down_sampling_rate=1/4  # originally 0.5
                                                    # image_crop_included=True,
                                                    # image_crop_coordinates=[[171, 199], [530, 477]],
                                                    # image_crop_coordinates=[[585, 455], [639, 479]],
@@ -107,13 +103,12 @@ class ImageFilterNode(BasicNode):
                                                    )
 
             # Define the title to use in the visualization
-            visualization_title = "Grabcut Filter"
+            image_title = image_title + "Grabcut Filter"
         else:
             raise Exception("Image filter type not recognized.")
 
-        # TODO Get rid of this since this node does not visualize things anymore
-        # store the visualization object to use in this node
-        self.visualization = Visualization(IMG_CONTINUOUS, visualizations_included, visualization_title)
+        # Store the title to append to each image data
+        self.image_title = image_title
 
         # store an image positioning controller object to calculate the image centroid error
         self.image_positioning_controller = ImagePositioningController(debug_mode=self.debug_mode,
@@ -127,7 +122,19 @@ class ImageFilterNode(BasicNode):
         # region
 
         # initialize ros node
-        init_node('image_filtering')
+        init_node('Image Filter Node')
+
+        # Create a publisher to publish if the region of interest is visible in the image
+        self.is_roi_in_image_status_publisher = Publisher(IMAGE_ROI_SHOWN, Bool, queue_size=1)
+
+        # Create a publisher to publish the cropped ultrasound image
+        self.cropped_image_publisher = Publisher(IMAGE_CROPPED, image_data_message, queue_size=1)
+
+        # Create a publisher to publish the fully filtered ultrasound image
+        self.filtered_image_publisher = Publisher(IMAGE_FILTERED, image_data_message, queue_size=1)
+
+        # Create a publisher to publish when the patient is in view in the image
+        self.patient_contact_publisher = Publisher(IMAGE_PATIENT_CONTACT, Bool, queue_size=1)
 
         # Create a subscriber to receive the ultrasound images
         Subscriber(IMAGE_RAW, image_data_message, self.raw_image_callback)
@@ -146,41 +153,6 @@ class ImageFilterNode(BasicNode):
 
         # Create a subscriber to receive if the patient is in the image
         Subscriber(IMAGE_PATIENT_CONTACT, Bool, self.patient_contact_callback)
-
-        # # Create a publisher to publish the error of the centroid
-        # self.image_based_control_input_publisher = Publisher(RC_IMAGE_ERROR, TwistStamped,
-        #                                                      queue_size=1)
-
-        # Create a publisher to publish if the thyroid is visible in the image
-        self.is_thyroid_in_image_status_publisher = Publisher('/status/thyroid_shown', Bool, queue_size=1)
-
-        # Create a publisher to publish if the thyroid is centered in the image
-        self.is_thyroid_centered_status_publisher = Publisher('/status/thyroid_centered', Bool, queue_size=1)
-
-        # Create a publisher to publish debugging status messages
-        self.debug_status_messages_publisher = Publisher('/debug/status_messages', String, queue_size=1)
-
-        # Create a publisher to publish the cropped ultrasound image
-        self.cropped_image_publisher = Publisher('image_data/cropped', image_data_message, queue_size=1)
-
-        # Create a publisher to publish the fully filtered ultrasound image
-        self.filtered_image_publisher = Publisher('image_data/filtered', image_data_message, queue_size=1)
-
-        # Create a publisher to publish when the patient is in view in the image
-        self.patient_contact_publisher = Publisher(IMAGE_PATIENT_CONTACT, Bool, queue_size=1)
-
-        # TODO - Low - Clean-up all of these unused publishers.
-        # Create a publisher to publish the masked image
-        # mask_publisher = rospy.Publisher('/image_data/mask', UInt32MultiArray, queue_size=1)
-
-        # Create a publisher to publish the mask overlaid image
-        # mask_overlay_publisher = rospy.Publisher('image_data/mask_overlay', UInt32MultiArray, queue_size=1)
-
-        # Create a publisher to publish the thyroid contours
-        # contour_publisher = rospy.Publisher('/image_data/contours', UInt32MultiArray, queue_size=1)
-
-        # Create a publisher to publish the centroids of the thyroid
-        # centroid_publisher = rospy.Publisher('/image_data/centroids', UInt32MultiArray, queue_size=1)
 
         # endregion
         #######################
@@ -227,15 +199,12 @@ class ImageFilterNode(BasicNode):
         Only works for GrabCut image filters.
         """
 
-        # TODO - Low - Add comparison between image used to generate mask and current image to ensure mask is still good
-
         if type(self.image_filter) is ImageFilterGrabCut:
-
             # update the flag to allow image filtering to occur
             self.image_filter.ready_to_filter = True
 
             # update status message
-            self.publish_status("New initialization mask received")
+            self.log_single_message("New initialization mask received", LONG)
 
             # Convert the initialization mask from message form to array form
             initialization_mask = frombuffer(data.previous_image_mask.data, dtype=uint8)
@@ -246,7 +215,7 @@ class ImageFilterNode(BasicNode):
             self.image_filter.update_previous_image_mask(initialization_mask)
 
             # update status message
-            self.publish_status("New initialization mask saved to the filter")
+            self.log_single_message("New initialization mask saved to the filter", LONG)
 
     def update_threshold_parameters_callback(self, data: threshold_parameters):
         """
@@ -254,15 +223,14 @@ class ImageFilterNode(BasicNode):
         Only works for Threshold image filters.
         """
         if type(self.image_filter) is ImageFilterThreshold:
-
             # update status message
-            self.publish_status("New threshold parameters received")
+            self.log_single_message("New threshold parameters received", LONG)
 
             # Update the parameters of the filter
             self.image_filter.thresholding_parameters = (data.lower_bound, data.upper_bound)
 
             # Update the status message
-            self.publish_status("New threshold parameters saved to the filter")
+            self.log_single_message("New threshold parameters saved to the filter", LONG)
 
     def patient_contact_callback(self, data: Bool):
         self.image_filter.is_in_contact_with_patient = data.data
@@ -302,12 +270,12 @@ class ImageFilterNode(BasicNode):
         # note the time required to visualize the image
         start_of_process_time = self.display_process_timer(start_of_process_time, "Time to publish the filtered image")
 
-        # Determine if the thyroid is present in the image
-        thyroid_in_image = (len(self.image_data.contours_in_image) > 0 and
-                            len(self.image_data.contours_in_image) == len(self.image_data.contour_centroids))
+        # Determine if the region of interest is present in the image
+        roi_in_image = (len(self.image_data.contours_in_image) > 0 and
+                        len(self.image_data.contours_in_image) == len(self.image_data.contour_centroids))
 
-        # Publish if the thyroid is in the image
-        self.is_thyroid_in_image_status_publisher.publish(Bool(thyroid_in_image))
+        # Publish if the region of interest is in the image
+        self.is_roi_in_image_status_publisher.publish(Bool(roi_in_image))
 
         # note the time required to determine and publish the status of the thyroid in the image
         start_of_process_time = self.display_process_timer(start_of_process_time, "Thyroid status check time")
@@ -329,12 +297,6 @@ class ImageFilterNode(BasicNode):
         """
         return display_process_timer(start_of_process_time, message, self.analysis_mode)
 
-    def publish_status(self, message_to_publish: str):
-        """
-        Publish debugging messages to the status bar on the experiment control application.
-        """
-        self.debug_status_messages_publisher.publish(String(message_to_publish))
-
     # endregion
     ################
 
@@ -355,12 +317,11 @@ class ImageFilterNode(BasicNode):
             self.image_filter.colorize_image(self.newest_image_data)
 
             # Publish this data so that it can be monitored before any filtering is completed
-            self.newest_image_data.image_title = "Image Filter Node"
+            self.newest_image_data.image_title = self.image_title
             self.cropped_image_publisher.publish(self.newest_image_data.convert_to_message())
 
             if self.filter_images and self.image_filter.ready_to_filter and \
                     self.image_filter.is_in_contact_with_patient:
-
                 # Create new image data based on received image
                 self.image_data = copy(self.newest_image_data)
 
@@ -380,15 +341,13 @@ class ImageFilterNode(BasicNode):
 
 if __name__ == '__main__':
     # create node object
-    filter_node = ImageFilterNode(filter_type=GRABCUT_FILTER, visualizations_included=[SHOW_ORIGINAL, SHOW_FOREGROUND,
-                                                                                       SHOW_CENTROIDS_ONLY],
+    filter_node = ImageFilterNode(filter_type=GRABCUT_FILTER,
                                   debug_mode=False, analysis_mode=True)
 
     print("Node initialized.")
     print("Press ctrl+c to terminate.")
 
     while not is_shutdown():
-
         # Run the main loop until the program terminates
         filter_node.main_loop()
 
