@@ -11,9 +11,6 @@ File containing ImagePositioningControllerNode class definition and ROS running 
 # Import standard ROS packages
 from geometry_msgs.msg import TwistStamped
 
-# Import standard packages
-from copy import copy
-
 # Import custom ROS packages
 from thyroid_ultrasound_messages.msg import image_data_message
 
@@ -21,41 +18,6 @@ from thyroid_ultrasound_messages.msg import image_data_message
 from thyroid_ultrasound_imaging_support.Controller.ImagePositioningController import ImagePositioningController
 from thyroid_ultrasound_imaging_support.ImageData.ImageData import ImageData
 from thyroid_ultrasound_support.BasicNode import *
-
-
-"""
-This node should read the location of the centroid off of the filtered image message and then do its work from there.
-"""
-
-
-
-"""
-# If the thyroid is present in the image, publish data about it
-        if thyroid_in_image:
-
-            
-
-            # Analyze the centroid location to determine the needed control input, current thyroid position error, and
-            # if the thyroid is in the center of the image
-            control_input_msg, current_error, is_thyroid_centered = self.image_positioning_controller. \
-                calculate_control_input(self.image_data)
-
-            # note the time required to calculate the image based control input
-            start_of_process_time = display_process_timer(start_of_process_time,
-                                                          "Image based control input calculation",
-                                                          self.analysis_mode)
-
-            # Publish if the thyroid is centered
-            self.is_thyroid_centered_status_publisher.publish(Bool(is_thyroid_centered))
-
-            # publish the image based control input
-            self.image_based_control_input_publisher.publish(control_input_msg)
-
-        # Publish no control input and do not show the thyroid as centered
-        else:
-            self.is_thyroid_centered_status_publisher.publish(Bool(False))
-            self.image_based_control_input_publisher.publish(TwistStamped())
-            """
 
 
 class ImagePositioningControllerNode(BasicNode):
@@ -101,7 +63,6 @@ class ImagePositioningControllerNode(BasicNode):
 
         # Save the newest imaging depth
         self.image_positioning_controller.imaging_depth = data.data
-        print(data.data)
 
     def filtered_image_callback(self, data: image_data_message):
         """
@@ -149,6 +110,9 @@ class ImagePositioningControllerNode(BasicNode):
             # Publish positioning error
             self.image_based_position_error_publisher.publish(position_error_message)
 
+            # Return the results for validation
+            return position_error, is_image_centered
+
 
 if __name__ == '__main__':
 
@@ -161,7 +125,6 @@ if __name__ == '__main__':
     print("Node initialized.")
     print("Press ctrl+c to terminate.")
 
-    # TODO - Medium - Add logic to stop having it send messages when a new message has not arrived
     # Let the program run indefinitely
     while not is_shutdown():
 

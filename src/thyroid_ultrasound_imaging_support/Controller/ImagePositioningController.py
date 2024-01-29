@@ -82,7 +82,7 @@ class ImagePositioningController:
         temp_is_image_centered = True
 
         # Define a temporary place to store the control inputs
-        adjusted_position_errors = []
+        # adjusted_position_errors = []
 
         # Check if the error is within an acceptable amount
         for single_dimension_error, single_dimension_acceptable_error in zip(exact_position_errors,
@@ -91,16 +91,16 @@ class ImagePositioningController:
             # Determine if the error is acceptable in a single dimension
             is_dimension_centered = single_dimension_acceptable_error >= abs(single_dimension_error)
 
-            # Calculate the control input for the given dimension
+            """# Calculate the control input for the given dimension
             if not is_dimension_centered:
                 adjusted_position_errors.append(single_dimension_error)
             else:
-                adjusted_position_errors.append(0)
+                adjusted_position_errors.append(0)"""
 
             # Calculate if the image is centered in all dimensions
             temp_is_image_centered = temp_is_image_centered * is_dimension_centered
 
-        return adjusted_position_errors, temp_is_image_centered
+        return exact_position_errors, temp_is_image_centered
 
     """def calculate_control_input(self, image_data: ImageData):
 

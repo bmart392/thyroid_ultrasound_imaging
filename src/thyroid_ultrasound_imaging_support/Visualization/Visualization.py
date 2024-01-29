@@ -1,22 +1,24 @@
 """
 Contains Visualization object and associated function.
 """
-# Import standard packages
+
+# Import standard python packages
 from math import ceil
 from matplotlib.pyplot import axes, figure, show
 from numpy import array, zeros, ones, uint8, newaxis, where, repeat
 from cv2 import GC_BGD, GC_PR_FGD, imshow, waitKey, line, circle, \
     namedWindow, startWindowThread, setMouseCallback, destroyWindow
 
+# Import custom python packages
 from thyroid_ultrasound_imaging_support.ImageFilter.FilterConstants import COLOR_RGB
-# Import custom constants
 from thyroid_ultrasound_imaging_support.Visualization.VisualizationConstants import *
 from thyroid_ultrasound_imaging_support.Visualization.create_mask_display_array import create_mask_display_array
-from thyroid_ultrasound_imaging_support.Visualization.create_mask_overlay_image import create_mask_overlay_array, FADED, \
+from thyroid_ultrasound_imaging_support.Visualization.create_mask_overlay_image import create_mask_overlay_array, \
     COLORIZED, COLOR_BGR
-
-# Import custom objects
 from thyroid_ultrasound_imaging_support.ImageData.ImageData import ImageData
+from thyroid_ultrasound_imaging_support.Visualization.add_centroids_on_image import add_centroids_on_image
+from thyroid_ultrasound_imaging_support.Visualization.add_cross_and_center_lines_on_image import \
+    add_cross_and_center_lines_on_image
 
 
 # TODO - Dream - Fill in missing visualization schemes
@@ -200,7 +202,7 @@ class Visualization:
                         image_to_show = zeros(image_data.down_sampled_image.shape, uint8)
 
                         # Draw each centroid from the image
-                        image_to_show = self.add_centroids_on_image(image_to_show, image_data)
+                        image_to_show = add_centroids_on_image(image_to_show, image_data)
 
                     image_title = "Image Centroids"
 
@@ -211,7 +213,7 @@ class Visualization:
                         image_to_show = zeros(image_data.down_sampled_image.shape, uint8)
 
                         # Draw each centroid from the image and a cross
-                        image_to_show = self.add_cross_and_centroids_on_image(image_to_show, image_data)
+                        image_to_show = add_cross_and_center_lines_on_image(image_to_show, image_data)
 
                     image_title = "Image Centroids with Crosshair."
 
@@ -340,116 +342,6 @@ class Visualization:
         # Raise an exception if an incorrect imaging mode is passed in.
         else:
             raise Exception("Image mode not recognized.")
-
-    # @staticmethod
-    # def create_mask_overlay_array(base_image: array, mask: array, fade_rate: float = 0.5):
-    #     """
-    #     Returns an array that overlays a binary mask over an image array.
-    #
-    #     Parameters
-    #     ----------
-    #     base_image
-    #         a numpy array containing the base image.
-    #     mask
-    #         a numpy array representing the mask to be overlaid.
-    #     fade_rate
-    #         the fade ratio to apply to the inverse of the mask.
-    #         A smaller number darkens the remainder of the image.
-    #     """
-    #
-    #     if len(base_image.shape) == 3:
-    #         mask = mask[:, :, newaxis]
-    #         inverted_mask = (1 - mask)[:, :, newaxis]
-    #     if mask is None:
-    #         return array([])
-    #     else:
-    #         return base_image * mask + uint8(
-    #             base_image * (1 - mask) * fade_rate
-    #         )
-
-    @staticmethod
-    def add_cross_to_image(image_to_show: array, vertical_line_color: tuple = (255, 255, 255),
-                           horizontal_line_color: tuple = (255, 255, 255), line_thickness: int = 1):
-        """
-        Add two lines to a given image to form a cross centered on the image. Returns the input image array.
-
-        Parameters
-        ----------
-        image_to_show
-            a numpy array representing the image to show.
-        vertical_line_color
-            the color of the vertical line.
-        horizontal_line_color
-            the color of the horizontal line.
-        line_thickness
-            the thickness of the lines drawn.
-        """
-
-        # Draw vertical line
-        image_to_show = line(image_to_show,
-                             (int(image_to_show.shape[1] / 2), 0),
-                             (int(image_to_show.shape[1] / 2), image_to_show.shape[0]),
-                             color=vertical_line_color, thickness=line_thickness)
-
-        # Draw horizontal line
-        return line(image_to_show,
-                    (0, int(image_to_show.shape[0] / 2)),
-                    (image_to_show.shape[1], int(image_to_show.shape[0] / 2),),
-                    color=horizontal_line_color, thickness=line_thickness)
-
-    @staticmethod
-    def add_centroids_on_image(image_to_show: array, image_data: ImageData,
-                               dot_radius: int = 6, dot_color: tuple = (255, 0, 0)):
-        """
-        Draw a dot for each centroid from a given ImageData object on a given image. Returns the input image array.
-
-        Parameters
-        ----------
-        image_to_show
-            a numpy array representing the image to show.
-        image_data
-            the ImageData object that contains the centroids to show.
-        dot_radius
-            the size of the dot.
-        dot_color
-            the color of each dot.
-        """
-        # Draw each centroid from the image
-        for centroid in image_data.contour_centroids:
-            image_to_show = circle(image_to_show,
-                                   centroid,
-                                   radius=dot_radius,
-                                   color=dot_color,
-                                   thickness=-1)
-        return image_to_show
-
-    def add_cross_and_centroids_on_image(self, image_to_show: array, image_data: ImageData):
-        """
-        Add both a cross and the centroids from a given ImageData object to a given image array.
-        This function draws the centroids, then the cross. Returns the input image array.
-
-        Parameters
-        ----------
-        image_to_show
-            a numpy array representing the image to show.
-        image_data
-            the ImageData object that contains the centroids to show.
-        """
-        return self.add_cross_to_image(self.add_centroids_on_image(image_to_show, image_data))
-
-    # @staticmethod
-    # def create_mask_display_array(mask: array, multiplier: int = 255):
-    #     """
-    #     Modifies a mask array so that it can be properly displayed.
-    #
-    #     Parameters
-    #     ----------
-    #     mask
-    #         a numpy array of the mask to display
-    #     multiplier
-    #         the value that all values in the mask will be multiplied by.
-    #     """
-    #     return uint8(mask * multiplier)
 
 
 def test_imshow():
