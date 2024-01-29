@@ -2,6 +2,9 @@
 Define object class for parent of all filter types.
 """
 
+# TODO - Dream - Add an un-crop feature that adds zeros to an array to get back to the starting size
+# TODO - Dream - Properly call out all of my exceptions and remove all bare "except"
+
 # Import standard packages
 from time import time
 import numpy as np
@@ -18,6 +21,7 @@ from thyroid_ultrasound_imaging_support.ImageFilter.FilterConstants import *
 from thyroid_ultrasound_imaging_support.Visualization.Visualization import Visualization
 from thyroid_ultrasound_imaging_support.Visualization.display_process_timer import display_process_timer
 from thyroid_ultrasound_imaging_support.UserInput.user_input_crop_coordinates import user_input_crop_coordinates
+from thyroid_ultrasound_imaging_support.ImageFilter.SegmentationError import *
 
 # Define constants for down-sampling related tasks
 DOWN_SAMPLING_MODE: int = cv2.INTER_LINEAR
@@ -84,55 +88,86 @@ class ImageFilter:
         # record the current time for timing each process
         start_of_process_time = time()
 
-        # Crop the image
-        self.crop_image(image_data)
-        start_of_process_time = self.display_process_timer(start_of_process_time,
-                                                           "Crop image time")
+        try:
+            # Crop the image
+            self.crop_image(image_data)
+            start_of_process_time = self.display_process_timer(start_of_process_time,
+                                                               "Crop image time")
+        except Exception as caught_exception:
+            raise SegmentationError(CROP_FAILURE + " in 'basic_image_filter' in ImageFilter.py",
+                                    caught_exception.args[0])
 
-        # Colorize the image
-        self.colorize_image(image_data)
-        start_of_process_time = self.display_process_timer(start_of_process_time,
-                                                           "Recolor image time")
+        try:
+            # Colorize the image
+            self.colorize_image(image_data)
+            start_of_process_time = self.display_process_timer(start_of_process_time,
+                                                               "Recolor image time")
+        except Exception as caught_exception:
+            raise SegmentationError(COLORIZE_FAILURE + " in 'basic_image_filter' in ImageFilter.py",
+                                    caught_exception.args[0])
 
-        # Down-sample the image
-        self.down_sample_image(image_data)
-        start_of_process_time = self.display_process_timer(start_of_process_time,
-                                                           "Down-sample time")
+        try:
+            # Down-sample the image
+            self.down_sample_image(image_data)
+            start_of_process_time = self.display_process_timer(start_of_process_time,
+                                                               "Down-sample time")
+        except Exception as caught_exception:
+            raise SegmentationError(DOWN_SAMPLE_FAILURE + " in 'basic_image_filter' in ImageFilter.py",
+                                    caught_exception.args[0])
 
-        # Pre-process the image
-        self.pre_process_image(image_data)
-        start_of_process_time = self.display_process_timer(start_of_process_time,
-                                                           "Pre-process image time")
+        try:
+            # Pre-process the image
+            self.pre_process_image(image_data)
+            start_of_process_time = self.display_process_timer(start_of_process_time,
+                                                               "Pre-process image time")
+        except Exception as caught_exception:
+            raise SegmentationError(PRE_PROCESS_FAILURE + " in 'basic_image_filter' in ImageFilter.py",
+                                    caught_exception.args[0])
 
-        # Create image mask
-        self.create_image_mask(image_data)
-        start_of_process_time = self.display_process_timer(start_of_process_time,
-                                                           "Mask creation time")
+        try:
+            # Create image mask
+            self.create_image_mask(image_data)
+            start_of_process_time = self.display_process_timer(start_of_process_time,
+                                                               "Mask creation time")
+        except Exception as caught_exception:
+            raise SegmentationError(CREATE_MASK_FAILURE + " in 'basic_image_filter' in ImageFilter.py",
+                                    caught_exception.args[0])
 
-        # Post-process the image mask
-        self.post_process_image_mask(image_data)
-        start_of_process_time = self.display_process_timer(start_of_process_time,
-                                                           "Post-process image mask time")
+        try:
+            # Post-process the image mask
+            self.post_process_image_mask(image_data)
+            start_of_process_time = self.display_process_timer(start_of_process_time,
+                                                               "Post-process image mask time")
+        except Exception as caught_exception:
+            raise SegmentationError(POST_PROCESS_FAILURE + " in 'basic_image_filter' in ImageFilter.py",
+                                    caught_exception.args[0])
 
-        # Expand the image mask if the image was cropped
-        """self.expand_image_mask(image_data)
-        start_of_process_time = self.display_process_timer(start_of_process_time,
-                                                           "Mask expansion time")"""
+        try:
+            # Create sure foreground mask
+            self.create_sure_foreground_mask(image_data)
+            start_of_process_time = self.display_process_timer(start_of_process_time,
+                                                               "Sure foreground mask creation time")
+        except Exception as caught_exception:
+            raise SegmentationError(CREATE_SURE_FOREGROUND_FAILURE + " in 'basic_image_filter' in ImageFilter.py",
+                                    caught_exception.args[0])
 
-        # Create sure foreground mask
-        self.create_sure_foreground_mask(image_data)
-        start_of_process_time = self.display_process_timer(start_of_process_time,
-                                                           "Sure foreground mask creation time")
+        try:
+            # Create sure background mask
+            self.create_sure_background_mask(image_data)
+            start_of_process_time = self.display_process_timer(start_of_process_time,
+                                                               "Sure background mask creation time")
+        except Exception as caught_exception:
+            raise SegmentationError(CREATE_SURE_BACKGROUND_FAILURE + " in 'basic_image_filter' in ImageFilter.py",
+                                    caught_exception.args[0])
 
-        # Create sure background mask
-        self.create_sure_background_mask(image_data)
-        start_of_process_time = self.display_process_timer(start_of_process_time,
-                                                           "Sure background mask creation time")
-
-        # Create probable foreground mask
-        self.create_probable_foreground_mask(image_data)
-        start_of_process_time = self.display_process_timer(start_of_process_time,
-                                                           "Probable foreground mask creation time")
+        try:
+            # Create probable foreground mask
+            self.create_probable_foreground_mask(image_data)
+            start_of_process_time = self.display_process_timer(start_of_process_time,
+                                                               "Probable foreground mask creation time")
+        except Exception as caught_exception:
+            raise SegmentationError(CREATE_PROBABLE_FOREGROUND_FAILURE + " in 'basic_image_filter' in ImageFilter.py",
+                                    caught_exception.args[0])
 
     def pre_process_image(self, image_data: ImageData):
         raise Exception("This function was not implemented in the sub-class.")
@@ -165,6 +200,7 @@ class ImageFilter:
     def crop_image(self, image_data: ImageData):
         """
             Crop the original image, if included in the filter, using the crop coordinates stored in the filter.
+            For this crop function, the pixels selected as the crop coordinates are retained in the cropped image.
 
             Parameters
             ----------
@@ -173,21 +209,46 @@ class ImageFilter:
         """
 
         # If the image needs to be cropped
-        if self.image_crop_included:
+        if self.image_crop_included and self.image_crop_coordinates is not None:
 
-            # Define the x and y values of the crop region
-            crop_x_0 = self.image_crop_coordinates[0][0]
-            crop_y_0 = self.image_crop_coordinates[0][1]
-            crop_x_1 = self.image_crop_coordinates[1][0]
-            crop_y_1 = self.image_crop_coordinates[1][1]
+            try:
+                # Define the x and y values of the crop region
+                crop_x_0 = self.image_crop_coordinates[0][0]
+                crop_y_0 = self.image_crop_coordinates[0][1]
+                crop_x_1 = self.image_crop_coordinates[1][0]
+                crop_y_1 = self.image_crop_coordinates[1][1]
+            except IndexError:
+                raise SegmentationError("The image crop coordinates, " + str(self.image_crop_coordinates) +
+                                        " do not have the expected shape of 2x2.")
 
-            # check that the image has the correct shape, then crop it
+            # Check that the image has the correct shape
             if image_data.original_image.ndim > 3 or image_data.original_image.ndim < 2:
-                raise Exception("The dimensions of the original image are invalid.")
+                raise SegmentationError("The dimensions of the original image are invalid")
+
+            # Check that the 1st crop coordinate is within the bounds of the image
+            elif crop_x_0 < 0 or crop_y_0 < 0:
+                raise SegmentationError("The top left crop coordinate, " + str((crop_x_0, crop_y_0)) +
+                                        ", is not within the bounds of the image")
+            # Check that the 2nd crop coordinate is within the bounds of the image
+            elif crop_x_1 > image_data.image_size_x - 1 or crop_y_1 > image_data.image_size_y - 1:
+                raise SegmentationError("The bottom right crop coordinate, " + str((crop_x_1, crop_y_1)) +
+                                        ", is not within the bounds of the image")
+
+            # Check that the 2nd crop coordinate is below and to the right of the first coordinate
+            elif crop_x_0 >= crop_x_1 or crop_y_0 >= crop_y_1:
+                raise SegmentationError("The top left coordinate, " + str((crop_x_0, crop_y_0)) +
+                                        ", is not above and to the left of the bottom right coordinate, " +
+                                        str((crop_x_1, crop_y_1)))
+
+            # Then crop the image
             elif image_data.original_image.ndim == 3:
-                image_data.cropped_image = copy(image_data.original_image[crop_y_0:crop_y_1, crop_x_0:crop_x_1, :])
+                image_data.cropped_image = copy(
+                    image_data.original_image[crop_y_0:crop_y_1 + 1, crop_x_0:crop_x_1 + 1, :])
             else:
-                image_data.cropped_image = copy(image_data.original_image[crop_y_0:crop_y_1, crop_x_0:crop_x_1])
+                image_data.cropped_image = copy(image_data.original_image[crop_y_0:crop_y_1 + 1, crop_x_0:crop_x_1 + 1])
+
+            # Save the crop coordinates in the image data object
+            image_data.image_crop_coordinates = [(int(crop_x_0), int(crop_y_0)), (int(crop_x_1), int(crop_y_1))]
 
         # Otherwise pass the original image on
         else:
@@ -248,6 +309,11 @@ class ImageFilter:
                                                    fx=self.down_sampling_rate,
                                                    fy=self.down_sampling_rate,
                                                    interpolation=DOWN_SAMPLING_MODE)
+
+        # Save the down-sampling data
+        image_data.down_sampling_rate = self.down_sampling_rate
+        image_data.ds_image_size_x = image_data.down_sampled_image.shape[1]
+        image_data.ds_image_size_y = image_data.down_sampled_image.shape[0]
 
     # def expand_image_mask(self, image_data: ImageData):
     #     """

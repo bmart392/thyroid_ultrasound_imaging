@@ -29,7 +29,9 @@ from thyroid_ultrasound_support.TopicNames import *
 OBJECT: int = int(0)
 MSG: int = int(1)
 
-# TODO write a function for creating a text file from a set of registered data using the bridge function in the image data class
+# TODO - Dream - Add proper try-cath error checking everywhere and incorporate logging into it
+# TODO - Dream - Add node status publishing
+# TODO - High - Create a method of saving registered data sets to my computer
 
 
 class ImagePositionRegistrationNode(BasicNode):
@@ -100,7 +102,6 @@ class ImagePositionRegistrationNode(BasicNode):
     # Data collection callbacks
     # region
 
-    # TODO step through this function to make sure it actually works
     def filtered_image_callback(self, data: image_data_message):
         """
         Given a new image data message, add it to the list of data to register depending on whether pose feedback is

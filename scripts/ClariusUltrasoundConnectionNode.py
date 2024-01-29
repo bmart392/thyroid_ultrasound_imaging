@@ -5,6 +5,8 @@ File containing ImageFiterNode class definition and ROS running code.
 """
 
 # TODO - Dream - Add proper logging stuff using the BasicNode class
+# TODO - Dream - Add proper try-cath error checking everywhere and incorporate logging into it
+# TODO - Dream - Add proper status publishing
 
 # Import standard python packages
 from numpy import zeros, uint8, array
@@ -98,7 +100,7 @@ class ClariusUltrasoundConnectionNode(BasicNode):
             return
 
         # Initialize the ROS node for publishing the data
-        init_node('ClariusPublisher', anonymous=True)
+        init_node(CLARIUS_US_PUBLISHER, anonymous=True)
 
         # Define the image publisher
         self.image_publisher = Publisher(IMAGE_SOURCE, Image, queue_size=100)

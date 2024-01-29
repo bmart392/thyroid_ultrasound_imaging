@@ -5,7 +5,7 @@ Contains Visualization object and associated function.
 from math import ceil
 from matplotlib.pyplot import axes, figure, show
 from numpy import array, zeros, ones, uint8, newaxis, where, repeat
-from cv2 import GC_BGD, GC_PR_BGD, imshow, waitKey, line, circle, \
+from cv2 import GC_BGD, GC_PR_FGD, imshow, waitKey, line, circle, \
     namedWindow, startWindowThread, setMouseCallback, destroyWindow
 
 from thyroid_ultrasound_imaging_support.ImageFilter.FilterConstants import COLOR_RGB
@@ -13,13 +13,13 @@ from thyroid_ultrasound_imaging_support.ImageFilter.FilterConstants import COLOR
 from thyroid_ultrasound_imaging_support.Visualization.VisualizationConstants import *
 from thyroid_ultrasound_imaging_support.Visualization.create_mask_display_array import create_mask_display_array
 from thyroid_ultrasound_imaging_support.Visualization.create_mask_overlay_image import create_mask_overlay_array, FADED, \
-    COLORIZED
+    COLORIZED, COLOR_BGR
 
 # Import custom objects
 from thyroid_ultrasound_imaging_support.ImageData.ImageData import ImageData
 
 
-# TODO - Low - Fill in missing visualization schemes
+# TODO - Dream - Fill in missing visualization schemes
 
 
 class Visualization:
@@ -142,30 +142,38 @@ class Visualization:
 
                 elif visual == SHOW_FOREGROUND:
                     if image_data.original_image is not None and image_data.post_processed_mask is not None:
-                        image_to_show = create_mask_overlay_array(image_data.down_sampled_image, 3,
-                                                                  image_data.post_processed_mask, COLOR_RGB,
-                                                                  COLORIZED, overlay_color=(35, 0, 0))
+                        image_to_show = create_mask_overlay_array(image_data.down_sampled_image,
+                                                                  image_data.post_processed_mask,
+                                                                  base_image_color=COLOR_RGB,
+                                                                  output_image_color=COLOR_BGR,
+                                                                  overlay_method=COLORIZED, overlay_color=(35, 0, 0))
                     image_title = "Foreground of the Image"
 
                 elif visual == SHOW_SURE_FOREGROUND:
                     if image_data.sure_foreground_mask is not None:
-                        image_to_show = create_mask_overlay_array(image_data.down_sampled_image, 3,
-                                                                  image_data.sure_foreground_mask, COLOR_RGB,
-                                                                  COLORIZED, overlay_color=(0, 35, 0))
+                        image_to_show = create_mask_overlay_array(image_data.down_sampled_image,
+                                                                  image_data.sure_foreground_mask,
+                                                                  base_image_color=COLOR_RGB,
+                                                                  output_image_color=COLOR_RGB,
+                                                                  overlay_method=COLORIZED, overlay_color=(0, 35, 0))
                     image_title = "Sure Foreground of Image"
 
                 elif visual == SHOW_SURE_BACKGROUND:
                     if image_data.sure_background_mask is not None:
-                        image_to_show = create_mask_overlay_array(image_data.down_sampled_image, 3,
-                                                                  image_data.sure_background_mask, COLOR_RGB,
-                                                                  COLORIZED)
+                        image_to_show = create_mask_overlay_array(image_data.down_sampled_image,
+                                                                  image_data.sure_background_mask,
+                                                                  base_image_color=COLOR_RGB,
+                                                                  output_image_color=COLOR_BGR,
+                                                                  overlay_method=COLORIZED)
                     image_title = "Sure Background of Image"
 
                 elif visual == SHOW_PROBABLE_FOREGROUND:
                     if image_data.probable_foreground_mask is not None:
-                        image_to_show = create_mask_overlay_array(image_data.down_sampled_image, 3,
-                                                                  image_data.probable_foreground_mask, COLOR_RGB,
-                                                                  COLORIZED)
+                        image_to_show = create_mask_overlay_array(image_data.down_sampled_image,
+                                                                  image_data.probable_foreground_mask,
+                                                                  base_image_color=COLOR_RGB,
+                                                                  output_image_color=COLOR_BGR,
+                                                                  overlay_method=COLORIZED)
                     image_title = "Probable Foreground of Image"
 
                 elif visual == SHOW_INITIALIZED_MASK:
@@ -182,7 +190,7 @@ class Visualization:
                     if image_data.segmentation_initialization_mask is not None:
                         initialization_mask = image_data.segmentation_initialization_mask[:, :, newaxis]
                         image_to_show = image_data.cropped_image * where((initialization_mask == GC_BGD) |
-                                                                         (initialization_mask == GC_PR_BGD), 0, 1)
+                                                                         (initialization_mask == GC_PR_FGD), 0, 1)
                     image_title = "Initialized Region of Image"
 
                 elif visual == SHOW_CENTROIDS_ONLY:

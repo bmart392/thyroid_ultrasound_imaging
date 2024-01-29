@@ -2,7 +2,7 @@
 Contains the code for the build_previous_image_mask_from_ground_truth function.
 """
 # Import standard python packages
-from cv2 import GC_PR_BGD, GC_FGD, imshow, waitKey
+from cv2 import GC_PR_FGD, GC_FGD, imshow, waitKey
 from numpy import load, uint8
 
 # Import custom python packages
@@ -34,7 +34,7 @@ def build_previous_image_mask_from_ground_truth(ground_truth_mask,
                                                                       desired_probable_background_expansion_factor)
 
     # Return the combination of the two arrays
-    return (foreground_plus_probable_background_mask - foreground_mask) * GC_PR_BGD + foreground_mask * GC_FGD
+    return (foreground_plus_probable_background_mask - foreground_mask) * GC_PR_FGD + foreground_mask * GC_FGD
 
 
 if __name__ == '__main__':

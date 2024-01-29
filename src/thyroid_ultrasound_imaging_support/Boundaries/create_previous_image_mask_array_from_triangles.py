@@ -3,7 +3,7 @@ Contains create_previous_image_mask_array_from_triangles function.
 """
 # Import from standard packages
 from numpy import uint8, ones, zeros
-from cv2 import GC_PR_BGD, GC_BGD, GC_FGD, dilate
+from cv2 import GC_PR_FGD, GC_BGD, GC_FGD, dilate
 
 # Import custom objects
 from thyroid_ultrasound_imaging_support.Boundaries.BoundingSet import BoundingSet
@@ -26,7 +26,7 @@ def create_previous_image_mask_array_from_triangles(list_of_background_triangles
         a tuple of the shape of the image.
     """
     # Create blank mask array and assign it all as probable background
-    final_mask = ones(image_shape, uint8) * GC_PR_BGD
+    final_mask = ones(image_shape, uint8) * GC_PR_FGD
     selected_foreground_mask = zeros(image_shape, uint8)
 
     # Define two variables to store the bounding sets within
@@ -116,10 +116,10 @@ def create_previous_image_mask_array_from_triangles(list_of_background_triangles
 
         # Create the background mask as the inverse of the dilated foreground mask and
         # define the values in the mask
-        background_mask = (uint8(1) - dilated_foreground_mask) * (-GC_PR_BGD + GC_BGD)
+        background_mask = (uint8(1) - dilated_foreground_mask) * (-GC_PR_FGD + GC_BGD)
 
         # Define the values in the foreground mask
-        selected_foreground_mask = selected_foreground_mask * (-GC_PR_BGD + GC_FGD)
+        selected_foreground_mask = selected_foreground_mask * (-GC_PR_FGD + GC_FGD)
 
         # Calculate the final mask as a combination of the three masks
         final_mask = final_mask + background_mask + selected_foreground_mask

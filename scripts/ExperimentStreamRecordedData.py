@@ -6,6 +6,10 @@ File containing code to stream recorded data as ROS Topic.
 
 # TODO - Dream - Convert this into standard node format
 # TODO - Dream - Add logging through BasicNode class
+# TODO - Dream - Add ability to play images in reverse order
+# TODO - Dream - Add proper try-cath error checking everywhere and incorporate logging into it
+# TODO - Dream - Replace node name with constant from NodeNameConstants
+# TODO - Dream - Add proper status publishing
 
 # Import ROS specific packages
 from rospy import init_node, Publisher, is_shutdown, Subscriber, Time

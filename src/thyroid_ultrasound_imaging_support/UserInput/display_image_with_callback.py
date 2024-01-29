@@ -67,12 +67,14 @@ def display_image_with_callback(image_array: array, message_to_display: str,
         if len(selected_points) == 0:
             result = selected_points
         else:
+            selected_points = [j + 0.5 for j in selected_points[0]]
             if rounding == ROUND_STANDARD:
-                result = [int(j) for j in selected_points[0]]
+                result = [int(j) for j in selected_points]
             elif rounding == ROUND_UP:
-                result = [int(ceil(j)) for j in selected_points[0]]
+                result = [int(ceil(j)) for j in selected_points]
+                result = [int(j - 1) for j in result]
             elif rounding == ROUND_DOWN:
-                result = [int(floor(j)) for j in selected_points[0]]
+                result = [int(floor(j)) for j in selected_points]
             else:
                 raise Exception("Rounding type of " + str(rounding) + " is not recognized.")
 
@@ -109,7 +111,8 @@ if __name__ == '__main__':
     image = imread('/home/ben/thyroid_ultrasound/src/thyroid_ultrasound_imaging/scripts/'
                    'Test/Images/2023-11-29_19-14/Slice_00002.png')
 
-    result, fig_test, axis_test = display_image_with_callback(image, "help", [1, 2], "type", return_fig_and_axes=True)
+    result, fig_test, axis_test = display_image_with_callback(image, "help", [1, 2], "type", return_fig_and_axes=True,
+                                                              rounding=ROUND_UP)
 
     print(result)
     print(type(fig_test))

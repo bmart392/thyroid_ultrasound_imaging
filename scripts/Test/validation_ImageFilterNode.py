@@ -4,8 +4,8 @@ Contains the code for validating that the ImageFilterNode is successful.
 
 # Import standard python packages
 from rospy import Rate
-from cv2 import cvtColor, COLOR_BGR2GRAY, imshow, waitKey, COLOR_GRAY2RGB, COLOR_BGR2RGB
-from numpy import load, array, uint8
+from cv2 import cvtColor, COLOR_BGR2GRAY, imshow, waitKey, COLOR_GRAY2RGB, COLOR_BGR2RGB, resize
+from numpy import load, array, uint8, zeros
 from matplotlib.pyplot import subplots, show, matshow, savefig
 
 # Import standard ROS packages
@@ -25,11 +25,11 @@ from thyroid_ultrasound_imaging_support.Visualization.create_mask_display_array 
 # Import custom ROS packages
 from thyroid_ultrasound_imaging_support.ImageData.ImageData import ImageData
 from thyroid_ultrasound_imaging_support.ImageData.convert_array_to_image_message import convert_array_to_image_message
-from ImageFilterNode import ImageFilterNode, GRABCUT_FILTER, SHOW_ORIGINAL, SHOW_FOREGROUND, SHOW_CENTROIDS_ONLY
+from ImageFilterNode import ImageFilterNode, GRABCUT_FILTER
 from thyroid_ultrasound_messages.msg import image_crop_coordinates, initialization_mask_message
 
 # Validation Options
-save_image_data = False
+save_image_data = True
 
 # Image Filter Options
 blurring = [False, True]
@@ -60,7 +60,7 @@ images_as_arrays = load_folder_of_image_files('/home/ben/thyroid_ultrasound/src/
 
 # Load the arrays to use for the image crop coordinates and the initialization array
 crop_coords = load(INITIALIZATION_INFORMATION_PATH + CROP_FILE_NAME)
-user_mask = load(INITIALIZATION_INFORMATION_PATH + INITIALIZATION_FILE_NAME)
+user_mask = resize(load(INITIALIZATION_INFORMATION_PATH + INITIALIZATION_FILE_NAME), (639, 403))
 
 # Show the user mask as loaded
 axes[int((ii - (ii % NUM_COLS)) / NUM_ROWS)][int(ii % NUM_COLS)].imshow(
@@ -96,6 +96,8 @@ filter_node.filter_images_callback(Bool(True))
 filter_node.patient_contact_callback(Bool(True))
 
 for image_array in images_as_arrays:
+
+    # Define the previous image mask to use for the segmentation
     this_image_previous_mask = filter_node.image_filter.previous_image_mask_array
 
     # Create a new image data message
@@ -128,6 +130,7 @@ for image_array in images_as_arrays:
     waitKey(1)
 
     rate.sleep()
+
 
 # If this script is testing the save data functionality
 if save_image_data:

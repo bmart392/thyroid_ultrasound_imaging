@@ -5,6 +5,8 @@ File containing VisualizationNode class definition and ROS running code.
 """
 
 # TODO - Dream - Add logging with the BasicNode class
+# TODO - Dream - Add proper try-cath error checking everywhere and incorporate logging into it
+# TODO - Dream - Add proper node status publishing
 
 # Import standard python packages
 from copy import deepcopy
@@ -42,7 +44,7 @@ class VisualizationNode(BasicNode):
                                     IMAGE_SKIN_APPROXIMATION: [None, [SHOW_SKIN_APPROXIMATION], None]}
 
         # Create the node
-        init_node('visualizer')
+        init_node(VISUALIZER)
 
         # Define a subscriber to listen for raw images
         Subscriber(IMAGE_RAW, image_data_message, self.raw_image_data_message_callback)

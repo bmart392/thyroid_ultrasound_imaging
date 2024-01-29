@@ -7,6 +7,8 @@ Contains all code for the ImageBasedUserInput node.
 # TODO - Dream - Allow the user to either select just the foreground or the foreground and the background of the image
 # TODO - Dream - Stop having the whole window close after giving each input step when generating threshold parameters.
 # TODO - Dream - Add logging through BasicNode class
+# TODO - Dream - Add proper try-cath error checking everywhere and incorporate logging into it
+# TODO - Dream - Add proper node status publishing
 
 # Import ROS packages
 from cv_bridge import CvBridge
@@ -60,7 +62,7 @@ class ImageBasedUserInput(BasicNode):
         self.actions = []
 
         # Create the node object
-        init_node('ImageBasedUserInput')
+        init_node(IMAGE_BASED_USER_INPUT)
 
         # Create a publisher to publish the resulting coordinates from the user image cropping
         self.coordinate_publisher = Publisher(IMAGE_CROP_COORDINATES, image_crop_coordinates, queue_size=1)

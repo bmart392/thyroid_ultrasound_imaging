@@ -4,10 +4,12 @@
 File containing ImagePositioningControllerNode class definition and ROS running code.
 """
 
+# TODO - Dream - Add proper try-cath error checking everywhere and incorporate logging into it
+# TODO - Dream - Add proper node status publishing
+# TODO - Dream - Add a check to make sure that any image processed by the controller is no less than half a second old
+
 # Import standard ROS packages
-from rospy import init_node, Subscriber, Publisher, is_shutdown, Rate
 from geometry_msgs.msg import TwistStamped
-from std_msgs.msg import Bool, Float64
 
 # Import standard packages
 from copy import copy
@@ -18,6 +20,7 @@ from thyroid_ultrasound_messages.msg import image_data_message
 # Import custom packages
 from thyroid_ultrasound_imaging_support.Controller.ImagePositioningController import ImagePositioningController
 from thyroid_ultrasound_imaging_support.ImageData.ImageData import ImageData
+from thyroid_ultrasound_support.BasicNode import *
 
 
 """
@@ -55,31 +58,18 @@ This node should read the location of the centroid off of the filtered image mes
             """
 
 
-# TODO - Medium - Change topic names to use constants from topics files
-class ImagePositioningControllerNode:
+class ImagePositioningControllerNode(BasicNode):
 
     def __init__(self):
 
-        # Create the node object
-        init_node('ImagePositioningControllerNode')
+        # Call the init of the super class
+        super().__init__()
 
-        # Define a subscriber to listen for the imaging depth of the scanner
-        Subscriber('/image_data/imaging_depth', Float64, self.imaging_depth_callback)
+        # Define a variable to store the received images
+        self.received_images = []
 
-        # Define a subscriber to listen for the filtered images
-        Subscriber('/image_data/filtered', image_data_message, self.filtered_image_callback)
-
-        # Define a publisher to publish the image-based positioning error
-        self.image_based_position_error_publisher = Publisher(
-            '/image_control/distance_to_centroid', TwistStamped, queue_size=1
-        )
-
-        # Define a publisher to publish if the image is centered
-        self.image_centered_publisher = Publisher('status/image_centered', Bool, queue_size=1)
-
-        # Define a variable to store the newest image data available
-        # noinspection PyTypeChecker
-        self.newest_image: ImageData = None
+        # Define the maximum number of images to save
+        self.max_images_to_store = 25
 
         # Define a variable to store the position error based on the newest image
         self.position_error = None
@@ -90,6 +80,23 @@ class ImagePositioningControllerNode:
         # Define a variable to save the imaging depth of the scanner
         self.image_positioning_controller.imaging_depth = 5.0
 
+        # Create the node object
+        init_node(IMAGE_POSITIONING_CONTROLLER)
+
+        # Define a publisher to publish the image-based positioning error
+        self.image_based_position_error_publisher = Publisher(
+            RC_IMAGE_ERROR, TwistStamped, queue_size=1
+        )
+
+        # Define a publisher to publish if the image is centered
+        self.image_centered_publisher = Publisher(IMAGE_ROI_CENTERED, Bool, queue_size=1)
+
+        # Define a subscriber to listen for the imaging depth of the scanner
+        Subscriber(IMAGE_DEPTH, Float64, self.imaging_depth_callback)
+
+        # Define a subscriber to listen for the filtered images
+        Subscriber(IMAGE_FILTERED, image_data_message, self.filtered_image_callback)
+
     def imaging_depth_callback(self, data: Float64):
 
         # Save the newest imaging depth
@@ -97,20 +104,37 @@ class ImagePositioningControllerNode:
         print(data.data)
 
     def filtered_image_callback(self, data: image_data_message):
+        """
+        Updates the list of received images and places the newest message at the end of the list.
+        """
 
-        # Save the newest filtered image
-        self.newest_image = ImageData(image_data_msg=data)
+        # Create new image data based on received image and add it to the list
+        self.received_images.append(ImageData(image_data_msg=data))
+
+        # Remove the oldest image if the list is now too long
+        if len(self.received_images) > self.max_images_to_store:
+            self.received_images.pop(0)
 
     def publish_position_error(self):
 
         # Check that there is an image to use
-        if self.newest_image is not None:
+        if len(self.received_images) > 0:
 
-            # Create a copy of the newest image data to work with
-            image_data = copy(self.newest_image)
+            # Pop out the newest data
+            image_data = self.received_images.pop(-1)
 
-            # Calculate the error in the image centroids
-            position_error, is_image_centered = self.image_positioning_controller.calculate_position_error(image_data)
+            try:
+
+                # Calculate the error in the image centroids
+                position_error, is_image_centered = self.image_positioning_controller.calculate_position_error(image_data)
+
+            except Exception as caught_exception:
+
+                # Define a zero error value as default
+                position_error = [0, 0, 0, 0, 0, 0]
+
+                # Define a default value for is_image_centered
+                is_image_centered = False
 
             # Publish if the image is centered
             self.image_centered_publisher.publish(Bool(is_image_centered))

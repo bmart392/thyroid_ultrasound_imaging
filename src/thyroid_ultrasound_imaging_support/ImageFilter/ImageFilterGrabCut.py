@@ -69,19 +69,35 @@ class ImageFilterGrabCut(ImageFilter):
         self.sure_background_creation_iterations = sure_background_creation_iterations
 
         # Define characteristics of all GrabCut filters
-        self.filter_color = COLOR_BGR
+        self.filter_color = COLOR_RGB
         self.previous_image_mask_array = previous_mask_array
+
+        # Define a flag to determine when NOT to create a previous-image mask from the current mask
+        self.do_not_create_new_previous_image_mask = False
 
     def filter_image(self, image_data: ImageData):
 
-        # Perform the basic image filtering actions
-        self.basic_filter_image(image_data)
+        try:
+            # Perform the basic image filtering actions
+            self.basic_filter_image(image_data)
+
+        # Otherwise raise another exception with the root cause
+        except SegmentationError as caught_exception:
+            raise SegmentationError(FILTER_IMAGE_FAILURE + " in 'filter_image' in ImageFilterGrabCut.py",
+                                    caught_exception.history)
 
         # Note the current time
         start_of_process_time = time()
 
         # Create mask for segmentation of next image
-        self.create_previous_image_mask(image_data)
+        try:
+            self.create_previous_image_mask(image_data)
+
+        # Otherwise raise an error
+        except Exception as caught_exception:
+            raise SegmentationError(CREATE_PREVIOUS_IMAGE_MASK_FAILURE + " in 'filter_image' in ImageFilter.py",
+                                    caught_exception.args[0])
+
         self.display_process_timer(start_of_process_time, "Previous Image Mask Creation")
 
     def pre_process_image(self, image_data: ImageData):
@@ -230,11 +246,16 @@ class ImageFilterGrabCut(ImageFilter):
             The image data object containing the masks generated from the current image.
         """
 
-        # TODO - Medium - Get consistent on whether the questionable area is probable background or probable foregorund
-        # Create the image mask to use for the next iteration
-        self.previous_image_mask_array = uint8(image_data.sure_foreground_mask * cv2.GC_FGD +
-                                               image_data.sure_background_mask * cv2.GC_BGD +
-                                               image_data.probable_foreground_mask * cv2.GC_PR_FGD)
+        # Do no create a new previous-image-mask if the flag is set as True
+        if not self.do_not_create_new_previous_image_mask:
+            # Create the image mask to use for the next iteration
+            self.previous_image_mask_array = uint8(image_data.sure_foreground_mask * cv2.GC_FGD +
+                                                   image_data.sure_background_mask * cv2.GC_BGD +
+                                                   image_data.probable_foreground_mask * cv2.GC_PR_FGD)
+
+        # Otherwise, reset the flag
+        else:
+            self.do_not_create_new_previous_image_mask = False
 
         """# Crop the image mask if necessary
         if self.image_crop_included:

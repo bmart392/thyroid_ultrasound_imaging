@@ -4,7 +4,7 @@ Contains the code for validating that the ImageBasedUserInput ui_node is success
 
 # Import standard python packages
 from cv2 import cvtColor, COLOR_BGR2GRAY, COLOR_BGR2RGB, COLOR_GRAY2RGB, COLOR_GRAY2BGR, GC_PR_BGD, GC_BGD, GC_FGD, \
-    imshow, waitKey
+    imshow, waitKey, GC_PR_FGD
 from numpy import zeros, uint8, array, save, load
 from matplotlib.pyplot import show, subplots
 from os.path import realpath
@@ -101,7 +101,7 @@ for row in range(image_data_object_for_test.cropped_image.shape[0]):
     for col in range(image_data_object_for_test.cropped_image.shape[1]):
         if result_mask[row][col] == GC_BGD:
             colored_result_mask[row][col] = array([0, 0, 0], dtype=uint8)
-        elif result_mask[row][col] == GC_PR_BGD:
+        elif result_mask[row][col] == GC_PR_FGD:
             colored_result_mask[row][col] = array([0, 0, 15], dtype=uint8)
         elif result_mask[row][col] == GC_FGD:
             colored_result_mask[row][col] = array([0, 15, 0], dtype=uint8)

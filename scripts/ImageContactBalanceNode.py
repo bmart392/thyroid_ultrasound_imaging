@@ -5,6 +5,8 @@ File containing code to ensure even patient contact.
 """
 
 # TODO - Dream - Add logging through BasicNode class
+# TODO - Dream - Add proper try-cath error checking everywhere and incorporate logging into it
+# TODO - Dream - Add proper node status publishing
 
 # Import standard python packages
 from numpy import zeros, linspace, array, polyfit
@@ -145,7 +147,7 @@ class ImageContactBalanceNode(BasicNode):
         self.skin_points = [[[], []], [[], []]]
 
         # Initialize the ROS Node
-        init_node("ImageContactBalanceNode")
+        init_node(IMAGE_CONTACT_BALANCING)
 
         # Define a publisher to publish the error
         self.patient_contact_error_publisher = Publisher(RC_PATIENT_CONTACT_ERROR, Float64Stamped, queue_size=1)

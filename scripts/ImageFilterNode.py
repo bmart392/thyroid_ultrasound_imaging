@@ -8,8 +8,8 @@ File containing ImageFiterNode class definition and ROS running code.
 # TODO - Dream - Add logging through BasicNode class
 # TODO - Dream - Add a comparison between the image used to generate the initialization mask and the current image to
 #  ensure mask is still good
-# TODO - Medium - Fix why selecting a new image mask a second time doesn't work
-# TODO - HIGH - Add a try catch to prevent the node from crashing if the segmentation dies
+# TODO - Dream - Add proper try-cath error checking everywhere and incorporate logging into it
+# TODO - Dream - Add a check to make sure that any image processed by the image filter is no less than half a second old
 
 # Import standard packages
 from numpy import frombuffer, reshape, uint8
@@ -29,6 +29,7 @@ from thyroid_ultrasound_imaging_support.ImageFilter.ImageFilterGrabCut import Im
 from thyroid_ultrasound_imaging_support.Controller.ImagePositioningController import ImagePositioningController
 from thyroid_ultrasound_imaging_support.Visualization.display_process_timer import display_process_timer
 from thyroid_ultrasound_support.BasicNode import *
+from thyroid_ultrasound_imaging_support.ImageFilter.SegmentationError import *
 
 # Define the types of image filters that could be used
 THRESHOLD_FILTER: int = 0
@@ -59,7 +60,7 @@ class ImageFilterNode(BasicNode):
         """
 
         # Call the init function of the basic node class to inherit functions and parameters
-        super(BasicNode, self).__init__()
+        super().__init__()
 
         #########################
         # Define class attributes
@@ -122,7 +123,7 @@ class ImageFilterNode(BasicNode):
         # region
 
         # initialize ros node
-        init_node('Image Filter Node')
+        init_node(REAL_TIME_IMAGE_FILTER)
 
         # Create a publisher to publish if the region of interest is visible in the image
         self.is_roi_in_image_status_publisher = Publisher(IMAGE_ROI_SHOWN, Bool, queue_size=1)
@@ -187,6 +188,9 @@ class ImageFilterNode(BasicNode):
         # Set the image filter to crop the image
         self.image_filter.image_crop_included = True
 
+        # Tell the image filter that it is no longer ready to filter images
+        self.image_filter.ready_to_filter = False
+
         # Set the image crop coordinates to use to crop the image
         self.image_filter.image_crop_coordinates = [
             [coordinates.first_coordinate_x, coordinates.first_coordinate_y],
@@ -200,6 +204,10 @@ class ImageFilterNode(BasicNode):
         """
 
         if type(self.image_filter) is ImageFilterGrabCut:
+            # Update the flag for the GrabCut filter so that a new previous-image-mask is not generated
+            # from the current image
+            self.image_filter.do_not_create_new_previous_image_mask = True
+
             # update the flag to allow image filtering to occur
             self.image_filter.ready_to_filter = True
 
@@ -252,8 +260,23 @@ class ImageFilterNode(BasicNode):
         # save the start of the process time
         start_of_process_time = time()
 
-        # filter the image
-        self.image_filter.filter_image(self.image_data)
+        try:
+
+            # Filter the image
+            self.image_filter.filter_image(self.image_data)
+
+        except SegmentationError as caught_exception:
+            # Note that the image filter can no longer filter images
+            self.image_filter.ready_to_filter = False
+
+            # Add to the context of the exception
+            caught_exception.history.append("Failed to filter image in 'analyze_image' in ImageFilterNode.py")
+
+            # Log that the error occurred
+            self.log_single_message(caught_exception.convert_history_to_string(), SHORT)
+
+            # Break out of the function
+            return
 
         # find the contours in the mask
         self.image_data.generate_contours_in_image()
@@ -306,14 +329,34 @@ class ImageFilterNode(BasicNode):
         """
 
         if len(self.received_images) > 0:
+
             # record the current time for timing of processes
             start_of_process_time = time()
 
             # Create new image data based on received image
             self.newest_image_data = copy(self.received_images.pop(-1))
 
-            # Crop and recolorize the newest image
-            self.image_filter.crop_image(self.newest_image_data)
+            # Crop the newest image
+            try:
+                self.image_filter.crop_image(self.newest_image_data)
+
+            # If a segmentation error occurs while trying to crop the image,
+            except SegmentationError as caught_exception:
+
+                # Skip the image cropping step until correct image crop coordinates have been given
+                self.image_filter.image_crop_included = False
+                self.image_filter.image_crop_coordinates = None
+
+                # Add a new message to the history of the error
+                caught_exception.history.append(CROP_FAILURE + " in 'main_loop' function of ImageFilterNode.py")
+
+                # Log the history of the error
+                self.log_single_message(caught_exception.convert_history_to_string(), SHORT)
+
+                # Call the cropping function again so that the code can continue properly
+                self.image_filter.crop_image(self.newest_image_data)
+
+            # Colorize the newest image
             self.image_filter.colorize_image(self.newest_image_data)
 
             # Publish this data so that it can be monitored before any filtering is completed
@@ -337,6 +380,20 @@ class ImageFilterNode(BasicNode):
 
                 # note the amount of time required to analyze the image
                 self.display_process_timer(start_of_process_time, "Image analysis time")
+
+            # Set the status of the node
+            if not self.image_filter.image_crop_included and not self.image_filter.ready_to_filter:
+                node_status = SEGMENTATION_INACTIVE
+            elif self.image_filter.image_crop_included and not self.image_filter.ready_to_filter:
+                node_status = SEGMENTATION_CROPPING
+            elif self.image_filter.image_crop_included and self.image_filter.ready_to_filter:
+                node_status = SEGMENTATION_FILTERING
+            else:
+                node_status = SEGMENTATION_UNKNOWN
+
+            # Publish the status of the node
+            self.publish_node_status(node_status)
+
 
 
 if __name__ == '__main__':

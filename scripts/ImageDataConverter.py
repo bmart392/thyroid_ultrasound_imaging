@@ -5,6 +5,8 @@ File containing code to receive raw ultrasound images and rebroadcast them as Im
 """
 
 # TODO - Dream - Add logging through BasicNode class
+# TODO - Dream - Add proper try-cath error checking everywhere and incorporate logging into it
+# TODO - Dream - Add proper node status publishing
 
 # Import standard ROS specific packages
 from sensor_msgs.msg import Image
@@ -30,7 +32,7 @@ class ImageDataConverter(BasicNode):
         super().__init__()
 
         # Create a ROS node
-        init_node('ImageDataConverter')
+        init_node(IMAGE_DATA_CONVERTER)
 
         # Create a publisher for the images
         self.raw_image_publisher = Publisher(IMAGE_RAW, image_data_message, queue_size=100)

@@ -59,3 +59,8 @@ CATKIN_IGNORE
 
 # Saved Arrays
 *.npy
+*.npz
+
+# CSV Files
+*.csv
+*.ods
