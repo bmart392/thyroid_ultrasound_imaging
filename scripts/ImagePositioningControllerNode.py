@@ -103,6 +103,9 @@ class ImagePositioningControllerNode(BasicNode):
             # Create a new TwistStamped message
             position_error_message = TwistStamped()
 
+            # Stamp the message
+            position_error_message.header.stamp = Time.now()
+
             # Fill in the message fields converting from the image axes to the robot end effector axes
             position_error_message.twist.linear.x = position_error[0]
             position_error_message.twist.angular.y = position_error[5]

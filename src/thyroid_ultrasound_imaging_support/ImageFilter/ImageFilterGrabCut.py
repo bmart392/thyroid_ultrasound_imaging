@@ -19,7 +19,7 @@ class ImageFilterGrabCut(ImageFilter):
                  image_crop_included: bool = False, include_pre_blurring: bool = False,
                  increase_contrast=False, down_sampling_rate: float = 0.4,  # 0.5
                  segmentation_iteration_count: int = 1,  # 1
-                 sure_foreground_creation_iterations: int = 2,
+                 sure_foreground_creation_iterations: int = 3,
                  sure_background_creation_iterations: int = 8,
                  debug_mode: bool = False, analysis_mode: bool = False):
 

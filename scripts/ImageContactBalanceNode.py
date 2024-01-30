@@ -4,6 +4,7 @@
 File containing code to ensure even patient contact.
 """
 
+# TODO - High - Figure out why this is crashing on the line of best fit
 # TODO - Dream - Add logging through BasicNode class
 # TODO - Dream - Add proper try-cath error checking everywhere and incorporate logging into it
 # TODO - Dream - Add proper node status publishing
@@ -459,31 +460,36 @@ class ImageContactBalanceNode(BasicNode):
                 # Publish zero error
                 patient_contact_error = 0.0
 
-            # Fill out the skin approximation message
-            skin_approximation_msg = SkinContactLines()
-            if self.skin_approximation_mode == SINGLE_LINE_APPROXIMATION:
-                skin_approximation_msg.skin_approximation_mode = SINGLE_LINE_APPROXIMATION
-                skin_approximation_msg.best_fit_shared_line_a = self.best_fit_shared_line_a
-                skin_approximation_msg.best_fit_shared_line_b = self.best_fit_shared_line_b
-            elif self.skin_approximation_mode == DOUBLE_LINE_APPROXIMATION:
-                skin_approximation_msg.skin_approximation_mode = DOUBLE_LINE_APPROXIMATION
-                skin_approximation_msg.best_fit_left_line_a = self.best_fit_left_line_a
-                skin_approximation_msg.best_fit_left_line_b = self.best_fit_left_line_b
-                skin_approximation_msg.best_fit_right_line_a = self.best_fit_right_line_a
-                skin_approximation_msg.best_fit_right_line_b = self.best_fit_right_line_b
-            else:
-                raise Exception("Skin approximation mode of " + str(self.skin_approximation_mode) +
-                                " was not recognized.")
+            try:
 
-            # Publish the skin approximation
-            self.skin_approximation_publisher.publish(skin_approximation_msg)
+                # Fill out the skin approximation message
+                skin_approximation_msg = SkinContactLines()
+                if self.skin_approximation_mode == SINGLE_LINE_APPROXIMATION:
+                    skin_approximation_msg.skin_approximation_mode = SINGLE_LINE_APPROXIMATION
+                    skin_approximation_msg.best_fit_shared_line_a = self.best_fit_shared_line_a
+                    skin_approximation_msg.best_fit_shared_line_b = self.best_fit_shared_line_b
+                elif self.skin_approximation_mode == DOUBLE_LINE_APPROXIMATION:
+                    skin_approximation_msg.skin_approximation_mode = DOUBLE_LINE_APPROXIMATION
+                    skin_approximation_msg.best_fit_left_line_a = self.best_fit_left_line_a
+                    skin_approximation_msg.best_fit_left_line_b = self.best_fit_left_line_b
+                    skin_approximation_msg.best_fit_right_line_a = self.best_fit_right_line_a
+                    skin_approximation_msg.best_fit_right_line_b = self.best_fit_right_line_b
+                else:
+                    raise Exception("Skin approximation mode of " + str(self.skin_approximation_mode) +
+                                    " was not recognized.")
 
-            # Publish the patient contact and image error
-            self.patient_contact_status_publisher.publish(Bool(patient_contact_status))
-            patient_contact_error_msg = Float64Stamped()
-            patient_contact_error_msg.header.stamp = Time.now()
-            patient_contact_error_msg.data.data = patient_contact_error
-            self.patient_contact_error_publisher.publish(patient_contact_error_msg)
+                # Publish the skin approximation
+                self.skin_approximation_publisher.publish(skin_approximation_msg)
+
+                # Publish the patient contact and image error
+                self.patient_contact_status_publisher.publish(Bool(patient_contact_status))
+                patient_contact_error_msg = Float64Stamped()
+                patient_contact_error_msg.header.stamp = Time.now()
+                patient_contact_error_msg.data.data = patient_contact_error
+                self.patient_contact_error_publisher.publish(patient_contact_error_msg)
+
+            except Exception:
+                pass
 
 
 if __name__ == '__main__':
