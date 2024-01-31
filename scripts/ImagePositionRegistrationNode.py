@@ -32,6 +32,8 @@ MSG: int = int(1)
 # TODO - Dream - Add proper try-cath error checking everywhere and incorporate logging into it
 # TODO - Dream - Add node status publishing
 # TODO - High - Create a method of saving registered data sets to my computer
+# TODO - High - Change this so it only starts saving once pose control is in use and the current pose goal has been reached
+# TODO - High - Change the pose control class so that it only moves on to the next target goal once data has been registered
 
 
 class ImagePositionRegistrationNode(BasicNode):
