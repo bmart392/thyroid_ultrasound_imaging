@@ -77,7 +77,6 @@ class ImageFilterNode(BasicNode):
         # noinspection PyTypeChecker
         self.image_data: ImageData = None  # for storing the data about the image to be filtered
         self.time_of_last_image_filtered = 0  # for storing when the first image was filtered
-        self.filter_images = False  # for storing the current image filtering status
         self.temporary_visualization_block = False
 
         # Define a list to store the images received by the node
@@ -140,9 +139,6 @@ class ImageFilterNode(BasicNode):
         # Create a subscriber to receive the ultrasound images
         Subscriber(IMAGE_RAW, image_data_message, self.raw_image_callback)
 
-        # Create a subscriber to receive the command to start and stop filtering images
-        Subscriber(FILTER_IMAGES, Bool, self.filter_images_callback)
-
         # Create a subscriber to receive the command to select the crop coordinates for the image
         Subscriber(IMAGE_CROP_COORDINATES, image_crop_coordinates, self.crop_coordinates_callback)
 
@@ -173,12 +169,6 @@ class ImageFilterNode(BasicNode):
         # Remove the oldest image if the list is now too long
         if len(self.received_images) > self.max_images_to_store:
             self.received_images.pop(0)
-
-    def filter_images_callback(self, data: Bool):
-        """
-        Update filter_images_command parameter.
-        """
-        self.filter_images = data.data
 
     def crop_coordinates_callback(self, coordinates: image_crop_coordinates):
         """
@@ -363,8 +353,7 @@ class ImageFilterNode(BasicNode):
             self.newest_image_data.image_title = self.image_title
             self.cropped_image_publisher.publish(self.newest_image_data.convert_to_message())
 
-            if self.filter_images and self.image_filter.ready_to_filter and \
-                    self.image_filter.is_in_contact_with_patient:
+            if self.image_filter.ready_to_filter and self.image_filter.is_in_contact_with_patient:
                 # Create new image data based on received image
                 self.image_data = copy(self.newest_image_data)
 

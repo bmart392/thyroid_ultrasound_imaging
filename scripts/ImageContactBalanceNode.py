@@ -4,10 +4,10 @@
 File containing code to ensure even patient contact.
 """
 
-# TODO - High - Figure out why this is crashing on the line of best fit
 # TODO - Dream - Add logging through BasicNode class
 # TODO - Dream - Add proper try-cath error checking everywhere and incorporate logging into it
 # TODO - Dream - Add proper node status publishing
+# TODO - Dream - Create an easy way to update the parameters of this node
 
 # Import standard python packages
 from numpy import zeros, linspace, array, polyfit
@@ -34,14 +34,13 @@ SINGLE_LINE_APPROXIMATION: int = int(1)
 DOUBLE_LINE_APPROXIMATION: int = int(2)
 
 
-# TODO - Dream - Create an easy way to update the parameters of this node
 class ImageContactBalanceNode(BasicNode):
 
     def __init__(self, image_field_of_view: float = 30, num_slices: int = 20, image_shape: tuple = (640, 480),
                  imaging_depth_meters: float = 0.05, bottom_distance_to_imaginary_center_meters: float = 0.275,
                  sides_distance_to_imaginary_center_meters: float = 0.074, start_of_us_image: int = 0,
                  end_of_us_image_from_bottom: int = 0, image_center_offset_px: int = 0,
-                 down_sampling_rate: int = 5, sector_angles: list = None,
+                 down_sampling_rate: int = 10, sector_angles: list = None,
                  skin_level_offset: int = 100, skin_approximation_mode: int = SINGLE_LINE_APPROXIMATION
                  ):
         """
@@ -274,6 +273,10 @@ class ImageContactBalanceNode(BasicNode):
         self.sampled_data_bit_mask = None
         self.skin_points = [[[], []], [[], []]]
 
+        # By default, assume the patient is not in the image and the patient contact error is 0
+        patient_contact_status = False
+        patient_contact_error = 0.0
+
         # If there is a new ultrasound image
         if len(self.new_ultrasound_images) > 0:
 
@@ -354,7 +357,7 @@ class ImageContactBalanceNode(BasicNode):
             dark_sector_difference = (num_dark_sectors[1] - num_dark_sectors[0]) / 10  # Scale down the error
 
             # If patient contact is detected at all
-            if abs(dark_sector_difference) < floor(len(self.sectors) * 0.5):
+            if (num_dark_sectors[0] + num_dark_sectors[1]) < floor(len(self.sectors) * 0.25):  # abs(dark_sector_difference) < floor(len(self.sectors) * 0.5):
 
                 # Publish the true patient contact message
                 patient_contact_status = True
@@ -453,43 +456,31 @@ class ImageContactBalanceNode(BasicNode):
                             raise Exception("Skin approximation mode of " + str(self.skin_approximation_mode) +
                                             " was not recognized.")
 
-            else:
-                # If zero patient contact is detected, publish the contact message accordingly
-                patient_contact_status = False
+                        # Fill out the skin approximation message
+                        skin_approximation_msg = SkinContactLines()
+                        if self.skin_approximation_mode == SINGLE_LINE_APPROXIMATION:
+                            skin_approximation_msg.skin_approximation_mode = SINGLE_LINE_APPROXIMATION
+                            skin_approximation_msg.best_fit_shared_line_a = self.best_fit_shared_line_a
+                            skin_approximation_msg.best_fit_shared_line_b = self.best_fit_shared_line_b
+                        elif self.skin_approximation_mode == DOUBLE_LINE_APPROXIMATION:
+                            skin_approximation_msg.skin_approximation_mode = DOUBLE_LINE_APPROXIMATION
+                            skin_approximation_msg.best_fit_left_line_a = self.best_fit_left_line_a
+                            skin_approximation_msg.best_fit_left_line_b = self.best_fit_left_line_b
+                            skin_approximation_msg.best_fit_right_line_a = self.best_fit_right_line_a
+                            skin_approximation_msg.best_fit_right_line_b = self.best_fit_right_line_b
+                        else:
+                            raise Exception("Skin approximation mode of " + str(self.skin_approximation_mode) +
+                                            " was not recognized.")
 
-                # Publish zero error
-                patient_contact_error = 0.0
+                        # Publish the skin approximation
+                        self.skin_approximation_publisher.publish(skin_approximation_msg)
 
-            try:
-
-                # Fill out the skin approximation message
-                skin_approximation_msg = SkinContactLines()
-                if self.skin_approximation_mode == SINGLE_LINE_APPROXIMATION:
-                    skin_approximation_msg.skin_approximation_mode = SINGLE_LINE_APPROXIMATION
-                    skin_approximation_msg.best_fit_shared_line_a = self.best_fit_shared_line_a
-                    skin_approximation_msg.best_fit_shared_line_b = self.best_fit_shared_line_b
-                elif self.skin_approximation_mode == DOUBLE_LINE_APPROXIMATION:
-                    skin_approximation_msg.skin_approximation_mode = DOUBLE_LINE_APPROXIMATION
-                    skin_approximation_msg.best_fit_left_line_a = self.best_fit_left_line_a
-                    skin_approximation_msg.best_fit_left_line_b = self.best_fit_left_line_b
-                    skin_approximation_msg.best_fit_right_line_a = self.best_fit_right_line_a
-                    skin_approximation_msg.best_fit_right_line_b = self.best_fit_right_line_b
-                else:
-                    raise Exception("Skin approximation mode of " + str(self.skin_approximation_mode) +
-                                    " was not recognized.")
-
-                # Publish the skin approximation
-                self.skin_approximation_publisher.publish(skin_approximation_msg)
-
-                # Publish the patient contact and image error
-                self.patient_contact_status_publisher.publish(Bool(patient_contact_status))
-                patient_contact_error_msg = Float64Stamped()
-                patient_contact_error_msg.header.stamp = Time.now()
-                patient_contact_error_msg.data.data = patient_contact_error
-                self.patient_contact_error_publisher.publish(patient_contact_error_msg)
-
-            except Exception:
-                pass
+            # Publish the patient contact and image error
+            self.patient_contact_status_publisher.publish(Bool(patient_contact_status))
+            patient_contact_error_msg = Float64Stamped()
+            patient_contact_error_msg.header.stamp = Time.now()
+            patient_contact_error_msg.data.data = patient_contact_error
+            self.patient_contact_error_publisher.publish(patient_contact_error_msg)
 
 
 if __name__ == '__main__':
