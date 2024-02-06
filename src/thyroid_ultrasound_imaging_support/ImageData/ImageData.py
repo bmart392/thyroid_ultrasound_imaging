@@ -15,6 +15,7 @@ from datetime import date, datetime
 
 # Import standard ROS packages
 from sensor_msgs.msg import Image
+from thyroid_ultrasound_imaging_support.Validation.date_stamp_str import date_stamp_str
 
 # Import custom python packages
 from thyroid_ultrasound_messages.msg import image_data_message
@@ -500,7 +501,7 @@ class ImageData:
             suffix = ""
 
         # Build the file names to use to store the data
-        date_prefix = str(date.today()) + '_' + datetime.now().strftime('%H-%M-%S-%f') + '_'
+        date_prefix = date_stamp_str()
         save_folder_path = save_location + date_prefix + IMAGE_DATA_OBJECT + suffix
         simple_data_file_path = save_folder_path + '/' + date_prefix + SIMPLE_DATA
         array_data_file_path = save_folder_path + '/' + date_prefix + ARRAY_DATA

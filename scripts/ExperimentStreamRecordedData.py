@@ -113,7 +113,7 @@ def restart_streaming_command_callback(data: Bool):
 if __name__ == '__main__':
 
     # Define root path to folders where images are stored
-    root_path = '/home/ben/thyroid_ultrasound/src/thyroid_ultrasound_imaging/scripts/Test/Images/'
+    root_path = '/home/ben/thyroid_ultrasound_data/testing_and_validation/raw_images/'
 
     # Define the file path and image offset number to use
     this_file_path = '2023-11-29_19-14'
