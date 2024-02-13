@@ -4,13 +4,13 @@ Contains code for bridge_list_of_contours_multi_array function.
 
 # Import standard libraries
 import cv2
-from numpy import sum, uint8, array, zeros, delete, append
+from numpy import sum, uint8, array, zeros, delete, append, ndarray
 from thyroid_ultrasound_imaging_support.ImageData.BridgeImageDataMessageConstants import *
 from thyroid_ultrasound_imaging_support.ImageData.bridge_list_of_points_multi_array import bridge_list_of_points_multi_array
 from std_msgs.msg import UInt16MultiArray
 
 
-def bridge_list_of_contours_multi_array(direction: int, list_of_contours: list = None, array_message: UInt16MultiArray = None):
+def bridge_list_of_contours_multi_array(direction: str, list_of_contours: list = None, array_message: UInt16MultiArray = None):
     """
     Converts a 2D list of (x, y) coordinates into a ROS Multi-array message and vice versa.
     Uses a tuple of value (65535, 65535) as a separator between different contours.
@@ -44,7 +44,7 @@ def bridge_list_of_contours_multi_array(direction: int, list_of_contours: list =
             for coordinate_pair in contour_list:
 
                 # Add each point to the list of all points
-                list_of_points_of_all_contours.append(coordinate_pair[0])
+                list_of_points_of_all_contours.append(coordinate_pair)
 
             # Add a placeholder coordinate to separate each contour
             list_of_points_of_all_contours.append(PLACEHOLDER_COORDINATE)
@@ -59,7 +59,8 @@ def bridge_list_of_contours_multi_array(direction: int, list_of_contours: list =
             raise Exception("array_message cannot be None when converting to message.")
 
         # Convert the array_message to a single list of points that contains all contours
-        list_of_points_of_all_contours = bridge_list_of_points_multi_array(TO_OBJECT, array_message=array_message)
+        list_of_points_of_all_contours = bridge_list_of_points_multi_array(TO_OBJECT, array_message=array_message,
+                                                                           return_as_array=True)
 
         # Create empty list in which to store all the contours
         result_list_of_contours = []
@@ -74,10 +75,10 @@ def bridge_list_of_contours_multi_array(direction: int, list_of_contours: list =
         for coordinate_pair in list_of_points_of_all_contours:
 
             # If it is a placeholder value, it is time to start filling a new list
-            if coordinate_pair == PLACEHOLDER_COORDINATE:
+            if coordinate_pair[0] == PLACEHOLDER_COORDINATE[0] and coordinate_pair[1] == PLACEHOLDER_COORDINATE[1]:
 
                 # Append the last list of points to the result list
-                result_list_of_contours.append(temp_list_of_points_for_single_contour)
+                result_list_of_contours.append(array(temp_list_of_points_for_single_contour))
 
                 # Set the flag
                 fill_new_list = True

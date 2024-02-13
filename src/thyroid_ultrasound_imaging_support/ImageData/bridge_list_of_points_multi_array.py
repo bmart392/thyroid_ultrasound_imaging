@@ -18,8 +18,9 @@ THREE_D: int = int(3)
 FOUR_D: int = int (4)
 
 
-def bridge_list_of_points_multi_array(direction: int, list_of_points=None, array_message=None,
-                                      msg_type: str = INT_ARRAY, point_dim: int = TWO_D):
+def bridge_list_of_points_multi_array(direction: str, list_of_points=None, array_message=None,
+                                      msg_type: str = INT_ARRAY, point_dim: int = TWO_D,
+                                      return_as_array: bool = False):
     """
     Converts a 1D list of (x, y) coordinates to a ROS Multi-array or vice versa.
 
@@ -38,6 +39,8 @@ def bridge_list_of_points_multi_array(direction: int, list_of_points=None, array
         The type of MultiArray message to create when converting to a message
     point_dim
         The dimension of each point included in the array.
+    return_as_array
+        Tells the function to return the generated list of points as a numpy array.
     """
 
     # Ensure enough arguments are passed to the function
@@ -94,8 +97,6 @@ def bridge_list_of_points_multi_array(direction: int, list_of_points=None, array
             raise Exception("List of points is formatted incorrectly. Dimension of each point is not " +
                             exception_msg + "D.")
 
-        # Reshape the array to be a 1D list
-        return_message.data = list_of_points.reshape(shape[0] * shape[1])
 
         # Define the data padding to be zero
         return_message.layout.data_offset = 0
@@ -111,6 +112,8 @@ def bridge_list_of_points_multi_array(direction: int, list_of_points=None, array
         return_message.layout.dim[1].size = shape[1]
         return_message.layout.dim[1].stride = 0
 
+        # Reshape the array to be a 1D list
+        return_message.data = list_of_points.reshape(shape[0] * shape[1])
         # Return the message object
         return return_message
 
@@ -139,6 +142,10 @@ def bridge_list_of_points_multi_array(direction: int, list_of_points=None, array
             # Append the data from the flattened array onto the 2D list
             return_list.append((array_message.data[i], array_message.data[i + 1]))
 
+        # If required, convert the result list to an array
+        if return_as_array:
+            return_list = array(return_list)
+
         # Delete dummy data entered in first row
         # return delete(return_array, 0, 0)
         return return_list
@@ -150,8 +157,9 @@ def bridge_list_of_points_multi_array(direction: int, list_of_points=None, array
 if __name__ == "__main__":
 
     # Create a list of points to test
+    trial_list = [(int(1), int(2)), (int(3), int(4)), (int(5), int(6)), (int(7), int(8))]
     trial_list = [(1, 2), (3, 4), (5, 6), (7, 8)]
-    trial_list = []
+    # trial_list = []
 
     # Generate the corresponding message
     message_result = bridge_list_of_points_multi_array(TO_MESSAGE, trial_list)

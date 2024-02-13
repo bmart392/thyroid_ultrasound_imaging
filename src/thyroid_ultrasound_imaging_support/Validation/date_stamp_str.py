@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import datetime
 
 
 def date_stamp_str(prefix: str = "", suffix: str = "_"):
@@ -17,4 +17,6 @@ def date_stamp_str(prefix: str = "", suffix: str = "_"):
     A date stamp string formatted as YYYY-MM-DD_HH-MM-SS-ffffff (f is microseconds) and the prefix and suffix
     prepended and appended respectively.
     """
-    return prefix + str(date.today()) + '_' + datetime.now().strftime('%H-%M-%S-%f') + suffix
+    return prefix + str(datetime.now().date()) + '_' + datetime.now().strftime('%H-%M-%S-%f') + suffix
+
+

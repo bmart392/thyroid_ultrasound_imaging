@@ -28,8 +28,8 @@ ui_node = ImageBasedUserInput()
 
 # Read in a list of images from a folder
 image_start_index = 51
-images_as_arrays = load_folder_of_image_files('/home/ben/thyroid_ultrasound/src/thyroid_ultrasound_imaging/scripts'
-                                              '/Test/Images/2023-11-29_19-14', image_start_index)
+images_as_arrays = load_folder_of_image_files('/home/ben/thyroid_ultrasound_data/testing_and_validation/'
+                                              'raw_images/2023-11-29_19-14', image_start_index)
 
 # Define the image to use for testing
 image_for_test = images_as_arrays[0]

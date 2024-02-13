@@ -24,7 +24,8 @@ from thyroid_ultrasound_imaging_support.ImageData.single_line_representations im
     create_single_line_time_stamp, rebuild_data, NEW_LINE
 
 # Import custom ROS packages
-from thyroid_ultrasound_imaging_support.ImageData.BridgeImageDataMessageConstants import *
+from thyroid_ultrasound_imaging_support.ImageData.BridgeImageDataMessageConstants import PLACEHOLDER_COORDINATE
+from thyroid_ultrasound_imaging_support.RegisteredData.MessageCompatibleObject import TO_MESSAGE, TO_OBJECT
 from thyroid_ultrasound_imaging_support.ImageData.bridge_list_of_points_multi_array import \
     bridge_list_of_points_multi_array
 from thyroid_ultrasound_imaging_support.ImageData.bridge_list_of_contours_multi_array import \
@@ -262,6 +263,7 @@ class ImageData:
             # Only add contours to the final list that exceed the minimum contour area requirement
             for contour in temp_contours:
                 if contourArea(contour) > minimum_contour_area:
+                    contour = reshape(contour, (contour.shape[0], contour.shape[2]))
                     self.contours_in_image.append(contour)
 
     def calculate_image_centroids(self):
@@ -291,7 +293,7 @@ class ImageData:
 
             return result
 
-    def bridge_image_data_and_message(self, direction: int, message: image_data_message = None):
+    def bridge_image_data_and_message(self, direction: str, message: image_data_message = None):
         """
         Convert an image data object into a ROS image data message and vice versa.
         """
@@ -494,7 +496,7 @@ class ImageData:
 
         # Add a backslash to the save location if it is not already included
         if not save_location[-1] == '/':
-            save_location = save_location.join('/')
+            save_location = save_location + '/'
 
         # Replace the None value from the suffix if necessary
         if suffix is None:

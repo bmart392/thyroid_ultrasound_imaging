@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 """
-File containing ImageFiterNode class definition and ROS running code.
+File containing the RealTimeImageFiterNode class definition and ROS running code.
 """
 
 # TODO - Dream - Create fusion filter of Grabcut & Threshold types. Combine using Beysian probability.
@@ -37,7 +37,7 @@ GRABCUT_FILTER: int = 1
 FUSION_FILTER: int = 2
 
 
-class ImageFilterNode(BasicNode):
+class RealTimeImageFilterNode(BasicNode):
     """
     A class for defining a ROS node to filter ultrasound images.
     """
@@ -260,7 +260,7 @@ class ImageFilterNode(BasicNode):
             self.image_filter.ready_to_filter = False
 
             # Add to the context of the exception
-            caught_exception.history.append("Failed to filter image in 'analyze_image' in ImageFilterNode.py")
+            caught_exception.history.append("Failed to filter image in 'analyze_image' in RealTimeImageFilterNode.py")
 
             # Log that the error occurred
             self.log_single_message(caught_exception.convert_history_to_string(), SHORT)
@@ -338,7 +338,7 @@ class ImageFilterNode(BasicNode):
                 self.image_filter.image_crop_coordinates = None
 
                 # Add a new message to the history of the error
-                caught_exception.history.append(CROP_FAILURE + " in 'main_loop' function of ImageFilterNode.py")
+                caught_exception.history.append(CROP_FAILURE + " in 'main_loop' function of RealTimeImageFilterNode.py")
 
                 # Log the history of the error
                 self.log_single_message(caught_exception.convert_history_to_string(), SHORT)
@@ -387,8 +387,8 @@ class ImageFilterNode(BasicNode):
 
 if __name__ == '__main__':
     # create node object
-    filter_node = ImageFilterNode(filter_type=GRABCUT_FILTER,
-                                  debug_mode=False, analysis_mode=True)
+    filter_node = RealTimeImageFilterNode(filter_type=GRABCUT_FILTER,
+                                          debug_mode=False, analysis_mode=True)
 
     print("Node initialized.")
     print("Press ctrl+c to terminate.")

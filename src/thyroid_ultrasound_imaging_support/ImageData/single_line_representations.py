@@ -3,7 +3,7 @@ Contains code for creating single line representations of data.
 """
 
 # Import standard python packages
-from numpy import array, product, uint8, ndarray, int32
+from numpy import array, product, uint8, ndarray, int32, int64
 from rospy import Time
 from ast import literal_eval
 
@@ -31,6 +31,7 @@ NEW_LINE: str = "\n"
 # Define values for the different data types
 INT: str = "int"
 INT32: str = "int32"
+INT64: str = "int64"
 UINT8: str = "uint8"
 FLOAT: str = "float"
 STRING: str = "str"
@@ -108,6 +109,8 @@ def create_single_line_array_data(field_name: str, data: array, previous_string:
             data_type = INT
         elif data.dtype == int32:
             data_type = INT32
+        elif data.dtype == int64:
+            data_type = INT64
         elif data.dtype == uint8:
             data_type = UINT8
         elif data.dtype == float:
@@ -172,6 +175,13 @@ def create_single_line_list_data(field_name: str, data: list, previous_string: s
                 string_data = create_single_line_array_data(str(ii), list_item, string_data)[:-len(END_OF_LINE +
                                                                                                    NEW_LINE)]
 
+            # Check if the current list item is a list
+            elif type(list_item) == list:
+
+                # If it is, use the list generation method but remove the end of the line and the new line characters
+                string_data = create_single_line_list_data(str(ii), list_item, string_data)[:-len(END_OF_LINE +
+                                                                                                  NEW_LINE)]
+
             # if the current list item is a tuple
             elif type(list_item) == tuple:
 
@@ -180,6 +190,8 @@ def create_single_line_list_data(field_name: str, data: list, previous_string: s
                     data_type = INT
                 elif type(list_item[0]) == int32:
                     data_type = INT32
+                elif type(list_item[0]) == int64:
+                    data_type = INT64
                 elif type(list_item[0]) == uint8:
                     data_type = UINT8
                 elif type(list_item[0]) == float:
@@ -187,7 +199,7 @@ def create_single_line_list_data(field_name: str, data: list, previous_string: s
 
                 # Raise an exception if the data type is not recognized
                 else:
-                    raise Exception("The type of the data field " + str(type(data[0])) + " was not recognized.")
+                    raise Exception("The type of the data field " + str(type(list_item[0])) + " was not recognized.")
 
                 # Add the tuple tag and data type to the string
                 string_data = string_data + TUPLE + DELIMITER + str(ii) + DELIMITER + data_type + DELIMITER
@@ -323,6 +335,16 @@ def rebuild_array_data(split_data: list):
         # Reshape the array
         result_array = array(result_array).reshape(literal_eval(data_shape))
 
+    # If the data is int64
+    elif data_type == INT64:
+
+        # Convert each value to an int64
+        for value in data.split(ARRAY_DELIMITER):
+            result_array.append(int64(value))
+
+        # Reshape the array
+        result_array = array(result_array).reshape(literal_eval(data_shape))
+
     # If the data is uint8
     elif data_type == UINT8:
 
@@ -384,6 +406,8 @@ def rebuild_list_data(string_data: str):
             _, list_item_object = rebuild_array_data(list_item_split[1:])
         elif list_item_split[0] == TUPLE:
             _, list_item_object = rebuild_tuple_data(list_item_split[1:])
+        elif list_item_split[0] == LIST:
+            _, list_item_object = rebuild_list_data(list)
         else:
             raise Exception(list_item_split[0] + " is not a recognized data type.")
 
@@ -419,6 +443,16 @@ def rebuild_tuple_data(split_data: list):
         # Convert each value to an int32
         for value in data.split(TUPLE_DELIMITER):
             result_tuple.append(int32(value))
+
+        # Convert the list to a tuple
+        result_tuple = tuple(result_tuple)
+
+    # If the data is int64
+    elif data_type == INT64:
+
+        # Convert each value to an int64
+        for value in data.split(TUPLE_DELIMITER):
+            result_tuple.append(int64(value))
 
         # Convert the list to a tuple
         result_tuple = tuple(result_tuple)

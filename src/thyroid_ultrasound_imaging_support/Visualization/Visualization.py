@@ -13,7 +13,7 @@ from cv2 import GC_BGD, GC_PR_FGD, imshow, waitKey, line, circle, \
 from thyroid_ultrasound_imaging_support.ImageFilter.FilterConstants import COLOR_RGB
 from thyroid_ultrasound_imaging_support.Visualization.VisualizationConstants import *
 from thyroid_ultrasound_imaging_support.Visualization.create_mask_display_array import create_mask_display_array
-from thyroid_ultrasound_imaging_support.Visualization.create_mask_overlay_image import create_mask_overlay_array, \
+from thyroid_ultrasound_imaging_support.Visualization.create_mask_overlay_array import create_mask_overlay_array, \
     COLORIZED, COLOR_BGR
 from thyroid_ultrasound_imaging_support.ImageData.ImageData import ImageData
 from thyroid_ultrasound_imaging_support.Visualization.add_centroids_on_image import add_centroids_on_image

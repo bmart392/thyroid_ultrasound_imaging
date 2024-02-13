@@ -34,7 +34,7 @@ def load_folder_of_image_files(folder_path: str,
 
     # Check if the folder path to the images is valid.
     if not isdir(folder_path):
-        raise "Folder path is not valid."
+        raise Exception("Folder path is not valid.")
 
     # Get a list of the files in the directory
     file_names = listdir(folder_path)

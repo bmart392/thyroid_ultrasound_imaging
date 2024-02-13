@@ -1,5 +1,5 @@
 """
-Contains the code for validating that the ImageFilterNode is successful.
+Contains the code for validating that the RealTimeImageFilterNode is successful.
 """
 
 # Import standard python packages
@@ -25,7 +25,7 @@ from thyroid_ultrasound_imaging_support.Visualization.create_mask_display_array 
 # Import custom ROS packages
 from thyroid_ultrasound_imaging_support.ImageData.ImageData import ImageData
 from thyroid_ultrasound_imaging_support.ImageData.convert_array_to_image_message import convert_array_to_image_message
-from ImageFilterNode import ImageFilterNode, GRABCUT_FILTER
+from RealTimeImageFilterNode import RealTimeImageFilterNode, GRABCUT_FILTER
 from thyroid_ultrasound_messages.msg import image_crop_coordinates, initialization_mask_message
 
 # Validation Options
@@ -50,17 +50,17 @@ fig, axes = subplots(NUM_ROWS, NUM_COLS)
 fig.suptitle('Image Filter Process', fontsize=36)
 
 # Create the filter_node to be tested
-filter_node = ImageFilterNode(filter_type=GRABCUT_FILTER,
+filter_node = RealTimeImageFilterNode(filter_type=GRABCUT_FILTER,
                               debug_mode=False, analysis_mode=True)
 
 # Read in a list of images from a folder
 image_start_index = 51
-images_as_arrays = load_folder_of_image_files('/home/ben/thyroid_ultrasound/src/thyroid_ultrasound_imaging/scripts'
-                                              '/Test/Images/2023-11-29_19-14', image_start_index)
+images_as_arrays = load_folder_of_image_files('/home/ben/thyroid_ultrasound_data/testing_and_validation/'
+                                              'raw_images/2023-11-29_19-14', image_start_index)
 
 # Load the arrays to use for the image crop coordinates and the initialization array
 crop_coords = load(INITIALIZATION_INFORMATION_PATH + CROP_FILE_NAME)
-user_mask = resize(load(INITIALIZATION_INFORMATION_PATH + INITIALIZATION_FILE_NAME), (639, 403))
+user_mask = load(INITIALIZATION_INFORMATION_PATH + INITIALIZATION_FILE_NAME)
 
 # Show the user mask as loaded
 axes[int((ii - (ii % NUM_COLS)) / NUM_ROWS)][int(ii % NUM_COLS)].imshow(
@@ -70,7 +70,7 @@ axes[int((ii - (ii % NUM_COLS)) / NUM_ROWS)][int(ii % NUM_COLS)].set_title(
 ii = ii + 1
 
 # Define the maximum rate at which images should be processed
-rate = Rate(5)  # Hz
+rate = Rate(30)  # Hz
 
 # Send the image crop coordinates to use for cropping the images
 image_crop_coordinates_msg = image_crop_coordinates(first_coordinate_x=crop_coords[0][0],
@@ -90,9 +90,6 @@ axes[int((ii - (ii % NUM_COLS)) / NUM_ROWS)][int(ii % NUM_COLS)].set_title('Segm
                                                                            'Previous Image Mask', fontsize=24)
 ii = ii + 1
 
-# Tell the image filter that it is time to filter images
-filter_node.filter_images_callback(Bool(True))
-
 filter_node.patient_contact_callback(Bool(True))
 
 for image_array in images_as_arrays:
@@ -111,46 +108,51 @@ for image_array in images_as_arrays:
     filter_node.main_loop()
 
     # Display the Previous-Image Mask for this image
-    imshow("Previous-Image Mask for this image",
-           create_mask_overlay_array(filter_node.image_data.pre_processed_image, 3,
-                                     this_image_previous_mask, COLOR_BGR,
-                                     PREV_IMG_MASK, color_pr_fgd=(85, 0, 0)))
-    waitKey(1)
+    # imshow("Previous-Image Mask for this image",
+    #        create_mask_overlay_array(base_image=filter_node.image_data.pre_processed_image,
+    #                                  overlay_mask=this_image_previous_mask,
+    #                                  overlay_method=PREV_IMG_MASK, color_pr_fgd=(85, 0, 0)))
+    # waitKey(1)
+    #
+    # imshow("Current Image", filter_node.image_data.pre_processed_image)
+    # waitKey(1)
+    # imshow("Foreground", create_mask_overlay_array(base_image=filter_node.image_data.pre_processed_image,
+    #                                                overlay_mask=filter_node.image_data.image_mask,
+    #                                                overlay_method=COLORIZED, overlay_color=(34, 25, 0)))
+    # waitKey(1)
+    # imshow("Previous-Image Mask for next image",
+    #        create_mask_overlay_array(base_image=filter_node.image_data.pre_processed_image,
+    #                                  overlay_mask=filter_node.image_filter.previous_image_mask_array,
+    #                                  overlay_method=PREV_IMG_MASK, color_pr_fgd=(85, 0, 0)))
+    # waitKey(1)1
 
-    imshow("Current Image", filter_node.image_data.pre_processed_image)
-    waitKey(1)
-    imshow("Foreground", create_mask_overlay_array(filter_node.image_data.pre_processed_image, 3,
-                                                   filter_node.image_data.image_mask, COLOR_BGR,
-                                                   COLORIZED, overlay_color=(34, 25, 0)))
-    waitKey(1)
-    imshow("Previous-Image Mask for next image",
-           create_mask_overlay_array(filter_node.image_data.pre_processed_image, 3,
-                                     filter_node.image_filter.previous_image_mask_array, COLOR_BGR,
-                                     PREV_IMG_MASK, color_pr_fgd=(85, 0, 0)))
-    waitKey(1)
+    filtered_image_data_message = filter_node.image_data.convert_to_message()
+    message_bsed_image_data_object = ImageData(image_data_msg=filtered_image_data_message)
+
+    # If this script is testing the save data functionality
+    if save_image_data:
+        # Note the time the process started
+        start_time = time()
+
+        # Convert the image data to a zipped folder
+        object_location = filter_node.image_data.save_object_to_file(IMAGE_DATA_OBJECTS_PATH)
+
+        # Calculate how long it took to save the image
+        start_time = display_process_timer(start_time, "Object Saving Time")
+
+        # Rebuild the data from the file
+        result_object = ImageData(image_data_location=object_location)
+
+        # Calculate how long it took to rebuild the data
+        display_process_timer(start_time, "Object Recreation Time")
+    else:
+        # Otherwise just look at the data in the node
+        result_object = filter_node.image_data
 
     rate.sleep()
 
 
-# If this script is testing the save data functionality
-if save_image_data:
-    # Note the time the process started
-    start_time = time()
 
-    # Convert the image data to a zipped folder
-    object_location = filter_node.image_data.save_object_to_file(IMAGE_DATA_OBJECTS_PATH)
-
-    # Calculate how long it took to save the image
-    start_time = display_process_timer(start_time, "Object Saving Time")
-
-    # Rebuild the data from the file
-    result_object = ImageData(image_data_location=object_location)
-
-    # Calculate how long it took to rebuild the data
-    display_process_timer(start_time, "Object Recreation Time")
-else:
-    # Otherwise just look at the data in the node
-    result_object = filter_node.image_data
 
 # Show the original image
 axes[int((ii - (ii % NUM_COLS)) / NUM_ROWS)][int(ii % NUM_COLS)].imshow(

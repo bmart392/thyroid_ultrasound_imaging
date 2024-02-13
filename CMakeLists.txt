@@ -163,7 +163,7 @@ catkin_package(
 ## Mark executable scripts (Python etc.) for installation
 ## in contrast to setup.py, you can choose the destination
 catkin_install_python(PROGRAMS 
-  scripts/ImageFilterNode.py 
+  scripts/RealTimeImageFilterNode.py 
   scripts/ImagePositioningControllerNode.py
   scripts/ExperimentStreamRecordedData.py
   scripts/VisualizationNode.py

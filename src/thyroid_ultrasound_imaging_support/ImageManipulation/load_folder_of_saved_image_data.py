@@ -8,6 +8,8 @@ from fnmatch import fnmatch
 
 # Import custom python packages
 from thyroid_ultrasound_imaging_support.ImageData.ImageData import ImageData
+from thyroid_ultrasound_imaging_support.RegisteredData.generate_ordered_list_of_directory_contents import \
+    generate_ordered_list_of_directory_contents
 
 
 def load_folder_of_saved_image_data(source_folder_path: str) -> list:
@@ -28,13 +30,14 @@ def load_folder_of_saved_image_data(source_folder_path: str) -> list:
     list_of_image_data_objects = []
 
     # Capture the contents of the given folder
-    folders_in_folder = listdir(source_folder_path)
+    folders_in_folder = generate_ordered_list_of_directory_contents(directory_path=source_folder_path,
+                                                                    sort_indices=(0, 1))
 
     # For each folder,
-    for sub_folder_name in folders_in_folder:
+    for full_path_to_sub_folder in folders_in_folder:
 
         # Create the full path to the sub-folder
-        full_path_to_sub_folder = source_folder_path + '/' + sub_folder_name
+        # full_path_to_sub_folder = source_folder_path + '/' + sub_folder_name
 
         # Get the contents of the sub-folder
         sub_folder_contents = listdir(full_path_to_sub_folder)
