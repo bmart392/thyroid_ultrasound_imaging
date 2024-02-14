@@ -5,7 +5,7 @@ File containing ImagePositionRegistrationNode class definition and ROS running c
 """
 
 # Import standard python packages
-from os.path import exists
+from os.path import isdir
 from copy import deepcopy
 
 # Import standard ROS packages
@@ -15,8 +15,6 @@ from thyroid_ultrasound_imaging_support.RegisteredData.RegisteredData import Reg
 
 # Import custom python packages
 from thyroid_ultrasound_imaging_support.ImageData.ImageData import ImageData
-from thyroid_ultrasound_imaging_support.ImageData.bridge_list_of_points_multi_array import \
-    bridge_list_of_points_multi_array, FLOAT_ARRAY, THREE_D, FOUR_D
 from thyroid_ultrasound_imaging_support.ImageData.BridgeImageDataMessageConstants import TO_MESSAGE
 from thyroid_ultrasound_support.BasicNode import *
 
@@ -29,13 +27,15 @@ OBJECT: int = int(0)
 MSG: int = int(1)
 
 
-# TODO - Dream - Add proper try-cath error checking everywhere and incorporate logging into it
-# TODO - Dream - Add node status publishing
-# TODO - Low - Properly comment this file
+# TODO - Dream - Add proper try-catch error checking everywhere and incorporate logging into it
+# TODO - Dream - Add logging through the BasicNode class
 
 
 class ImagePositionRegistrationNode(BasicNode):
     def __init__(self):
+        """
+        Creates an ImagePositionRegistrationNode object.
+        """
 
         # Call the constructor of hte super class
         super().__init__()
@@ -102,14 +102,19 @@ class ImagePositionRegistrationNode(BasicNode):
     # Data collection callbacks
     # region
 
-    def filtered_image_callback(self, data: image_data_message):
+    def filtered_image_callback(self, msg: image_data_message):
         """
-        Given a new image data message, add it to the list of data to register depending on whether pose feedback is
-        in use and the area of the foreground is consistent with previously received data.
+        Given a new image data message, add it to the list of data to register if pose feedback is
+        in use, the current pose goal has been reached, and an image has not already been saved.
+
+        Parameters
+        ----------
+        msg :
+            A message containing an image data object.
         """
 
         # Convert the incoming image_data_message to an image_data_object
-        image_data_object = ImageData(image_data_msg=data)
+        image_data_object = ImageData(image_data_msg=msg)
 
         # Only add data if pose_feedback is being used and the goal has been reached and
         # an image has not already been saved
@@ -119,8 +124,8 @@ class ImagePositionRegistrationNode(BasicNode):
             self.image_saved = True
 
             # Create the key values with which it will be stored
-            outer_level_key = data.header.stamp.secs
-            key_value_pair = {data.header.stamp.nsecs: (image_data_object, image_data_message)}
+            outer_level_key = msg.header.stamp.secs
+            key_value_pair = {msg.header.stamp.nsecs: (image_data_object, image_data_message)}
 
             # Try adding the value pair to an existing dictionary
             try:
@@ -135,7 +140,12 @@ class ImagePositionRegistrationNode(BasicNode):
 
     def pose_callback(self, pose_msg: Float64MultiArrayStamped):
         """
-        Save the given pose message in the pose history list of the node.
+        Saves the given pose message in the pose history list of the node.
+
+        Parameters
+        ----------
+        pose_msg :
+            A stamped message containing a robot pose.
         """
 
         # Define the outer level key to store in the dictionary
@@ -158,7 +168,12 @@ class ImagePositionRegistrationNode(BasicNode):
 
     def force_callback(self, force_msg: WrenchStamped):
         """
-        Save the given force in the history list of the node.
+        Saves the given force message in the history list of the node.
+
+        Parameters
+        ----------
+        force_msg :
+            A message containing a stamped robot force.
         """
 
         # Define the outer level key to store in the dictionary
@@ -185,16 +200,27 @@ class ImagePositionRegistrationNode(BasicNode):
     ##################
     # Status callbacks
     # region
-    def pose_goal_callback(self, data: Bool):
-        self.pose_goal_reached = data.data
+    def pose_goal_callback(self, msg: Bool):
+        """
+        Updates the internal flag pose_goal_reached flag to the message contents. If the goal has not been reached,
+        sets the internal flag image_saved as False.
+        """
+        self.pose_goal_reached = msg.data
         if not self.pose_goal_reached:
             self.image_saved = False
 
-    def pose_command_callback(self, data: Bool):
-        self.use_pose_feedback_command = data.data
+    def pose_command_callback(self, msg: Bool):
+        """
+        Updates the internal use_pose_feedback_command flag with the value from the message.
+        """
+        self.use_pose_feedback_command = msg.data
 
     def registered_data_save_location_callback(self, message: String):
-        if exists(message.data):
+        """
+        Updates the internal registered_data_save_location field with the path contained in the message.
+        The function will raise an exception if the path given is invalid.
+        """
+        if isdir(message.data):
             self.registered_data_save_location = message.data
         else:
             raise Exception(message.data + " is not a valid path.")
@@ -205,8 +231,6 @@ class ImagePositionRegistrationNode(BasicNode):
     ##################
     # Helper functions
     # region
-    def pixel_2_mm(self, pixel_value):
-        return pixel_value * self.imaging_depth / self.image_height
 
     @staticmethod
     def find_closest_key_value(seconds_key_to_search_for: int, nanoseconds_key_to_search_for: int,
@@ -244,18 +268,21 @@ class ImagePositionRegistrationNode(BasicNode):
 
     def remove_old_data(self, dictionary_to_edit: dict) -> dict:
         """
-        Removes any dictionary that is too old.
+        Removes any dictionary that is too old based on the age of the newest data.
+
+        Parameters
+        ----------
+        dictionary_to_edit :
+            A dictionary containing entries formatted as {seconds_key : data, ...}
         """
         # Define a list to store keys that should be removed
         keys_to_pop = []
 
-        # Get the current time
+        # Get the maximum time (in seconds) contained in the outer level dictionary
         max_time = max(dictionary_to_edit.keys())
-        current_time = Time.now().secs
 
         # Check through each dictionary to see if a dictionary is too old
         for outer_level_key in dictionary_to_edit.keys():
-            temp = max_time - outer_level_key
             if max_time - outer_level_key > self.data_age_limit:
                 # If so, add it to the list of keys to remove
                 keys_to_pop.append(outer_level_key)
@@ -270,6 +297,9 @@ class ImagePositionRegistrationNode(BasicNode):
     ##################
 
     def main_loop(self):
+        """
+        Matches stored image data with robot poses and forces, as long as there is data to match.
+        """
 
         # Copy both lists locally to avoid weird threading things
         local_list_of_filtered_images = deepcopy(self.list_of_filtered_images)
@@ -316,6 +346,8 @@ class ImagePositionRegistrationNode(BasicNode):
                                                                  closest_force_nanoseconds][
                                                                  OBJECT],
                                                              )
+
+                        # Save the new registered data object
                         new_registered_data.save_load(action=SAVE_OBJECT,
                                                       path_to_file_location=self.registered_data_save_location)
                         # Publish the registered data

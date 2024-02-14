@@ -11,10 +11,7 @@ from mpl_toolkits.mplot3d import Axes3D
 from scipy.spatial import ConvexHull
 
 # Import custom python packages
-from thyroid_ultrasound_imaging_support.ImageData.bridge_list_of_points_multi_array import \
-    bridge_list_of_points_multi_array
-from thyroid_ultrasound_imaging_support.ImageData.BridgeImageDataMessageConstants import TO_OBJECT
-from thyroid_ultrasound_imaging_support.RegisteredData.RegisteredData import RegisteredData, RobotPose, ImageData
+from thyroid_ultrasound_imaging_support.RegisteredData.RegisteredData import RegisteredData
 
 # Import standard ROS packages
 
@@ -24,10 +21,14 @@ from thyroid_ultrasound_support.BasicNode import *
 
 
 # TODO - Dream - Make this grow the volume incrementally
-# TODO - Low - Properly comment this file
+# TODO - Dream - Add proper try-catch error checking everywhere and incorporate logging into it
+# TODO - Dream - Add logging through the BasicNode class
 
 class VolumeGenerationNode(BasicNode):
     def __init__(self):
+        """
+        Creates a VolumeGenerationNode object.
+        """
 
         # Call the constructor of the super class
         super(VolumeGenerationNode, self).__init__()
@@ -59,9 +60,6 @@ class VolumeGenerationNode(BasicNode):
         # Listens for the list of registered data
         Subscriber(REGISTERED_DATA_NON_REAL_TIME, RegisteredDataMsg, self.registered_data_callback)
 
-        # Listens for the command to gather points
-        # Subscriber('/command/gather_volume_data', Bool, self.gather_volume_data_callback)
-
         # Listens for the segmentation status of the non-real-time image filter
         Subscriber(REGISTERED_DATA_NON_REAL_TIME_SEGMENTATION_PROGRESS, NonRealTimeImageFilterStatus)
 
@@ -72,6 +70,15 @@ class VolumeGenerationNode(BasicNode):
         Subscriber(IMAGE_DEPTH, Float64, self.image_depth_callback)
 
     def registered_data_callback(self, msg: RegisteredDataMsg):
+        """
+        Saves the registered data object contained within the message after transforming the contours found in the
+        image data into the origin frame.
+
+        Parameters
+        ----------
+        msg :
+            A message containing a registered data object which must contain an image data object and a robot pose.
+        """
 
         # Check if a volume is being generated currently
         if self.commanded_to_create_volume:
@@ -87,8 +94,9 @@ class VolumeGenerationNode(BasicNode):
             robot_pose_at_image_capture_time = msg_as_object.robot_pose
 
             # Generate a transformed list of points for the largest contour
-            transformed_contours = image_data.generate_transformed_contours(transformation=robot_pose_at_image_capture_time.robot_pose,
-                                                                            imaging_depth=self.image_depth)
+            transformed_contours = image_data.generate_transformed_contours(
+                transformation=robot_pose_at_image_capture_time.robot_pose,
+                imaging_depth=self.image_depth)
 
             # Add the points from each contour into the full list of points
             for contour in transformed_contours:
@@ -99,24 +107,35 @@ class VolumeGenerationNode(BasicNode):
             # Reset the counter when the command to create the volume has been cancelled
             self.num_points_gathered = 0
 
+            # Reset the flag that all data has been received
             self.all_data_received = False
 
     def create_volume_command_callback(self, msg: Bool):
+        """
+        Saves the value sent in the message to the internal commanded_to_create_volume flag.
+        """
         # Save the value sent in the command
         self.commanded_to_create_volume = msg.data
 
     def image_depth_callback(self, msg: Float64):
+        """
+        Saves the value sent in the message to the internal image_depth field.
+        """
         self.image_depth = msg.data
 
     def non_real_time_image_filter_progress_callback(self, msg: NonRealTimeImageFilterStatus):
-        self.all_data_received = self.num_points_gathered == msg.total_images_to_filter and \
-                                 msg.total_images_to_filter != 0
+        """
+        Updates the internal attribute all_data_received based on how many total points should have been received.
+        """
+        self.all_data_received = self.num_points_gathered == msg.total_images_to_filter and msg.total_images_to_filter != 0
 
     def main_loop(self):
+        """
+        Creates the volume and visualizes it when commanded to and all data has been received.
+        """
 
         # If the node has been commanded to generate the volume and all the data has been received
         if self.commanded_to_create_volume and self.all_data_received:
-
             # Define a temporary array for storing the points in the volume
             points_in_volume_as_array = array(self.points_in_volume)
 
@@ -158,6 +177,8 @@ if __name__ == '__main__':
     print("Node initialized.")
     print("Press ctrl+c to terminate.")
 
-    # Spin the node until it is terminated
-    # Callbacks handle all functionality
-    spin()
+    # While the node has not been shutdown, generate volumes when needed
+    while not is_shutdown():
+        node.main_loop()
+
+    print("Node terminated.")

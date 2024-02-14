@@ -43,6 +43,9 @@ class NonRealTimeImageFilterNode(BasicNode):
         # Define a variable to store the data that will be segmented
         self.registered_data = []
 
+        # Define a variable to store if the node has been commanded to generate a new volume
+        self.commanded_to_generate_volume = False
+
         # Define the image filter to use to filter the images
         self.image_filter = ImageFilterGrabCut(down_sampling_rate=1.0,
                                                segmentation_iteration_count=8,
@@ -66,11 +69,18 @@ class NonRealTimeImageFilterNode(BasicNode):
         # Define a subscriber to listen for the command to generate the volume
         Subscriber(GENERATE_VOLUME, Bool, self.generate_volume_command_callback)
 
-    def registered_data_load_location_callback(self, message: String):
-        if isdir(message.data):
-            self.registered_data_load_location = message.data
+    def registered_data_load_location_callback(self, msg: String):
+        """
+        Updates the internal registered_data_load_location with the path included in the message
+        as long as it is a valid path to a directory.
+        """
+        if isdir(msg.data):
+            self.registered_data_load_location = msg.data
 
     def publish_segmentation_status(self, number_of_images_segmented: int, number_of_images_to_segment: int):
+        """
+        Publishes the progress of the segmentation as a NonRealTimeImageFilterStatus message.
+        """
         new_msg = NonRealTimeImageFilterStatus(
             is_all_data_filtered=number_of_images_segmented == number_of_images_to_segment,
             num_images_filtered=number_of_images_segmented,
@@ -78,11 +88,17 @@ class NonRealTimeImageFilterNode(BasicNode):
         new_msg.header.stamp = Time.now()
         self.image_filter_progress_publisher.publish(new_msg)
 
-    def generate_volume_command_callback(self, message: Bool):
+    def generate_volume_command_callback(self, msg: Bool):
+        """
+        Updates the internal commanded_to_generate_volume flag with the value from the message.
+        """
+        self.commanded_to_generate_volume = msg.data
 
-        # If commanded to generate the volume,
-        if message.data:
-
+    def main_loop(self):
+        """
+        Segments the saved data when commanded to generate a volume and a valid path has been given.
+        """
+        if self.commanded_to_generate_volume:
             # Ensure that the specified directory exists
             if isdir(self.registered_data_load_location):
 
@@ -106,6 +122,11 @@ class NonRealTimeImageFilterNode(BasicNode):
 
                 # For each registered data point,
                 for registered_data in self.registered_data:
+
+                    # Stop the loop if the node was no longer commanded to generate a volume
+                    if not self.commanded_to_generate_volume:
+                        break
+
                     # Note when the process started
                     start_of_process_time = time()
 
@@ -147,18 +168,6 @@ class NonRealTimeImageFilterNode(BasicNode):
                     self.publish_segmentation_status(number_of_images_segmented=0,
                                                      number_of_images_to_segment=len(self.registered_data))
 
-                    # imshow('Down-sampled Image', new_image_data_object.down_sampled_image)
-                    # imshow('Image Mask', create_mask_overlay_array(base_image=new_image_data_object.colorized_image,
-                    #                                                overlay_mask=new_image_data_object.image_mask,
-                    #                                                output_image_color=COLOR_BGR))
-                    # imshow('Next previous image mask', create_mask_overlay_array(
-                    #     base_image=new_image_data_object.colorized_image,
-                    #     overlay_mask=self.image_filter.previous_image_mask_array,
-                    #     overlay_method=PREV_IMG_MASK,
-                    #     output_image_color=COLOR_BGR
-                    # ))
-                    # waitKey(1)
-
             else:
                 raise Exception("No source location was specified for the registered data.")
 
@@ -170,7 +179,8 @@ if __name__ == '__main__':
     print("Node initialized.")
     print("Press ctrl+c to terminate.")
 
-    # Spin until the node is shutdown
-    spin()
+    # Run the main loop until the node is shutdown
+    while not is_shutdown():
+        filter_node.main_loop()
 
     print("Node Terminated.")

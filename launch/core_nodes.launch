@@ -19,5 +19,11 @@
     
     <!-- start the image contact balance node -->
     <node name="ImageContactBalanceNode" pkg="thyroid_ultrasound_imaging" type="ImageContactBalanceNode.py" />
+    
+    <!-- start the non-real-time image filter -->
+    <node name="NonRealTimeImageFilterNode" pkg="thyroid_ultrasound_imaging" type="NonRealTimeImageFilterNode.py" /> 
+    
+    <!-- start the volume generation node -->
+    <node name="VolumeGenerationNode" pkg="thyroid_ultrasound_imaging" type="VolumeGenerationNode.py" /> 
 
 </launch>
