@@ -3,10 +3,11 @@ Contains code for ImageData class.
 """
 
 # TODO - Dream - Add proper try-cath error checking everywhere and incorporate logging into it
+# TODO - Dream - Build the imaging depth as an attribute in this class
 
 # Import standard python packages
 from cv2 import findContours, RETR_EXTERNAL, CHAIN_APPROX_NONE, contourArea, moments
-from numpy import sum, uint8, array, frombuffer, reshape, append, savez, load
+from numpy import sum, uint8, array, frombuffer, reshape, append, savez, load, ndarray
 from rospy import Time
 from cv_bridge import CvBridge, CvBridgeError
 from os.path import exists
@@ -22,6 +23,8 @@ from thyroid_ultrasound_messages.msg import image_data_message
 from thyroid_ultrasound_imaging_support.ImageData.single_line_representations import \
     create_single_line_simple_data, create_single_line_array_data, create_single_line_list_data, \
     create_single_line_time_stamp, rebuild_data, NEW_LINE
+from thyroid_ultrasound_imaging_support.RegisteredData.validate_transformation_matrix import \
+    validate_transformation_matrix
 
 # Import custom ROS packages
 from thyroid_ultrasound_imaging_support.ImageData.BridgeImageDataMessageConstants import PLACEHOLDER_COORDINATE
@@ -59,6 +62,10 @@ PROBABLE_FOREGROUND_MASK: str = "probable_foreground_mask"
 CONTOURS_IN_IMAGE: str = "contours_in_image"
 CONTOUR_CENTROIDS: str = "contour_centroids"
 IMAGE_CAPTURE_TIME: str = "image_capture_time"
+
+# Define constants for transforming contours
+ZY_ALIGNED: str = 'ZY'
+ZX_ALIGNED: str = 'ZX'
 
 
 class ImageData:
@@ -292,6 +299,58 @@ class ImageData:
                     result.append((self.contours_in_image[1], self.contour_centroids[1]))
 
             return result
+
+    def generate_transformed_contours(self, transformation: ndarray,
+                                      imaging_depth: float,
+                                      image_axis_alignment: str = ZY_ALIGNED):
+        # Define the default result
+        contours_list = []
+
+        # Check to make sure that the transformation is valid
+        if validate_transformation_matrix(transformation):
+
+            # Iterate through each contour
+            for contour in self.contours_in_image:
+
+                # Define a temporary list to store the points from this contour
+                this_contour_list = []
+
+                # Iterate through every point in the contour
+                for point_in_px in contour:
+
+                    # Add the crop offset to the point
+                    point_in_px_with_crop_offset = point_in_px + array(self.image_crop_coordinates[0])
+
+                    # Shift all values to be measured from the center of the image X axis
+                    point_in_px_from_center = point_in_px_with_crop_offset - array([round(self.ds_image_size_x / 2), 0])
+
+                    # Convert the units
+                    point_in_m = point_in_px_from_center * (imaging_depth / self.ds_image_size_y)
+
+                    # Rearrange the points
+                    if image_axis_alignment == ZY_ALIGNED:
+                        rearranged_point = array([[0],
+                                                  [point_in_m[0]],
+                                                  [point_in_m[1]],
+                                                  [1]])
+                    elif image_axis_alignment == ZX_ALIGNED:
+                        rearranged_point = array([[point_in_m[0]],
+                                                  [0],
+                                                  [point_in_m[1]]
+                                                  [1]])
+                    else:
+                        raise Exception("Image axis alignment of " + str(image_axis_alignment) + " is not recognized.")
+
+                    # Transform the point
+                    transformed_point = transformation @ rearranged_point
+
+                    # Add the transformed point to the list for this contour
+                    this_contour_list.append(transformed_point[:3].reshape(3))
+
+                # Add the list from this contour to the list for all contours
+                contours_list.append(array(this_contour_list))
+
+        return contours_list
 
     def bridge_image_data_and_message(self, direction: str, message: image_data_message = None):
         """
@@ -680,3 +739,19 @@ class ImageData:
         self.sure_foreground_mask = arrays[SURE_FOREGROUND_MASK]
         self.sure_background_mask = arrays[SURE_BACKGROUND_MASK]
         self.probable_foreground_mask = arrays[PROBABLE_FOREGROUND_MASK]
+
+
+if __name__ == '__main__':
+    # Create the test object
+    test_object = ImageData(image_data_location='/home/ben/thyroid_ultrasound_data/testing_and_validation/'
+                                                'saved_image_data_objects/2024-02-13_14-59-07-385364_image-data-object')
+
+    test_transformation_array = array([[0, -1, 0, 5],
+                                       [1, 00, 0, 2],
+                                       [0, 00, 1, 1],
+                                       [0, 00, 0, 1]])
+
+    test_result = test_object.generate_transformed_contours(transformation=test_transformation_array,
+                                                            imaging_depth=0.05)
+
+    print("hi")

@@ -33,6 +33,9 @@ validation_node.pose_command_callback(Bool(True))
 
 looping_rate = Rate(30)  # Hz
 
+# Robot pose x position
+x_position = 0
+
 # For each image data object
 for image_data_object in image_data_objects:
 
@@ -50,7 +53,10 @@ for image_data_object in image_data_objects:
     fake_robot_force.time_stamp = current_time
 
     # Create a fake robot pose with the same timestamp
-    fake_robot_pose = RobotPose(robot_pose=identity(4))
+    this_fake_pose = identity(4)
+    this_fake_pose[0][3] = x_position
+    x_position = x_position + 0.005
+    fake_robot_pose = RobotPose(robot_pose=this_fake_pose)
     fake_robot_pose.time_stamp = current_time
 
     # Send the messages

@@ -172,6 +172,8 @@ catkin_install_python(PROGRAMS
   scripts/ImagePositionRegistrationNode.py
   scripts/ImageContactBalanceNode.py
   scripts/ClariusUltrasoundConnectionNode.py
+  scripts/NonRealTimeImageFilterNode.py
+  scripts/VolumeGenerationNode.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

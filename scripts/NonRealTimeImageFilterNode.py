@@ -6,7 +6,6 @@ File containing the NonRealTimeImageFiterNode class definition and ROS running c
 
 # TODO - Dream - Add logging through BasicNode class
 # TODO - Dream - Add proper try-cath error checking everywhere and incorporate logging into it
-# TODO - Dream - Add a publisher that publishes how many images have been segmented and how many remain
 
 # Import standard python packages
 from os.path import isdir
@@ -18,7 +17,7 @@ from cv2 import resize, INTER_CUBIC
 # Import custom python packages
 from thyroid_ultrasound_imaging_support.ImageData.ImageData import ImageData
 from thyroid_ultrasound_imaging_support.ImageFilter.ImageFilterGrabCut import ImageFilterGrabCut
-from thyroid_ultrasound_imaging_support.RegisteredData.MessageCompatibleObject import TO_MESSAGE
+from thyroid_ultrasound_imaging_support.RegisteredData.MessageCompatibleObject import TO_MESSAGE, SAVE_OBJECT
 from thyroid_ultrasound_imaging_support.RegisteredData.RegisteredData import RegisteredData
 from thyroid_ultrasound_imaging_support.RegisteredData.load_folder_of_saved_registered_data import \
     load_folder_of_saved_registered_data
@@ -28,6 +27,7 @@ from thyroid_ultrasound_imaging_support.Visualization.display_process_timer impo
 
 # Import custom ROS packages
 from thyroid_ultrasound_support.BasicNode import *
+from thyroid_ultrasound_messages.msg import RegisteredDataMsg, NonRealTimeImageFilterStatus
 
 
 class NonRealTimeImageFilterNode(BasicNode):
@@ -54,7 +54,11 @@ class NonRealTimeImageFilterNode(BasicNode):
         init_node(NON_REAL_TIME_IMAGE_FILTER)
 
         # Create a publisher to publish the registered data in non-real time
-        self.registered_data_publisher = Publisher(REGISTERED_DATA_NON_REAL_TIME, RegisteredData, queue_size=1)
+        self.registered_data_publisher = Publisher(REGISTERED_DATA_NON_REAL_TIME, RegisteredDataMsg, queue_size=1)
+
+        # Create a publisher to publish the status of the image filter
+        self.image_filter_progress_publisher = Publisher(REGISTERED_DATA_NON_REAL_TIME_SEGMENTATION_PROGRESS,
+                                                         NonRealTimeImageFilterStatus, queue_size=1)
 
         # Define a subscriber to listen for where to look for the registered data
         Subscriber(REGISTERED_DATA_LOAD_LOCATION, String, self.registered_data_load_location_callback)
@@ -65,6 +69,14 @@ class NonRealTimeImageFilterNode(BasicNode):
     def registered_data_load_location_callback(self, message: String):
         if isdir(message.data):
             self.registered_data_load_location = message.data
+
+    def publish_segmentation_status(self, number_of_images_segmented: int, number_of_images_to_segment: int):
+        new_msg = NonRealTimeImageFilterStatus(
+            is_all_data_filtered=number_of_images_segmented == number_of_images_to_segment,
+            num_images_filtered=number_of_images_segmented,
+            total_images_to_filter=number_of_images_to_segment)
+        new_msg.header.stamp = Time.now()
+        self.image_filter_progress_publisher.publish(new_msg)
 
     def generate_volume_command_callback(self, message: Bool):
 
@@ -88,12 +100,16 @@ class NonRealTimeImageFilterNode(BasicNode):
                                                         first_image_data_object.cropped_image.shape[0]),
                                                  interpolation=INTER_CUBIC)))
 
+                # Publish the status of the segmentation
+                self.publish_segmentation_status(number_of_images_segmented=0,
+                                                 number_of_images_to_segment=len(self.registered_data))
+
                 # For each registered data point,
                 for registered_data in self.registered_data:
                     # Note when the process started
                     start_of_process_time = time()
 
-                    # Define a new image data object using the old iamge data object as a reference
+                    # Define a new image data object using the old image data object as a reference
                     new_image_data_object = ImageData(image_data=registered_data.image_data.original_image,
                                                       image_color=registered_data.image_data.image_color,
                                                       image_capture_time=registered_data.image_data.image_capture_time,
@@ -118,8 +134,18 @@ class NonRealTimeImageFilterNode(BasicNode):
                     # Update the registered data object with the newly filtered image
                     registered_data.image_data = new_image_data_object
 
+                    registered_data: RegisteredData
+                    registered_data.save_load(action=SAVE_OBJECT,
+                                              path_to_file_location='/home/ben/thyroid_ultrasound_data/'
+                                                                    'testing_and_validation'
+                                                                    '/non_real_time_registered_data')
+
                     # Publish the new registered data
                     self.registered_data_publisher.publish(registered_data.convert_object_message(TO_MESSAGE))
+
+                    # Publish the status of the segmentation
+                    self.publish_segmentation_status(number_of_images_segmented=0,
+                                                     number_of_images_to_segment=len(self.registered_data))
 
                     # imshow('Down-sampled Image', new_image_data_object.down_sampled_image)
                     # imshow('Image Mask', create_mask_overlay_array(base_image=new_image_data_object.colorized_image,
