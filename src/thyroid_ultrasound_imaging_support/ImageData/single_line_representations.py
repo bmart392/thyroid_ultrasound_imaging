@@ -5,6 +5,7 @@ Contains code for creating single line representations of data.
 # Import standard python packages
 from numpy import array, product, uint8, ndarray, int32, int64
 from rospy import Time
+from genpy.rostime import Time as genpyTime
 from ast import literal_eval
 
 # Define a placeholder value for none values
@@ -237,13 +238,13 @@ def create_single_line_time_stamp(field_name: str, data: Time, previous_string: 
     """
 
     # If the data field is not a time object
-    if not type(data) == Time:
-        # Raise an exception to the user
-        raise Exception("The class of the data field is not Time, it is " + str(type(data)))
+    if isinstance(data, Time) or isinstance(data, genpyTime):
+        # Return the string form of the data
+        return (previous_string + TIME + DELIMITER + field_name + DELIMITER + str(data.secs) +
+                DELIMITER + str(data.nsecs) + END_OF_LINE + NEW_LINE)
 
-    # Return the string form of the data
-    return (previous_string + TIME + DELIMITER + field_name + DELIMITER + str(data.secs) +
-            DELIMITER + str(data.nsecs) + END_OF_LINE + NEW_LINE)
+    # Raise an exception to the user
+    raise Exception("The class of the data field is not " + str(type(Time.now())) + ", it is " + str(type(data)))
 
 
 def rebuild_data(single_line: str):

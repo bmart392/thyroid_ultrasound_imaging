@@ -5,7 +5,8 @@ File containing VolumeGenerationNode class definition and ROS running code.
 """
 
 # Import standard python packages
-from numpy import array
+from numpy import array, mgrid, ones
+from plotly.graph_objects import Figure, Mesh3d
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from scipy.spatial import ConvexHull
@@ -145,29 +146,43 @@ class VolumeGenerationNode(BasicNode):
             # Publish the volume of the hull
             self.volume_publisher.publish(Float64(constructed_volume.volume))
 
+            # Define the sampling rate to use to create the figures
+            sampling_rate = 5
+
             # Display the volume of the hull
             print("Thyroid Volume: " + str(constructed_volume.volume) + " m^2")
             print("Thyroid Volume: " + str(constructed_volume.volume * 1000 ** 2) + " mm^2")
             print("Total Points Sampled: " + str(len(self.points_in_volume)))
-            print("Points in Figure: " + str(len(points_in_volume_as_array[::5, 0])))
+            print("Points in Figure: " + str(len(points_in_volume_as_array[::sampling_rate, 0])))
 
-            # Create the figure to visualize the volume in
-            volume_figure = plt.figure()
-            volume_axis = volume_figure.add_subplot(111, projection='3d')
+            fig = Figure(data=Mesh3d(
+                x=array(points_in_volume_as_array[::sampling_rate, 0]).flatten(),
+                y=array(points_in_volume_as_array[::sampling_rate, 1]).flatten(),
+                z=array(points_in_volume_as_array[::sampling_rate, 2]).flatten(),
+                color='red',
+                opacity=1.0,
+                alphahull=0
+            ))
+            fig.update_layout(title_text='Volume Rendering')
+            fig.show()
 
-            # Plot the data as a scatterplot
-            volume_axis.scatter(points_in_volume_as_array[::5, 0],
-                                points_in_volume_as_array[::5, 1],
-                                points_in_volume_as_array[::5, 2],
-                                s=1)
-
-            # Set the labels
-            volume_axis.set_xlabel('X (m)')
-            volume_axis.set_ylabel('Y (m)')
-            volume_axis.set_zlabel('Z (m)')
-
-            # Show the plot
-            plt.show()
+            # # Create the figure to visualize the volume in
+            # volume_figure = plt.figure()
+            # volume_axis = volume_figure.add_subplot(111, projection='3d')
+            #
+            # # Plot the data as a scatterplot
+            # volume_axis.scatter(points_in_volume_as_array[::5, 0],
+            #                     points_in_volume_as_array[::5, 1],
+            #                     points_in_volume_as_array[::5, 2],
+            #                     s=1)
+            #
+            # # Set the labels
+            # volume_axis.set_xlabel('X (m)')
+            # volume_axis.set_ylabel('Y (m)')
+            # volume_axis.set_zlabel('Z (m)')
+            #
+            # # Show the plot
+            # plt.show()
 
 
 if __name__ == '__main__':

@@ -363,7 +363,7 @@ class ImageContactBalanceNode(BasicNode):
                 patient_contact_status = True
 
                 # Calculate the image error based on the number of dark sectors
-                patient_contact_error = float(dark_sector_difference)
+                patient_contact_error = float(dark_sector_difference / 10)
 
                 # Check if there is enough patient contact to calculate the error from the skin layer
                 if abs(dark_sector_difference) < floor((len(self.sectors) * 0.1)):
@@ -430,8 +430,8 @@ class ImageContactBalanceNode(BasicNode):
                                       self.skin_points[RIGHT_SECTOR][Y_POINTS]), 1)
 
                             # Add the skin layer error to the image error
-                            patient_contact_error = round(self.best_fit_shared_line_a, 3) + patient_contact_error
-
+                            # patient_contact_error = round(self.best_fit_shared_line_a * 2, 3) + patient_contact_error
+                            patient_contact_error = round(self.best_fit_shared_line_a, 3)
                         # If approximating with a double line,
                         elif self.skin_approximation_mode == DOUBLE_LINE_APPROXIMATION:
 
@@ -449,8 +449,9 @@ class ImageContactBalanceNode(BasicNode):
                                 array(self.skin_points[RIGHT_SECTOR][Y_POINTS]), 1)
 
                             # Add the skin layer error to the image error
-                            patient_contact_error = round(self.best_fit_left_line_a + self.best_fit_right_line_a,
-                                                          3) + patient_contact_error
+                            # patient_contact_error = round(self.best_fit_left_line_a + self.best_fit_right_line_a,
+                            #                               3) + patient_contact_error
+                            patient_contact_error = round(self.best_fit_left_line_a + self.best_fit_right_line_a, 3)
 
                         else:
                             raise Exception("Skin approximation mode of " + str(self.skin_approximation_mode) +

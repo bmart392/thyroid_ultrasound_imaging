@@ -18,7 +18,7 @@ from thyroid_ultrasound_imaging_support.ImageFilter.FilterConstants import COLOR
 from thyroid_ultrasound_imaging_support.Visualization.display_process_timer import display_process_timer, time
 from thyroid_ultrasound_imaging_support.Visualization.stitch_image_arrays import stitch_image_arrays
 from validation_constants import *
-from thyroid_ultrasound_imaging_support.Visualization.create_mask_overlay_image import create_mask_overlay_array, \
+from thyroid_ultrasound_imaging_support.Visualization.create_mask_overlay_array import create_mask_overlay_array, \
     COLORIZED, PREV_IMG_MASK
 from thyroid_ultrasound_imaging_support.Visualization.create_mask_display_array import create_mask_display_array
 
