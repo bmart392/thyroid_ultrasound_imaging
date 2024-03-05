@@ -41,7 +41,7 @@ class VisualizationNode(BasicNode):
         # Define a place to store the Image Data object that will be visualized
         self.images_to_visualize = {IMAGE_RAW: [None, [SHOW_ORIGINAL]],
                                     IMAGE_CROPPED: [None, [SHOW_CROPPED]],
-                                    IMAGE_FILTERED: [None, [SHOW_FOREGROUND, SHOW_CENTROIDS_ONLY]],
+                                    IMAGE_FILTERED: [None, [SHOW_BLUR, SHOW_FOREGROUND, SHOW_CENTROIDS_ONLY]],
                                     IMAGE_SKIN_APPROXIMATION: [None, [SHOW_SKIN_APPROXIMATION], None]}
 
         # Create the node

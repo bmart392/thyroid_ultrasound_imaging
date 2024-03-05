@@ -8,6 +8,13 @@ File containing code to ensure even patient contact.
 # TODO - Dream - Add proper try-cath error checking everywhere and incorporate logging into it
 # TODO - Dream - Add proper node status publishing
 # TODO - Dream - Create an easy way to update the parameters of this node
+# TODO - Dream - Change this to look for the skin by finding the pattern of light area -> dark area -> light area and
+#  then finding the boundary between the dark area and the second light area. If the boundary is at the bottom of the
+#  image then just throw it out.
+# TODO - Dream - Use array slicing to break the image into 20 even rectangular slices and then use sums to get the
+#  average intensity of each area. Look at the middle 66% of the image to determine if the patient is in contact and
+#  then also only look at the same window to find the skin layer.
+# TODO - High - Figure out what happens when the imaging depth changes
 
 # Import standard python packages
 from numpy import zeros, linspace, array, polyfit

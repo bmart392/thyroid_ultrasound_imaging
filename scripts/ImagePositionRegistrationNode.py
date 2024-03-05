@@ -4,6 +4,8 @@
 File containing ImagePositionRegistrationNode class definition and ROS running code.
 """
 
+# TODO - High - This needs to listen to the right topic
+
 # Import standard python packages
 from os.path import isdir
 from copy import deepcopy
@@ -250,10 +252,13 @@ class ImagePositionRegistrationNode(BasicNode):
         """
 
         # Create a variable to store the resulting nanosecond key of the inner dict
-        closest_result_nanoseconds = 0
+        closest_result_nanoseconds = None
 
         # If a lower level dictionary exists with the given second key,
         if dict_to_search_in.get(seconds_key_to_search_for) is not None:
+
+            # Update the result to allow for comparison
+            closest_result_nanoseconds = 0
 
             # For each nanosecond pose key in that lower level dictionary,
             for nanoseconds_key in dict_to_search_in.get(seconds_key_to_search_for).keys():

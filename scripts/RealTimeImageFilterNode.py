@@ -10,6 +10,9 @@ File containing the RealTimeImageFiterNode class definition and ROS running code
 #  ensure mask is still good
 # TODO - Dream - Add proper try-cath error checking everywhere and incorporate logging into it
 # TODO - Dream - Add a check to make sure that any image processed by the image filter is no less than half a second old
+# TODO - High - Add a catch to ensure that if an image message is too old it will not be segmented and just thrown out
+#  instead
+# TODO - High - Make sure that the foreground shrinking actually goes by DICE score so that the region can never be shrunk out of the mask
 
 # Import standard packages
 from numpy import frombuffer, reshape, uint8

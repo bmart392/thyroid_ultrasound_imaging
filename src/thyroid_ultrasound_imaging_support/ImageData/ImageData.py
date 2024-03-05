@@ -4,6 +4,7 @@ Contains code for ImageData class.
 
 # TODO - Dream - Add proper try-cath error checking everywhere and incorporate logging into it
 # TODO - Dream - Build the imaging depth as an attribute in this class
+# TODO - High - Save the image depth used to capture each image
 
 # Import standard python packages
 from cv2 import findContours, RETR_EXTERNAL, CHAIN_APPROX_NONE, contourArea, moments

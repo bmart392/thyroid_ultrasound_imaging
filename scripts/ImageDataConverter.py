@@ -7,6 +7,7 @@ File containing code to receive raw ultrasound images and rebroadcast them as Im
 # TODO - Dream - Add logging through BasicNode class
 # TODO - Dream - Add proper try-cath error checking everywhere and incorporate logging into it
 # TODO - Dream - Add proper node status publishing
+# TODO - High - Add the imaging depth to every image object created
 
 # Import standard ROS specific packages
 from sensor_msgs.msg import Image

@@ -4,7 +4,7 @@ Define object class for GrabCut based image filters.
 
 # Import standard python packages
 from numpy import uint8, where
-from cv2 import GC_FGD, GC_PR_BGD, GC_BGD, GC_PR_FGD
+from cv2 import GC_FGD, GC_PR_BGD, GC_BGD, GC_PR_FGD, convertScaleAbs
 
 # Import the super-class for all image filters
 from thyroid_ultrasound_imaging_support.ImageFilter.ImageFilter import *
@@ -17,7 +17,7 @@ class ImageFilterGrabCut(ImageFilter):
 
     def __init__(self, previous_mask_array: np.array = None, image_crop_coordinates: iter = None,
                  image_crop_included: bool = False, include_pre_blurring: bool = False,
-                 increase_contrast=False, down_sampling_rate: float = 0.4,  # 0.5
+                 increase_contrast=True, down_sampling_rate: float = 0.4,  # 0.5
                  segmentation_iteration_count: int = 1,  # 1
                  sure_foreground_creation_iterations: int = 3,
                  sure_background_creation_iterations: int = 8,
@@ -114,7 +114,7 @@ class ImageFilterGrabCut(ImageFilter):
 
         # Increase the contrast of the image, if required
         if self.increase_contrast:
-            temp_image = cv2.equalizeHist(temp_image)
+            temp_image = cv2.convertScaleAbs(temp_image, alpha=1.5)
 
         # If the filter includes a blurring affect
         if self.include_pre_blurring:
@@ -131,10 +131,8 @@ class ImageFilterGrabCut(ImageFilter):
                                                                                   **patch_kw)))
                                                                                   """
 
-        else:
-
-            # Set the pre-processed image as a copy of the colorized image.
-            image_data.pre_processed_image = temp_image
+        # Set the pre-processed image as a copy of the colorized image.
+        image_data.pre_processed_image = temp_image
 
     def create_image_mask(self, image_data: ImageData):
         """

@@ -7,6 +7,7 @@ File containing ImageFiterNode class definition and ROS running code.
 # TODO - Dream - Add proper logging stuff using the BasicNode class
 # TODO - Dream - Add proper try-cath error checking everywhere and incorporate logging into it
 # TODO - Dream - Add proper status publishing
+# TODO - High - Use the imaging depth stored within each image data object
 
 # Import standard python packages
 from numpy import zeros, uint8, array
@@ -110,7 +111,7 @@ class ClariusUltrasoundConnectionNode(BasicNode):
         Subscriber(SAVED_IMAGES_DESTINATION, String, self.saved_images_destination_callback)
 
         # Define the frequency at which to publish images
-        freq = 20  # CHANGE THIS LINE to change the rate at which images are published
+        freq = 30  # CHANGE THIS LINE to change the rate at which images are published
         self.rate = Rate(freq)
 
     @staticmethod
