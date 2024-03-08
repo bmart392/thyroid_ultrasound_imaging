@@ -1,4 +1,4 @@
-from numpy import arctan2, rad2deg, array
+from numpy import arctan2, rad2deg, array, ceil
 
 from thyroid_ultrasound_imaging_support.ImageData.ImageData import ImageData
 
@@ -24,6 +24,8 @@ class ImagePositioningController:
         self.analysis_mode = analysis_mode
 
         self.imaging_depth = imaging_depth  # cm
+
+        self.set_point_offset = 0
 
         # Define the acceptable position error of the centroid in the image for each dimension in the probe's space
         self.acceptable_errors = [0.002,  # meters in x
@@ -63,7 +65,12 @@ class ImagePositioningController:
         centroid = image_data.contour_centroids[0]
 
         # In X in the image frame, measure the distance to the middle of the image
-        x_error = ((centroid[0] - (image_data.down_sampled_image.shape[1] / 2)) *
+        center_offset = ceil(self.set_point_offset * image_data.ds_image_size_x)
+        center = (image_data.ds_image_size_x / 2) + center_offset
+        distance_from_center = centroid[0] - center
+
+        x_error = ((centroid[0] - ((image_data.down_sampled_image.shape[1] / 2) +
+                                   (self.set_point_offset * image_data.image_size_x))) *
                    self.calculate_resolution(image_data.image_size_y)) * \
                   (image_data.image_size_x / image_data.down_sampled_image.shape[1])
 

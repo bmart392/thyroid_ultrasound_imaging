@@ -4,7 +4,7 @@ Contains code for ImageData class.
 
 # TODO - Dream - Add proper try-cath error checking everywhere and incorporate logging into it
 # TODO - Dream - Build the imaging depth as an attribute in this class
-# TODO - High - Save the image depth used to capture each image
+# TODO - High - Test saving the image depth used to capture each image
 
 # Import standard python packages
 from cv2 import findContours, RETR_EXTERNAL, CHAIN_APPROX_NONE, contourArea, moments
@@ -45,6 +45,7 @@ IMAGE_TITLE: str = "image_title"
 IMAGE_COLOR: str = "image_color"
 IMAGE_SIZE_X: str = "image_size_x"
 IMAGE_SIZE_Y: str = "image_size_y"
+IMAGING_DEPTH: str = "imaging_depth"
 DS_IMAGE_SIZE_X: str = "ds_image_size_x"
 DS_IMAGE_SIZE_Y: str = "ds_image_size_y"
 DOWN_SAMPLING_RATE: str = "down_sampling_rate"
@@ -84,6 +85,9 @@ class ImageData:
         The original image size in the x direction
     image_size_y
         The original image size in the y direction
+
+    imaging_depth
+        The imaging depth of the scanner when the image was taken
 
     ds_image_size_x
         The down-sampled image size in the x direction
@@ -135,7 +139,8 @@ class ImageData:
                  segmentation_initialization_mask: array = None,
                  image_data_msg: image_data_message = None,
                  image_data_location: str = None,
-                 display_error_messages: bool = False):
+                 display_error_messages: bool = False,
+                 imaging_depth: float = None):
         """
         Creates a new ImageData object.
 
@@ -159,6 +164,8 @@ class ImageData:
             an image_data ros message object.
         image_data_location
             a string representing the filepath to a saved image data object.
+        imaging_depth
+            the imaging depth of the scanner when the image was taken
         """
 
         # Define error behaviour for all cases
@@ -172,6 +179,7 @@ class ImageData:
         self.ds_image_size_y = 0
         self.down_sampling_rate = 0
         self.image_crop_coordinates = []
+        self.imaging_depth = 0
 
         # --------------------------------------------------------------
         # Create empty parameters for use by the filters
@@ -219,6 +227,10 @@ class ImageData:
                 self.image_capture_time = image_capture_time
             else:
                 self.image_capture_time = Time.now()
+
+            # Save the image depth if given
+            if imaging_depth is not None:
+                self.imaging_depth = imaging_depth
 
             # Define basic parameters of the image
             self.image_title = image_title
@@ -372,6 +384,8 @@ class ImageData:
             message.image_size_x = self.image_size_x
             message.image_size_y = self.image_size_y
 
+            message.imaging_depth = self.imaging_depth
+
             message.ds_image_size_x = self.ds_image_size_x
             message.ds_image_size_y = self.ds_image_size_y
 
@@ -399,6 +413,8 @@ class ImageData:
 
             self.image_size_x = message.image_size_x
             self.image_size_y = message.image_size_y
+
+            self.imaging_depth = message.imaging_depth
 
             self.ds_image_size_x = message.ds_image_size_x
             self.ds_image_size_y = message.ds_image_size_y
@@ -589,6 +605,9 @@ class ImageData:
         # Add the image size in y
         simple_data_string = create_single_line_simple_data(IMAGE_SIZE_Y, self.image_size_y, simple_data_string)
 
+        # Add the imaging depth
+        simple_data_string = create_single_line_simple_data(IMAGING_DEPTH, self.imaging_depth, simple_data_string)
+
         # Add the down-sampled image size in x
         simple_data_string = create_single_line_simple_data(DS_IMAGE_SIZE_X, self.ds_image_size_x, simple_data_string)
 
@@ -708,6 +727,8 @@ class ImageData:
                 self.image_size_x = value
             elif field_name == IMAGE_SIZE_Y:
                 self.image_size_y = value
+            elif field_name == IMAGING_DEPTH:
+                self.imaging_depth = value
             elif field_name == DS_IMAGE_SIZE_X:
                 self.ds_image_size_x = value
             elif field_name == DS_IMAGE_SIZE_Y:

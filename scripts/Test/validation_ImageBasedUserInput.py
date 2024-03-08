@@ -53,12 +53,31 @@ ui_node.generate_crop_coordinates_callback(Bool(True))
 # Select the crop coordinates
 crop_coordinates_message = ui_node.main_loop()
 
+# Check the results
+print([
+    [crop_coordinates_message.first_coordinate_x, crop_coordinates_message.first_coordinate_y],
+    [crop_coordinates_message.second_coordinate_x, crop_coordinates_message.second_coordinate_y]
+])
+
 # Give the crop coordinates to the image filter node
 image_filter.image_crop_included = True
 image_filter.image_crop_coordinates = [
     [crop_coordinates_message.first_coordinate_x, crop_coordinates_message.first_coordinate_y],
     [crop_coordinates_message.second_coordinate_x, crop_coordinates_message.second_coordinate_y]
 ]
+
+# Add the crop from template action
+ui_node.generate_crop_coordinates_from_template_callback(Bool(True))
+
+# Load the crop coordinates
+crop_coordinates_message = ui_node.main_loop()
+
+# Check the results
+print([
+    [crop_coordinates_message.first_coordinate_x, crop_coordinates_message.first_coordinate_y],
+    [crop_coordinates_message.second_coordinate_x, crop_coordinates_message.second_coordinate_y]
+])
+
 
 # Crop the image
 image_filter.crop_image(image_data_object_for_test)

@@ -7,7 +7,8 @@ File containing VisualizationNode class definition and ROS running code.
 # TODO - Dream - Add logging with the BasicNode class
 # TODO - Dream - Add proper try-cath error checking everywhere and incorporate logging into it
 # TODO - Dream - Add proper node status publishing
-# TODO - Dream - Add in visualizations for non-real time image filtering
+# TODO - Medium - Add in visualizations for non-real time image filtering that is separate from the real-time visualization framework
+# TODO - Dream - Store visuals in a dictionary so that windows can be closed whenever a command is sent to hide them
 
 # Import standard python packages
 from copy import deepcopy

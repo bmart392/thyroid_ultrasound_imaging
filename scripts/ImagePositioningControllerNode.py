@@ -10,6 +10,7 @@ File containing ImagePositioningControllerNode class definition and ROS running 
 
 # Import standard ROS packages
 from geometry_msgs.msg import TwistStamped
+from std_msgs.msg import Int8
 
 # Import custom ROS packages
 from thyroid_ultrasound_messages.msg import image_data_message
@@ -59,6 +60,9 @@ class ImagePositioningControllerNode(BasicNode):
         # Define a subscriber to listen for the filtered images
         Subscriber(IMAGE_FILTERED, image_data_message, self.filtered_image_callback)
 
+        # Define a publisher for publishing image centering commands
+        Subscriber(RC_IMAGE_CENTERING_SIDE, Int8, self.image_centering_side_callback)
+
     def imaging_depth_callback(self, data: Float64):
 
         # Save the newest imaging depth
@@ -75,6 +79,12 @@ class ImagePositioningControllerNode(BasicNode):
         # Remove the oldest image if the list is now too long
         if len(self.received_images) > self.max_images_to_store:
             self.received_images.pop(0)
+
+    def image_centering_side_callback(self, msg: Int8):
+        """
+        Updates the stored image centering side.
+        """
+        self.image_positioning_controller.set_point_offset = msg.data * 0.25
 
     def publish_position_error(self):
 

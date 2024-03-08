@@ -20,6 +20,9 @@ from thyroid_ultrasound_support.BasicNode import *
 
 # Import from standard packages
 from copy import copy
+from numpy import load, save, array
+from tkinter.filedialog import askopenfilename, asksaveasfilename
+from tkinter import Tk
 
 # Import from custom packages
 from thyroid_ultrasound_imaging_support.ImageData.ImageData import ImageData
@@ -37,6 +40,7 @@ from thyroid_ultrasound_imaging_support.Boundaries.create_previous_image_mask_ar
 
 # Define possible actions for the node
 GENERATE_CROP: int = 0
+GENERATE_CROP_FROM_TEMPLATE: int = 4
 GENERATE_INITIALIZATION: int = 1
 GENERATE_PARAMETERS: int = 2
 GENERATE_GROUND_TRUTH_MASK: int = 3
@@ -84,6 +88,9 @@ class ImageBasedUserInput(BasicNode):
         # Define a subscriber to listen for commands to crop the image
         Subscriber(CROP_IMAGE_FROM_POINTS, Bool, self.generate_crop_coordinates_callback)
 
+        # Define a subscriber to listen for commands to crop the image based on a template
+        Subscriber(CROP_IMAGE_FROM_TEMPLATE, Bool, self.generate_crop_coordinates_from_template_callback)
+
         # Define a subscriber to listen for commands to generate the grabcut mask
         Subscriber(IDENTIFY_THYROID_FROM_POINTS, Bool, self.generate_grabcut_initialization_mask_callback)
 
@@ -118,6 +125,56 @@ class ImageBasedUserInput(BasicNode):
                     result_msg.first_coordinate_y = result_list[0][1]
                     result_msg.second_coordinate_x = result_list[1][0]
                     result_msg.second_coordinate_y = result_list[1][1]
+
+                    # Publish the response
+                    self.coordinate_publisher.publish(result_msg)
+
+                    # Create a window that will be used to ask the user
+                    root = Tk()
+
+                    # Check if the user would like to save the cropping
+                    new_template_path = asksaveasfilename(
+                        confirmoverwrite=True,
+                        defaultextension='.npy',
+                        initialdir='/home/ben/thyroid_ultrasound_data/testing_and_validation/saved_templates',
+                        title="Select location to save cropping template.")
+
+                    # Close the window
+                    root.destroy()
+
+                    # If a path was selected, save the file
+                    if len(new_template_path) > 0:
+                        save(new_template_path, array(result_list))
+
+                    # Return the resulting message
+                    return result_msg
+
+            # If the next action is to generate a crop from a template
+            elif next_action == GENERATE_CROP_FROM_TEMPLATE:
+
+                # Create a window that will be used to ask the user
+                root = Tk()
+
+                # Define the path to the stored file
+                template_path: str = askopenfilename(
+                    initialdir='/home/ben/thyroid_ultrasound_data/testing_and_validation/saved_templates',
+                    title="Select cropping template to load.")
+
+                # Close the window
+                root.destroy()
+
+                # Ensure that a file was selected and that it has the right extension
+                if len(template_path) > 0 and template_path[-4:] == '.npy':
+                    saved_coordinates = load(template_path)
+
+                    # Create a message to publish the result
+                    result_msg = image_crop_coordinates()
+
+                    # Fill in the message with the proper data
+                    result_msg.first_coordinate_x = saved_coordinates[0][0]
+                    result_msg.first_coordinate_y = saved_coordinates[0][1]
+                    result_msg.second_coordinate_x = saved_coordinates[1][0]
+                    result_msg.second_coordinate_y = saved_coordinates[1][1]
 
                     # Publish the response
                     self.coordinate_publisher.publish(result_msg)
@@ -272,6 +329,10 @@ class ImageBasedUserInput(BasicNode):
     def generate_crop_coordinates_callback(self, data: Bool):
 
         self.actions.append(GENERATE_CROP)
+
+    def generate_crop_coordinates_from_template_callback(self, data: Bool):
+
+        self.actions.append(GENERATE_CROP_FROM_TEMPLATE)
 
     def generate_grabcut_initialization_mask_callback(self, data: Bool):
 

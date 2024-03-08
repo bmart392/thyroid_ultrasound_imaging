@@ -4,25 +4,27 @@
 File containing ImagePositionRegistrationNode class definition and ROS running code.
 """
 
-# TODO - High - This needs to listen to the right topic
-
 # Import standard python packages
 from os.path import isdir
-from copy import deepcopy
+from copy import copy
 
 # Import standard ROS packages
 from geometry_msgs.msg import WrenchStamped
-from thyroid_ultrasound_imaging_support.RegisteredData.RegisteredData import RegisteredData, RobotForce, RobotPose, \
-    SAVE_OBJECT
+from armer_msgs.msg import ManipulatorState
 
 # Import custom python packages
 from thyroid_ultrasound_imaging_support.ImageData.ImageData import ImageData
 from thyroid_ultrasound_imaging_support.ImageData.BridgeImageDataMessageConstants import TO_MESSAGE
+from thyroid_ultrasound_imaging_support.ImageData.bridge_list_of_points_multi_array import \
+    bridge_list_of_points_multi_array, FOUR_D, FLOAT_ARRAY
+from thyroid_ultrasound_robot_control_support.Helpers.convert_pose_to_transform_matrix import \
+    convert_pose_to_transform_matrix
 from thyroid_ultrasound_support.BasicNode import *
 
 # Import custom ROS packages
-from thyroid_ultrasound_messages.msg import image_data_message, transformed_points, Float64MultiArrayStamped, \
-    RegisteredDataMsg
+from thyroid_ultrasound_messages.msg import image_data_message, transformed_points, RegisteredDataMsg
+from thyroid_ultrasound_imaging_support.RegisteredData.RegisteredData import RegisteredData, RobotForce, RobotPose, \
+    SAVE_OBJECT
 
 # Define constants for the indices of the object and the message
 OBJECT: int = int(0)
@@ -85,8 +87,8 @@ class ImagePositionRegistrationNode(BasicNode):
         # Listens to /image_data/filtered to get the contour of the thyroid
         Subscriber(IMAGE_FILTERED, image_data_message, self.filtered_image_callback)
 
-        # Listens to the pose of the end effector
-        Subscriber(ROBOT_DERIVED_POSE, Float64MultiArrayStamped, self.pose_callback)
+        # Create a subscriber to listen for the robot transformation
+        Subscriber(ARMER_STATE, ManipulatorState, self.robot_state_callback)
 
         # Listens to the force at the end effector
         Subscriber(ROBOT_DERIVED_FORCE, WrenchStamped, self.force_callback)
@@ -140,21 +142,30 @@ class ImagePositionRegistrationNode(BasicNode):
             # Remove any bad data
             self.list_of_filtered_images = self.remove_old_data(self.list_of_filtered_images)
 
-    def pose_callback(self, pose_msg: Float64MultiArrayStamped):
+    def robot_state_callback(self, msg: ManipulatorState):
         """
         Saves the given pose message in the pose history list of the node.
 
         Parameters
         ----------
-        pose_msg :
-            A stamped message containing a robot pose.
+        msg :
+            A message containing the full state of the robot
         """
 
+        # Convert the pose from the message into an array
+        pose_as_matrix = convert_pose_to_transform_matrix(msg.ee_pose.pose)
+
+        # Convert the array to a message
+        pose_as_multi_array = bridge_list_of_points_multi_array(direction=TO_MESSAGE,
+                                                                list_of_points=pose_as_matrix,
+                                                                msg_type=FLOAT_ARRAY,
+                                                                point_dim=FOUR_D)
+
         # Define the outer level key to store in the dictionary
-        outer_level_key = pose_msg.header.stamp.secs
+        outer_level_key = msg.ee_pose.header.stamp.secs
 
         # Define the lower level key and the value to store in the dictionary
-        key_value_pair = {pose_msg.header.stamp.nsecs: (RobotPose(source_message=pose_msg), pose_msg)}
+        key_value_pair = {msg.ee_pose.header.stamp.nsecs: (RobotPose(robot_pose=pose_as_matrix), pose_as_multi_array)}
 
         try:
             # Try to add the new data into the existing place in the dictionary
@@ -306,48 +317,52 @@ class ImagePositionRegistrationNode(BasicNode):
         Matches stored image data with robot poses and forces, as long as there is data to match.
         """
 
-        # Copy both lists locally to avoid weird threading things
-        local_list_of_filtered_images = deepcopy(self.list_of_filtered_images)
-        local_list_of_robot_poses = deepcopy(self.list_of_robot_poses)
-        local_list_of_robot_forces = deepcopy(self.list_of_robot_forces)
+
 
         # And images are available
-        if len(local_list_of_filtered_images) > 0 and len(local_list_of_robot_poses) > 0 and \
-                len(local_list_of_robot_forces) > 0:
+        if len(self.list_of_filtered_images) > 0 and len(self.list_of_robot_poses) > 0 and \
+                len(self.list_of_robot_forces) > 0:
 
             # Find the outer level key of the oldest image
-            newest_image_key_seconds = max(local_list_of_filtered_images.keys())
+            newest_image_key_seconds = max(self.list_of_filtered_images.keys())
 
             # Check to see if a robot pose was taken at the same time as the newest image
-            if newest_image_key_seconds in local_list_of_robot_poses.keys() and \
-                    newest_image_key_seconds in local_list_of_robot_forces.keys() and \
-                    len(local_list_of_filtered_images[newest_image_key_seconds].keys()) > 0:
+            if newest_image_key_seconds in self.list_of_robot_poses.keys() and \
+                    newest_image_key_seconds in self.list_of_robot_forces.keys() and \
+                    len(self.list_of_filtered_images[newest_image_key_seconds].keys()) > 0:
+
+                # Copy both lists locally to avoid weird threading things
+                local_list_of_filtered_images = copy(self.list_of_filtered_images[newest_image_key_seconds])
+                local_list_of_robot_poses = copy(self.list_of_robot_poses[newest_image_key_seconds])
+                local_list_of_robot_forces = copy(self.list_of_robot_forces[newest_image_key_seconds])
 
                 # For each nanosecond image key,
-                for image_key_nanoseconds in local_list_of_filtered_images.get(newest_image_key_seconds).keys():
+                for image_key_nanoseconds in local_list_of_filtered_images.keys():
 
                     # Find the closest nanoseconds keys of the pose and the force if they exist
                     closest_pose_nanoseconds = self.find_closest_key_value(newest_image_key_seconds,
                                                                            image_key_nanoseconds,
-                                                                           local_list_of_robot_poses)
+                                                                           {newest_image_key_seconds:
+                                                                                local_list_of_robot_poses})
 
                     closest_force_nanoseconds = self.find_closest_key_value(newest_image_key_seconds,
                                                                             image_key_nanoseconds,
-                                                                            local_list_of_robot_forces)
+                                                                            {newest_image_key_seconds:
+                                                                                 local_list_of_robot_forces})
 
                     # If a pose and a force were found that match the image
                     if closest_pose_nanoseconds is not None and closest_force_nanoseconds is not None:
                         # Publish the pose and the image
                         new_registered_data = RegisteredData(image_data_object=
-                                                             local_list_of_filtered_images[newest_image_key_seconds][
+                                                             local_list_of_filtered_images[
                                                                  image_key_nanoseconds][
                                                                  OBJECT],
                                                              robot_pose=
-                                                             local_list_of_robot_poses[newest_image_key_seconds][
+                                                             local_list_of_robot_poses[
                                                                  closest_pose_nanoseconds][
                                                                  OBJECT],
                                                              robot_force=
-                                                             local_list_of_robot_forces[newest_image_key_seconds][
+                                                             local_list_of_robot_forces[
                                                                  closest_force_nanoseconds][
                                                                  OBJECT],
                                                              )
@@ -359,9 +374,18 @@ class ImagePositionRegistrationNode(BasicNode):
                         self.registered_data_publisher.publish(new_registered_data.convert_object_message(TO_MESSAGE))
 
                         # Remove both the pose and the image from the selection of stored data
-                        self.list_of_filtered_images[newest_image_key_seconds].pop(image_key_nanoseconds)
-                        self.list_of_robot_poses[newest_image_key_seconds].pop(closest_pose_nanoseconds)
-                        self.list_of_robot_forces[newest_image_key_seconds].pop(closest_pose_nanoseconds)
+                        try:
+                            self.list_of_filtered_images[newest_image_key_seconds].pop(image_key_nanoseconds)
+                        except KeyError:
+                            pass
+                        try:
+                            self.list_of_robot_poses[newest_image_key_seconds].pop(closest_pose_nanoseconds)
+                        except KeyError:
+                            pass
+                        try:
+                            self.list_of_robot_forces[newest_image_key_seconds].pop(closest_pose_nanoseconds)
+                        except KeyError:
+                            pass
 
                         # Break out of the looping
                         break

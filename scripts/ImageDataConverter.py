@@ -7,7 +7,6 @@ File containing code to receive raw ultrasound images and rebroadcast them as Im
 # TODO - Dream - Add logging through BasicNode class
 # TODO - Dream - Add proper try-cath error checking everywhere and incorporate logging into it
 # TODO - Dream - Add proper node status publishing
-# TODO - High - Add the imaging depth to every image object created
 
 # Import standard ROS specific packages
 from sensor_msgs.msg import Image
@@ -32,6 +31,9 @@ class ImageDataConverter(BasicNode):
         # Call init of super class
         super().__init__()
 
+        # Define a variable to store the imaging depth
+        self.current_imaging_depth = 5.0
+
         # Create a ROS node
         init_node(IMAGE_DATA_CONVERTER)
 
@@ -40,6 +42,15 @@ class ImageDataConverter(BasicNode):
 
         # Create a subscriber to listen to commands to start and stop publishing images
         Subscriber(IMAGE_SOURCE, Image, self.raw_image_callback)
+
+        # Create a subscriber top listen for the imaging depth of the US probe
+        Subscriber(IMAGE_DEPTH, Float64, self.imaging_depth_callback)
+
+    def imaging_depth_callback(self, msg: Float64):
+        """
+        Stores the current imaging depth
+        """
+        self.current_imaging_depth = msg.data
 
     def raw_image_callback(self, data: Image) -> image_data_message:
         """
@@ -54,7 +65,8 @@ class ImageDataConverter(BasicNode):
 
         # Create new ImageData object
         new_image_object = ImageData(image_data=image_array, image_title="Raw Image Converter",
-                                     image_capture_time=data.header.stamp, image_color=image_color,)
+                                     image_capture_time=data.header.stamp, image_color=image_color,
+                                     imaging_depth=self.current_imaging_depth)
 
         # Create a new image_data_message from ImageData object
         new_image_data_message = new_image_object.convert_to_message()
