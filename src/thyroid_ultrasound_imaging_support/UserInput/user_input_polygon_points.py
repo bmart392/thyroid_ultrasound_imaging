@@ -14,7 +14,8 @@ from thyroid_ultrasound_imaging_support.UserInput.display_image_with_callback im
 
 def user_input_polygon_points(image_data: ImageData, polygon_use: str,
                               list_of_points: list = None,
-                              display_result: bool = False):
+                              display_result: bool = False,
+                              window_name: str = 'Image Segmentation Initialization'):
     """
     Prompt the user to draw a polygon by selecting points. This does not support polygons that have edges
     crossing over each other or with holes.
@@ -30,6 +31,8 @@ def user_input_polygon_points(image_data: ImageData, polygon_use: str,
         and returns the same list of points.
     display_result
         choose to display the points selected. This can be used to capture values to hardcode.
+    window_name
+        the text to display as the name of the window.
     """
 
     # Do nothing if the background points have been passed in
@@ -38,7 +41,7 @@ def user_input_polygon_points(image_data: ImageData, polygon_use: str,
         # startWindowThread()
 
         # Define a window name to display
-        window_name = 'Image Background Selection'
+        window_name = window_name
 
         # Define colors to use for displaying information
         point_color = (0, 255, 0)

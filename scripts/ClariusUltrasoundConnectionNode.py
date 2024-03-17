@@ -12,7 +12,7 @@ File containing ImageFiterNode class definition and ROS running code.
 # Import standard python packages
 from numpy import zeros, uint8, array
 import ctypes
-from os.path import exists, expanduser
+from os.path import exists, expanduser, isdir
 from os import makedirs
 import sys
 from PIL import Image
@@ -20,6 +20,7 @@ from PySide2 import QtGui
 from cv2 import imshow, cvtColor, waitKey, destroyAllWindows, COLOR_BGR2GRAY, COLOR_GRAY2BGR
 from datetime import date, datetime
 from matplotlib.image import imsave
+from rospy import Duration
 
 # Import standard ROS packages
 from cv_bridge import CvBridge
@@ -37,6 +38,10 @@ PORT: int = 5828
 IP: str = "192.168.0.101"
 VISUALIZATION_INCLUDED: bool = False
 
+# Define indexes for image frozen list
+NEW_VALUE: int = 0
+OLD_VALUE: int = 1
+
 # Define file saving behavior
 FILE_EXTENSION: str = '.png'
 
@@ -44,17 +49,18 @@ FILE_EXTENSION: str = '.png'
 sys.path.append('/home/ben/thyroid_ultrasound/src/thyroid_ultrasound_imaging/cast_libraries/')
 
 # Import Clarius specific packages
+# noinspection PyProtectedMember
 libcast_handle = ctypes.CDLL("/home/ben/thyroid_ultrasound/src/thyroid_ultrasound_imaging/cast_libraries/libcast.so",
                              ctypes.RTLD_GLOBAL)._handle  # load the libcast.so shared library
-pyclariuscast = ctypes.cdll.LoadLibrary(
-    "/home/ben/thyroid_ultrasound/src/thyroid_ultrasound_imaging/cast_libraries/pyclariuscast.so"
-)  # load the pyclariuscast.so shared library
+pyclariuscast = ctypes.cdll.LoadLibrary("/home/ben/thyroid_ultrasound/src/thyroid_ultrasound_imaging/"
+                                        "cast_libraries/pyclariuscast.so")  # load the pyclariuscast.so shared library
 import pyclariuscast
 
 # Define a variable to store the received ultrasound image
 processed_image = zeros((IMAGE_HEIGHT, IMAGE_WIDTH, 4), dtype=uint8)
 
-image_is_frozen = False
+# Define variable for storing if image is froze
+is_image_frozen = [False, False]
 
 
 class ClariusUltrasoundConnectionNode(BasicNode):
@@ -77,43 +83,54 @@ class ClariusUltrasoundConnectionNode(BasicNode):
         # Define a variable to note if the node quit on an error
         self.error_message = None
 
-        # Get the home path
-        path = expanduser("~/")
-
-        # Create a casting object
-        self.cast = pyclariuscast.Caster(self.new_processed_image, self.new_raw_image, self.new_spectrum_image,
-                                         self.freeze_function, self.buttons_function)
-
-        # Initialize the casting
-        ret = self.cast.init(path, IMAGE_WIDTH, IMAGE_HEIGHT)
-
-        # If the initialization was successful, connect and notify the user
-        if ret:
-            ret = self.cast.connect(IP, PORT, "research")
-            if ret:
-                print("Casting connected to {0} on port {1}".format(IP, PORT))
-            else:
-                self.cast.destroy()
-                self.error_message = "Casting connection to {0} on port {1} failed.".format(IP, PORT)
-                return
-        else:
-            self.error_message = "Casting initialization failed."
-            return
-
         # Initialize the ROS node for publishing the data
-        init_node(CLARIUS_US_PUBLISHER, anonymous=True)
+        init_node(CLARIUS_US_PUBLISHER)
+
+        # Capture current time
+        init_time = Time.now()
+
+        # Define connection success flag
+        successful_connection = False
+
+        # Define time to wait for connection
+        time_to_wait = Duration(secs=5)
+
+        while Time.now() - init_time < time_to_wait and not is_shutdown():
+            # Create a casting object
+            self.cast = pyclariuscast.Caster(self.new_processed_image, self.new_raw_image, self.new_spectrum_image,
+                                             self.freeze_function, self.buttons_function)
+
+            # Initialize the casting
+            ret = self.cast.init(expanduser("~/"), IMAGE_WIDTH, IMAGE_HEIGHT)
+
+            # If the initialization was successful, connect and notify the user
+            if ret:
+                ret = self.cast.connect(IP, PORT, "research")
+                if ret:
+                    successful_connection = True
+                    print("Casting connected to {0} on port {1}".format(IP, PORT))
+                    break
+
+        if not successful_connection:
+            self.cast.destroy()
+            self.error_message = "Casting connection to {0} on port {1} failed.".format(IP, PORT)
+            raise Exception(self.error_message)
 
         # Define the image publisher
         self.image_publisher = Publisher(IMAGE_SOURCE, Image, queue_size=100)
 
-        Subscriber(SAVE_IMAGES, Bool, self.save_images_callback)
+        # Define a publisher for when the image has been frozen and unfrozen
+        self.image_frozen_status_publisher = Publisher(IMAGE_FROZEN_STATUS, Bool, queue_size=1)
 
-        Subscriber(SAVED_IMAGES_DESTINATION, String, self.saved_images_destination_callback)
+        # Define services for saving raw images
+        Service(CC_SAVE_IMAGES, BoolRequest, self.save_images_handler)
+        Service(CC_SAVED_IMAGES_DESTINATION, StringRequest, self.saved_images_destination_handler)
 
         # Define the frequency at which to publish images
         freq = 30  # CHANGE THIS LINE to change the rate at which images are published
         self.rate = Rate(freq)
 
+    # noinspection PyUnusedLocal
     @staticmethod
     def new_processed_image(image, width, height, sz, microns_per_pixel, timestamp, angle, imu):
         global processed_image
@@ -136,37 +153,42 @@ class ClariusUltrasoundConnectionNode(BasicNode):
 
     @staticmethod
     def freeze_function(frozen):
-        global image_is_frozen
-        if frozen:
-            print("Image is now frozen.")
-            image_is_frozen = True
-        else:
-            print("Image is now running.")
-            image_is_frozen = False
-        return
+        global is_image_frozen
+        is_image_frozen[OLD_VALUE] = is_image_frozen[NEW_VALUE]
+        is_image_frozen[NEW_VALUE] = frozen
 
     @staticmethod
     def buttons_function(button, clicks):
         print("button pressed: {0}, clicks: {1}".format(button, clicks))
         return
 
-    def save_images_callback(self, msg: Bool):
+    def save_images_handler(self, req: BoolRequestRequest):
 
-        self.save_incoming_images = msg.data
+        self.save_incoming_images = req.value
 
-        if msg.data and self.folder_destination is not None:
-            self.folder_path = self.folder_destination + '/' + str(date.today()) + '_' + datetime.now().strftime('%H-%M')
-            if not exists(self.folder_path):
-                makedirs(self.folder_path)
-            self.saved_image_index = 1
+        if req.value:
+            if self.folder_destination is not None:
+                self.folder_path = self.folder_destination + '/' + str(date.today()) + '_' + \
+                                   datetime.now().strftime('%H-%M')
+                if not exists(self.folder_path):
+                    makedirs(self.folder_path)
+                self.saved_image_index = 1
+            else:
+                return BoolRequestResponse(False, 'No selected directory')
+        return BoolRequestResponse(True, NO_ERROR)
 
-    def saved_images_destination_callback(self, msg: String):
+    def saved_images_destination_handler(self, req: StringRequestRequest):
 
-        self.folder_destination = msg.data
+        if isdir(req.value):
+            self.folder_destination = req.value
+            return StringRequestResponse(True, NO_ERROR)
+        else:
+            return StringRequestResponse(False, 'Path is invalid')
 
     def save_image(self, image: array):
 
-        if image.sum() / (IMAGE_HEIGHT * IMAGE_WIDTH) > 25 and not image_is_frozen and self.folder_path is not None:
+        if image.sum() / (IMAGE_HEIGHT * IMAGE_WIDTH) > 25 and not \
+                is_image_frozen[NEW_VALUE] and self.folder_path is not None:
 
             # Save the image to the proper location
             imsave(self.folder_path + '/Slice_' + str(self.saved_image_index).zfill(5) + FILE_EXTENSION,
@@ -197,6 +219,10 @@ class ClariusUltrasoundConnectionNode(BasicNode):
 
             if self.save_incoming_images:
                 self.save_image(bscan)
+
+            # Only publish a new status when the status of the image has changed
+            if is_image_frozen[NEW_VALUE] != is_image_frozen[OLD_VALUE]:
+                self.image_frozen_status_publisher.publish(is_image_frozen[NEW_VALUE])
 
             # Wait to publish the next message
             self.rate.sleep()

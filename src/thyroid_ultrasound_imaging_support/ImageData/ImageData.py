@@ -9,6 +9,7 @@ Contains code for ImageData class.
 # Import standard python packages
 from cv2 import findContours, RETR_EXTERNAL, CHAIN_APPROX_NONE, contourArea, moments
 from numpy import sum, uint8, array, frombuffer, reshape, append, savez, load, ndarray
+from numpy.linalg import norm
 from rospy import Time
 from cv_bridge import CvBridge, CvBridgeError
 from os.path import exists
@@ -313,23 +314,98 @@ class ImageData:
 
             return result
 
+    def calculate_normal_vectors_of_contours(self, down_sampling_rate: int = 1) -> list:
+        """
+        Calculates the normal vectors for each point such that every vector faces outward.
+
+        Returns
+        -------
+        list
+            list of list of 2D vectors as numpy arrays.
+        """
+        # Define a list that stores all the vectors
+        all_contour_vectors = []
+
+        # Iterate through every contour
+        for contour in self.contours_in_image:
+
+            # Define a variable to store the vectors from this contour
+            vectors_in_this_contour = []
+
+            # Down-sample the contour as needed
+            contour = contour[::down_sampling_rate]
+
+            # Iterate through each point in the contour
+            for i in range(len(contour)):
+
+                # Define the point previous to the ith point
+                if i == 0:
+                    prev_point = contour[-1]
+                else:
+                    prev_point = contour[i - 1]
+
+                # Define the point next after the ith point
+                if i == len(contour) - 1:
+                    next_point = contour[0]
+                else:
+                    next_point = contour[i + 1]
+
+                # Calculate the forward and backward vectors
+                forward_vector = next_point - contour[i]
+                backward_vector = prev_point - contour[i]
+
+                # Calculate the bisecting vector
+                bisector_vector = forward_vector * norm(backward_vector) + backward_vector * norm(forward_vector)
+
+                # If the bisector points forward
+                if sum(bisector_vector) == 0:
+
+                    # Calculate the bisector as 90 degrees off of the forward vector
+                    bisector_vector = array([-forward_vector[1], forward_vector[0]])
+
+                # Make the bisector a unit vector
+                bisector_vector = bisector_vector / norm(bisector_vector)
+
+                # Calculate the modified dot product
+                modified_dot_product = (forward_vector[0] * -bisector_vector[1]) + (forward_vector[1] * bisector_vector[0])
+
+                # If the modified dot product is not negative, flip the vector
+                if modified_dot_product > 0:
+                    bisector_vector = bisector_vector * -1
+
+                # Add the bisector to the list for this contour
+                vectors_in_this_contour.append(bisector_vector)
+
+            # Add the vectors from this contour to the outer list
+            all_contour_vectors.append(vectors_in_this_contour)
+
+        return all_contour_vectors
+
     def generate_transformed_contours(self, transformation: ndarray,
                                       imaging_depth: float,
                                       image_axis_alignment: str = ZY_ALIGNED):
+
         # Define the default result
         contours_list = []
+        vectors_list = []
 
         # Check to make sure that the transformation is valid
         if validate_transformation_matrix(transformation):
 
+            # Calculate the vectors for each point
+            all_normal_vectors = self.calculate_normal_vectors_of_contours()
+
             # Iterate through each contour
-            for contour in self.contours_in_image:
+            for contour, normal_vector_contour in zip(self.contours_in_image, all_normal_vectors):
 
                 # Define a temporary list to store the points from this contour
                 this_contour_list = []
 
+                # Define a temporary list to store the vectors from this contour
+                this_vector_list = []
+
                 # Iterate through every point in the contour
-                for point_in_px in contour:
+                for point_in_px, normal_vector_in_px in zip(contour, normal_vector_contour):
 
                     # Add the crop offset to the point
                     point_in_px_with_crop_offset = point_in_px + array(self.image_crop_coordinates[0])
@@ -339,6 +415,7 @@ class ImageData:
 
                     # Convert the units
                     point_in_m = point_in_px_from_center * (imaging_depth / self.ds_image_size_y)
+                    normal_vector_in_m = normal_vector_in_px * (imaging_depth / self.ds_image_size_y)
 
                     # Rearrange the points
                     if image_axis_alignment == ZY_ALIGNED:
@@ -346,11 +423,17 @@ class ImageData:
                                                   [point_in_m[0]],
                                                   [point_in_m[1]],
                                                   [1]])
+                        rearranged_vector = array([[0],
+                                                  [normal_vector_in_m[0]],
+                                                  [normal_vector_in_m[1]]])
                     elif image_axis_alignment == ZX_ALIGNED:
                         rearranged_point = array([[point_in_m[0]],
                                                   [0],
-                                                  [point_in_m[1]]
+                                                  [point_in_m[1]],
                                                   [1]])
+                        rearranged_vector = array([[normal_vector_in_m[0]],
+                                                  [0],
+                                                  [normal_vector_in_m[1]]])
                     else:
                         raise Exception("Image axis alignment of " + str(image_axis_alignment) + " is not recognized.")
 
@@ -360,10 +443,17 @@ class ImageData:
                     # Add the transformed point to the list for this contour
                     this_contour_list.append(transformed_point[:3].reshape(3))
 
+                    # Transform the vector
+                    transformed_vector = transformation[0:3, 0:3] @ rearranged_vector
+
+                    # Add the transformed vector to the list for this contour
+                    this_vector_list.append(transformed_vector.reshape(3))
+
                 # Add the list from this contour to the list for all contours
                 contours_list.append(array(this_contour_list))
+                vectors_list.append(array(this_vector_list))
 
-        return contours_list
+        return contours_list, vectors_list
 
     def bridge_image_data_and_message(self, direction: str, message: image_data_message = None):
         """

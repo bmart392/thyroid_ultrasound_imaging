@@ -16,7 +16,7 @@ class ImageFilterGrabCut(ImageFilter):
     """
 
     def __init__(self, previous_mask_array: np.array = None, image_crop_coordinates: iter = None,
-                 image_crop_included: bool = False, include_pre_blurring: bool = False,
+                 include_pre_blurring: bool = False,
                  increase_contrast=True, down_sampling_rate: float = 0.4,  # 0.5
                  segmentation_iteration_count: int = 1,  # 1
                  sure_foreground_creation_iterations: int = 3,
@@ -34,9 +34,6 @@ class ImageFilterGrabCut(ImageFilter):
 
         image_crop_coordinates
             an iterable containing two points defining the rectangle with which to crop the image.
-
-        image_crop_included
-            a flag to indicate if the image needs to be cropped.
 
         include_pre_blurring
             a flag to indicate that the image should be filtered prior to segmentation.
@@ -56,7 +53,6 @@ class ImageFilterGrabCut(ImageFilter):
         super(ImageFilterGrabCut, self).__init__()
 
         # Update the parameters passed in on object creation
-        self.image_crop_included = image_crop_included
         self.image_crop_coordinates = image_crop_coordinates
         self.include_pre_blurring = include_pre_blurring
         self.debug_mode = debug_mode
@@ -244,7 +240,7 @@ class ImageFilterGrabCut(ImageFilter):
             The image data object containing the masks generated from the current image.
         """
 
-        # Do no create a new previous-image-mask if the flag is set as True
+        # Do not create a new previous-image-mask if the flag is set as True
         if not self.do_not_create_new_previous_image_mask:
             # Create the image mask to use for the next iteration
             self.previous_image_mask_array = uint8(image_data.sure_foreground_mask * cv2.GC_FGD +

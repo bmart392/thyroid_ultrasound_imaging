@@ -12,70 +12,83 @@ File containing code to stream recorded data as ROS Topic.
 # TODO - Dream - Add proper status publishing
 
 # Import ROS specific packages
-from rospy import init_node, Publisher, is_shutdown, Subscriber, Time
-from std_msgs.msg import Bool
 from cv_bridge import CvBridge
 from sensor_msgs.msg import Image
 
 # Import standard packages
-from cv2 import cvtColor, COLOR_BGR2GRAY
+from cv2 import cvtColor, COLOR_BGR2GRAY, imread
 from sys import stdout
-from time import time
+from os.path import isdir
+
+# Import custom ROS packages
+from thyroid_ultrasound_support.BasicNode import *
 
 # Import custom python packages
-from thyroid_ultrasound_imaging_support.ImageManipulation.load_folder_of_image_files import \
-    load_folder_of_image_files
-from thyroid_ultrasound_support.TopicNames import *
-
-# Define global variable to control image streaming
-stream_images = False
-
-# Define global iterator variable
-ii = 0
+from thyroid_ultrasound_imaging_support.RegisteredData.generate_ordered_list_of_directory_contents import \
+    generate_ordered_list_of_directory_contents
 
 
-def main(file_path: str, image_number_offset: int = None, publishing_rate: float = 1):
+class ExperimentStreamRecordedData(BasicNode):
 
-    # Pull out the images from the given folder location
-    created_objects = load_folder_of_image_files(file_path, starting_index=image_number_offset)
+    def __init__(self):
 
-    # Ensure stream_images references the global variable
-    global stream_images
+        # Call the super node
+        super().__init__()
 
-    # Create a ROS node
-    init_node('ClariusPublisherSpoof', anonymous=True)
+        # Define flag to control image streaming
+        self.stream_images = False
+        self.restart_image_stream = False
+        self.playback_images_in_reverse = False
 
-    # Create a publisher for the images
-    us_pub = Publisher(IMAGE_SOURCE, Image, queue_size=100)
+        # Define variable to store the path to the images
+        self.path_to_images = None
 
-    # Create a subscriber to listen to commands to start and stop publishing images
-    Subscriber(IMAGE_STREAMING_CONTROL, Bool, streaming_commands_callback)
+        # Define global iterator variable
+        self.ii = 0
 
-    # Create a subscriber to listen to commands to restart publishing images
-    Subscriber(IMAGE_STREAMING_RESTART, Bool, restart_streaming_command_callback)
+        # Define list where images are stored
+        self.created_objects = None
 
-    # Define the time to wait between publishing the images
-    delay_time = 1 / publishing_rate  # seconds
+        # Create a ROS node
+        init_node(CLARIUS_US_SPOOF)
 
-    # Define the time at which the last image was published
-    previous_publish_time = 0
+        # Create a publisher for the images
+        self.us_pub = Publisher(IMAGE_SOURCE, Image, queue_size=100)
 
-    # loop
-    try:
+        # Create image streaming services
+        Service(CS_IMAGE_LOCATION, StringRequest, self.image_location_handler)
+        Service(CS_IMAGE_STREAMING_CONTROL, BoolRequest, self.streaming_commands_handler)
+        Service(CS_IMAGE_STREAMING_RESTART, BoolRequest, self.restart_streaming_command_handler)
+        Service(CS_IMAGE_STREAMING_REVERSE_PLAYBACK_DIRECTION, BoolRequest, self.reverse_playback_direction_handler)
 
-        # Ensure the iterator references the global variable
-        global ii
+    def image_location_handler(self, req: StringRequestRequest):
+        if isdir(req.value):
+            self.path_to_images = req.value
+            return StringRequestResponse(True, NO_ERROR)
+        else:
+            return StringRequestResponse(False, 'Directory is invalid.')
 
-        # Calculate the number of images to send
-        num_images = len(created_objects)
+    def streaming_commands_handler(self, req: BoolRequestRequest):
+        self.stream_images = req.value
+        return BoolRequestResponse(True, NO_ERROR)
 
-        # While the node is shutdown and more images are available
-        while not is_shutdown() and ii < num_images:
+    def restart_streaming_command_handler(self, req: BoolRequestRequest):
+        self.restart_image_stream = req.value
+        return BoolRequestResponse(True, NO_ERROR)
 
-            if stream_images and (time() - previous_publish_time) > delay_time:
+    def reverse_playback_direction_handler(self, req: BoolRequestRequest):
+        self.playback_images_in_reverse = req.value
+        return BoolRequestResponse(True, NO_ERROR)
 
+    def main(self):
+
+        if self.stream_images and self.created_objects is not None and not self.restart_image_stream:
+
+            # If the end of the stream has not been reached and the stream does not need to be restarted
+            if ((not self.playback_images_in_reverse and self.ii < len(self.created_objects)) or
+                    (self.playback_images_in_reverse and self.ii >= 0)):
                 # Recolor the image to grayscale
-                bscan = cvtColor(created_objects[ii], COLOR_BGR2GRAY)
+                bscan = cvtColor(self.created_objects[self.ii], COLOR_BGR2GRAY)
 
                 # Generate an image message to publish
                 resulting_image_message: Image = CvBridge().cv2_to_imgmsg(bscan, encoding="passthrough")
@@ -84,43 +97,56 @@ def main(file_path: str, image_number_offset: int = None, publishing_rate: float
                 resulting_image_message.header.stamp = Time.now()
 
                 # Publish the image
-                us_pub.publish(resulting_image_message)
-
-                # Capture the current time as the time of the last image publishing
-                previous_publish_time = time()
-
-                # Increment the iterator
-                ii = ii + 1
+                self.us_pub.publish(resulting_image_message)
 
                 # Print how many images have been sent
-                stdout.write(f'Image {ii} of {num_images} sent.\r')
+                stdout.write(f'Image {self.ii + 1} of {len(self.created_objects)} sent.\r')
                 stdout.flush()
 
-    except KeyboardInterrupt:
-        print('terminated by user')
+                # Increment the iterator
+                if self.playback_images_in_reverse:
+                    change = -1
+                else:
+                    change = 1
+                self.ii = self.ii + change
 
+        elif self.restart_image_stream:
 
-def streaming_commands_callback(data: Bool):
-    global stream_images
-    stream_images = data.data
+            if self.playback_images_in_reverse:
+                self.ii = len(self.created_objects) - 1
+            else:
+                self.ii = 0
 
+            self.restart_image_stream = False
 
-def restart_streaming_command_callback(data: Bool):
-    global ii
-    ii = 0
+        elif self.created_objects is None:
+
+            if self.path_to_images is not None:
+
+                # Pull out the images from the given folder location
+                try:
+                    self.created_objects = [imread(path) for path in generate_ordered_list_of_directory_contents(
+                        self.path_to_images, sort_indices=(0, 1))]
+                except Exception:
+                    try:
+                        self.created_objects = [imread(path) for path in generate_ordered_list_of_directory_contents(
+                            self.path_to_images, sort_indices=tuple([0]))]
+                    except Exception:
+                        raise Exception('Image files not named as expected.')
 
 
 if __name__ == '__main__':
 
-    # Define root path to folders where images are stored
-    root_path = '/home/ben/thyroid_ultrasound_data/testing_and_validation/raw_images/'
+    node = ExperimentStreamRecordedData()
 
-    # Define the file path and image offset number to use
-    this_file_path = '2023-11-29_19-14'
-    this_image_offset_number = 1
+    print("Node initialized.")
+    print("Press ctrl+c to terminate.")
 
     # Define the publishing rate for these images
-    this_publishing_rate = 20  # Hz
+    pub_rate = Rate(20)  # Hz
 
-    # Call the main function
-    main(root_path + this_file_path, this_image_offset_number)
+    while not is_shutdown():
+        node.main()
+        pub_rate.sleep()
+
+    print("Node terminated.")

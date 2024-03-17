@@ -17,8 +17,7 @@ from cv2 import resize, INTER_CUBIC
 # Import custom python packages
 from thyroid_ultrasound_imaging_support.ImageData.ImageData import ImageData
 from thyroid_ultrasound_imaging_support.ImageFilter.ImageFilterGrabCut import ImageFilterGrabCut
-from thyroid_ultrasound_imaging_support.RegisteredData.MessageCompatibleObject import TO_MESSAGE, SAVE_OBJECT
-from thyroid_ultrasound_imaging_support.RegisteredData.RegisteredData import RegisteredData
+from thyroid_ultrasound_imaging_support.RegisteredData.MessageCompatibleObject import TO_MESSAGE
 from thyroid_ultrasound_imaging_support.RegisteredData.load_folder_of_saved_registered_data import \
     load_folder_of_saved_registered_data
 from thyroid_ultrasound_imaging_support.Validation.build_previous_image_mask_from_ground_truth import \
@@ -56,26 +55,27 @@ class NonRealTimeImageFilterNode(BasicNode):
         # Create the node
         init_node(NON_REAL_TIME_IMAGE_FILTER)
 
-        # Create a publisher to publish the registered data in non-real time
-        self.registered_data_publisher = Publisher(REGISTERED_DATA_NON_REAL_TIME, RegisteredDataMsg, queue_size=1)
-
         # Create a publisher to publish the status of the image filter
         self.image_filter_progress_publisher = Publisher(REGISTERED_DATA_NON_REAL_TIME_SEGMENTATION_PROGRESS,
                                                          NonRealTimeImageFilterStatus, queue_size=1)
 
+        # Define a publisher to publish the segmented images
+        self.registered_data_publisher = Publisher(REGISTERED_DATA_NON_REAL_TIME, RegisteredDataMsg, queue_size=1)
+
         # Define a subscriber to listen for where to look for the registered data
-        Subscriber(REGISTERED_DATA_LOAD_LOCATION, String, self.registered_data_load_location_callback)
+        Service(NRTS_REGISTERED_DATA_LOAD_LOCATION, StringRequest, self.registered_data_load_location_handler)
 
         # Define a subscriber to listen for the command to generate the volume
-        Subscriber(GENERATE_VOLUME, Bool, self.generate_volume_command_callback)
+        Service(NRTS_GENERATE_VOLUME, BoolRequest, self.generate_volume_command_handler)
 
-    def registered_data_load_location_callback(self, msg: String):
+    def registered_data_load_location_handler(self, req: StringRequestRequest):
         """
         Updates the internal registered_data_load_location with the path included in the message
         as long as it is a valid path to a directory.
         """
-        if isdir(msg.data):
-            self.registered_data_load_location = msg.data
+        if isdir(req.value):
+            self.registered_data_load_location = req.value
+        return StringRequestResponse(True, NO_ERROR)
 
     def publish_segmentation_status(self, number_of_images_segmented: int, number_of_images_to_segment: int):
         """
@@ -88,11 +88,12 @@ class NonRealTimeImageFilterNode(BasicNode):
         new_msg.header.stamp = Time.now()
         self.image_filter_progress_publisher.publish(new_msg)
 
-    def generate_volume_command_callback(self, msg: Bool):
+    def generate_volume_command_handler(self, req: BoolRequestRequest):
         """
         Updates the internal commanded_to_generate_volume flag with the value from the message.
         """
-        self.commanded_to_generate_volume = msg.data
+        self.commanded_to_generate_volume = req.value
+        return BoolRequestResponse(True, NO_ERROR)
 
     def main_loop(self):
         """
@@ -101,6 +102,8 @@ class NonRealTimeImageFilterNode(BasicNode):
         if self.commanded_to_generate_volume:
             # Ensure that the specified directory exists
             if isdir(self.registered_data_load_location):
+
+                num_images_segmented = 1
 
                 # Load the registered data
                 self.registered_data: list = load_folder_of_saved_registered_data(self.registered_data_load_location)
@@ -123,6 +126,9 @@ class NonRealTimeImageFilterNode(BasicNode):
                 # For each registered data point,
                 for registered_data in self.registered_data:
 
+                    if is_shutdown():
+                        break
+
                     # Stop the loop if the node was no longer commanded to generate a volume
                     if not self.commanded_to_generate_volume:
                         break
@@ -134,7 +140,8 @@ class NonRealTimeImageFilterNode(BasicNode):
                     new_image_data_object = ImageData(image_data=registered_data.image_data.original_image,
                                                       image_color=registered_data.image_data.image_color,
                                                       image_capture_time=registered_data.image_data.image_capture_time,
-                                                      image_title=NON_REAL_TIME_IMAGE_FILTER)
+                                                      image_title=NON_REAL_TIME_IMAGE_FILTER,
+                                                      imaging_depth=registered_data.image_data.imaging_depth)
 
                     # Note the amount of time required to create an image data object
                     start_of_process_time = display_process_timer(start_of_process_time,
@@ -155,21 +162,27 @@ class NonRealTimeImageFilterNode(BasicNode):
                     # Update the registered data object with the newly filtered image
                     registered_data.image_data = new_image_data_object
 
-                    registered_data: RegisteredData
-                    registered_data.save_load(action=SAVE_OBJECT,
-                                              path_to_file_location='/home/ben/thyroid_ultrasound_data/'
-                                                                    'testing_and_validation'
-                                                                    '/non_real_time_registered_data')
+                    # registered_data: RegisteredData
+                    # registered_data.save_load(action=SAVE_OBJECT,
+                    #                           path_to_file_location='/home/ben/thyroid_ultrasound_data/experimentation/'
+                    #                                                 'VolumeTest3/OriginalData')
 
-                    # Publish the new registered data
-                    self.registered_data_publisher.publish(registered_data.convert_object_message(TO_MESSAGE))
+                    # Publish the registered data
+                    self.registered_data_publisher.publish(registered_data.convert_object_message(direction=TO_MESSAGE))
 
                     # Publish the status of the segmentation
-                    self.publish_segmentation_status(number_of_images_segmented=0,
+                    self.publish_segmentation_status(number_of_images_segmented=num_images_segmented,
                                                      number_of_images_to_segment=len(self.registered_data))
+                    print(num_images_segmented)
+                    print(len(self.registered_data))
+
+                    num_images_segmented = num_images_segmented + 1
 
             else:
                 raise Exception("No source location was specified for the registered data.")
+
+            # Reset the flag
+            self.commanded_to_generate_volume = False
 
 
 if __name__ == '__main__':

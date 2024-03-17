@@ -71,7 +71,7 @@ for image_data_object in image_data_objects:
 
     # Do the main loop
     validation_node.main_loop()
-    print("Number of outer level dictionaries:" + str(len(validation_node.list_of_filtered_images.keys())))
+    print("Number of outer level dictionaries:" + str(len(validation_node.filtered_image.keys())))
 
     # Send a goal not reached message
     validation_node.pose_goal_callback(Bool(False))

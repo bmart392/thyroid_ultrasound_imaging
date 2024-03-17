@@ -7,12 +7,14 @@ from cv2 import GC_PR_FGD, GC_BGD, GC_FGD, dilate
 
 # Import custom objects
 from thyroid_ultrasound_imaging_support.Boundaries.BoundingSet import BoundingSet
-from thyroid_ultrasound_imaging_support.Boundaries.create_mask_array_from_triangles import create_mask_array_from_triangles
+from thyroid_ultrasound_imaging_support.Boundaries.create_mask_array_from_triangles import \
+    create_mask_array_from_triangles
 
 
 def create_previous_image_mask_array_from_triangles(list_of_background_triangles: list,
                                                     list_of_foreground_triangles: list,
-                                     image_shape: tuple):
+                                                    image_shape: tuple,
+                                                    only_return_selection: bool = False):
     """
     Create a numpy array mask showing the background and foreground of the image using triangles.
 
@@ -24,6 +26,8 @@ def create_previous_image_mask_array_from_triangles(list_of_background_triangles
         a list of triangles, passed in as sets of 3 coordinates.
     image_shape
         a tuple of the shape of the image.
+    only_return_selection
+        if only one the foreground has been given, commands the function to just return the selection.
     """
     # Create blank mask array and assign it all as probable background
     final_mask = ones(image_shape, uint8) * GC_PR_FGD
@@ -54,7 +58,6 @@ def create_previous_image_mask_array_from_triangles(list_of_background_triangles
                 # Check if the given element is contained within the background, foreground, or neither
                 for background_set in background_bounding_sets:
                     if background_set.is_point_within_set([yy, xx]):
-
                         # Note that the location was found in a boundary
                         was_location_background = True
 
@@ -68,7 +71,6 @@ def create_previous_image_mask_array_from_triangles(list_of_background_triangles
                     # Check if the given element is contained within the background, foreground, or neither
                     for foreground_set in foreground_bounding_sets:
                         if foreground_set.is_point_within_set([yy, xx]):
-
                             # Update the mask value accordingly
                             final_mask[xx][yy] = GC_FGD
 
@@ -103,12 +105,15 @@ def create_previous_image_mask_array_from_triangles(list_of_background_triangles
                 # Check if the given element is contained within the foreground
                 for foreground_set in foreground_bounding_sets:
                     if foreground_set.is_point_within_set([xx, yy]):
-
                         # Update the mask value accordingly
                         selected_foreground_mask[yy][xx] = uint8(1)
 
                         # Stop looping once it has been found in one boundary
                         break
+
+        # Return only the selection if commanded
+        if only_return_selection:
+            return selected_foreground_mask
 
         # Dilate the foreground mask
         dilated_foreground_mask = dilate(selected_foreground_mask, ones((9, 9)), iterations=9, anchor=(4, 4))

@@ -17,6 +17,7 @@ from cv_bridge import CvBridge
 from thyroid_ultrasound_messages.msg import image_data_message, image_crop_coordinates, \
     initialization_mask_message, threshold_parameters
 from thyroid_ultrasound_support.BasicNode import *
+from thyroid_ultrasound_services.srv import *
 
 # Import from standard packages
 from copy import copy
@@ -68,34 +69,21 @@ class ImageBasedUserInput(BasicNode):
         # Create the node object
         init_node(IMAGE_BASED_USER_INPUT)
 
-        # Create a publisher to publish the resulting coordinates from the user image cropping
-        self.coordinate_publisher = Publisher(IMAGE_CROP_COORDINATES, image_crop_coordinates, queue_size=1)
+        # Define service proxies
+        self.coordinate_service = ServiceProxy(RTS_UPDATE_IMAGE_CROP_COORDINATES, UpdateImageCropCoordinates)
+        self.initialization_mask_service = ServiceProxy(RTS_UPDATE_INITIALIZATION_MASK, UpdateInitializationMask)
+        self.threshold_service = ServiceProxy(RTS_UPDATE_THRESHOLD_PARAMETERS, UpdateThresholdParameters)
 
-        # Create a publisher to publish the resulting mask from the user image mask generation
-        self.initialization_mask_publisher = Publisher(INITIALIZATION_MASK, initialization_mask_message,
-                                                       queue_size=1)
-
-        # Create a publisher to publish the results of the user thresholding
-        self.threshold_publisher = Publisher(THRESHOLD_PARAMETERS, threshold_parameters,
-                                             queue_size=1)
+        # Define services for the node
+        Service(IB_UI_CROP_IMAGE_FROM_POINTS, BoolRequest, self.generate_crop_coordinates_handler)
+        Service(IB_UI_CROP_IMAGE_FROM_TEMPLATE, BoolRequest, self.generate_crop_coordinates_from_template_handler)
+        Service(IB_UI_IDENTIFY_THYROID_FROM_POINTS, BoolRequest, self.generate_grabcut_initialization_mask_handler)
 
         # Define a subscriber to listen for the raw images
         Subscriber(IMAGE_RAW, image_data_message, self.raw_image_callback)
 
         # Define a subscriber to listen for the cropped images
         Subscriber(IMAGE_CROPPED, image_data_message, self.cropped_image_callback)
-
-        # Define a subscriber to listen for commands to crop the image
-        Subscriber(CROP_IMAGE_FROM_POINTS, Bool, self.generate_crop_coordinates_callback)
-
-        # Define a subscriber to listen for commands to crop the image based on a template
-        Subscriber(CROP_IMAGE_FROM_TEMPLATE, Bool, self.generate_crop_coordinates_from_template_callback)
-
-        # Define a subscriber to listen for commands to generate the grabcut mask
-        Subscriber(IDENTIFY_THYROID_FROM_POINTS, Bool, self.generate_grabcut_initialization_mask_callback)
-
-        # Define a subscriber to listen for commands to generate the threshold filter parameters
-        Subscriber(GENERATE_THRESHOLD_PARAMETERS, Bool, self.generate_threshold_parameters_callback)
 
     def main_loop(self):
 
@@ -127,7 +115,8 @@ class ImageBasedUserInput(BasicNode):
                     result_msg.second_coordinate_y = result_list[1][1]
 
                     # Publish the response
-                    self.coordinate_publisher.publish(result_msg)
+                    self.coordinate_service(result_list[0][0], result_list[0][1],
+                                            result_list[1][0], result_list[1][1])
 
                     # Create a window that will be used to ask the user
                     root = Tk()
@@ -177,7 +166,10 @@ class ImageBasedUserInput(BasicNode):
                     result_msg.second_coordinate_y = saved_coordinates[1][1]
 
                     # Publish the response
-                    self.coordinate_publisher.publish(result_msg)
+                    self.coordinate_service(saved_coordinates[0][0],
+                                            saved_coordinates[0][1],
+                                            saved_coordinates[1][0],
+                                            saved_coordinates[1][1])
 
                     # Return the resulting message
                     return result_msg
@@ -205,7 +197,7 @@ class ImageBasedUserInput(BasicNode):
                     # Capture the foreground of the image from the user
                     list_of_points_for_foreground_polygon = user_input_polygon_points(
                         local_image_to_generate_mask_from,
-                        "area of interest",
+                        "region of interest",
                         display_result=True,
                         list_of_points=list_of_foreground_points)
 
@@ -235,7 +227,8 @@ class ImageBasedUserInput(BasicNode):
                     result_message.previous_image_mask = image_message_for_initialization_mask
 
                     # Publish the result message
-                    self.initialization_mask_publisher.publish(result_message)
+                    self.initialization_mask_service(local_image_to_generate_mask_from.convert_to_message(),
+                                                     image_message_for_initialization_mask)
 
                     # Return the resulting message
                     return result_message
@@ -261,7 +254,7 @@ class ImageBasedUserInput(BasicNode):
                     result_message.upper_bound = result_parameters[1]
 
                     # Publish the result of the threshold generation
-                    self.threshold_publisher.publish(result_message)
+                    self.threshold_service(result_parameters[0], result_parameters[1])
 
                     # Return the resulting message
                     return result_message
@@ -308,7 +301,8 @@ class ImageBasedUserInput(BasicNode):
                     result_message.previous_image_mask = image_message_for_ground_truth_mask
 
                     # Publish the result message
-                    self.initialization_mask_publisher.publish(result_message)
+                    self.initialization_mask_service(local_image_to_generate_mask_from.convert_to_message(),
+                                                     image_message_for_ground_truth_mask)
 
                     # Return the resulting message
                     return result_message
@@ -326,21 +320,20 @@ class ImageBasedUserInput(BasicNode):
         # Save the latest cropped image
         self.image_for_mask_and_threshold = ImageData(image_data_msg=message, image_color=COLOR_GRAY)
 
-    def generate_crop_coordinates_callback(self, data: Bool):
+    def generate_crop_coordinates_handler(self, req: BoolRequestRequest):
+        if req.value:
+            self.actions.append(GENERATE_CROP)
+        return BoolRequestResponse(True, NO_ERROR)
 
-        self.actions.append(GENERATE_CROP)
+    def generate_crop_coordinates_from_template_handler(self, req: BoolRequestRequest):
+        if req.value:
+            self.actions.append(GENERATE_CROP_FROM_TEMPLATE)
+        return BoolRequestResponse(True, NO_ERROR)
 
-    def generate_crop_coordinates_from_template_callback(self, data: Bool):
-
-        self.actions.append(GENERATE_CROP_FROM_TEMPLATE)
-
-    def generate_grabcut_initialization_mask_callback(self, data: Bool):
-
-        self.actions.append(GENERATE_INITIALIZATION)
-
-    def generate_threshold_parameters_callback(self, data: Bool):
-
-        self.actions.append(GENERATE_PARAMETERS)
+    def generate_grabcut_initialization_mask_handler(self, req: BoolRequestRequest):
+        if req.value:
+            self.actions.append(GENERATE_INITIALIZATION)
+        return BoolRequestResponse(True, NO_ERROR)
 
     def generate_ground_truth_mask_callback(self, data: Bool):
 

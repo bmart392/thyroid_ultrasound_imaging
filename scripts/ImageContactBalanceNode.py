@@ -168,6 +168,9 @@ class ImageContactBalanceNode(BasicNode):
         # Define a subscriber to listen for the raw image
         Subscriber(IMAGE_RAW, image_data_message, self.new_raw_image_callback)
 
+        # Define a subscriber to listen for the imaging depth
+        Subscriber(IMAGE_DEPTH, Float64)
+
     ###############
     # ROS Callbacks
     # region
@@ -191,6 +194,11 @@ class ImageContactBalanceNode(BasicNode):
         # If the list of new ultrasound images is too long, remove the oldest image
         if len(self.new_ultrasound_images) > 5:
             self.new_ultrasound_images.pop(0)
+
+    def image_depth_callback(self, msg: Float64):
+        """Update the imaging depth and rebuild the sectors"""
+        self.imaging_depth_meters[NEW_VALUE] = msg.data / 100  # convert cm to m
+        self.rebuild_sectors()
 
     # endregion
     ###############

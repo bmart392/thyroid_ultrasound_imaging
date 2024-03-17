@@ -7,6 +7,8 @@ File containing ImagePositioningControllerNode class definition and ROS running 
 # TODO - Dream - Add proper try-cath error checking everywhere and incorporate logging into it
 # TODO - Dream - Add proper node status publishing
 # TODO - Dream - Add a check to make sure that any image processed by the controller is no less than half a second old
+# TODO - High - Add a publisher to publish the current setpoint
+# TODO - High - Chang error to be measured in pixels
 
 # Import standard ROS packages
 from geometry_msgs.msg import TwistStamped
@@ -43,6 +45,9 @@ class ImagePositioningControllerNode(BasicNode):
         # Define a variable to save the imaging depth of the scanner
         self.image_positioning_controller.imaging_depth = 5.0
 
+        # Define a flag to note when the ROI is shown in the image
+        self.image_roi_shown = False
+
         # Create the node object
         init_node(IMAGE_POSITIONING_CONTROLLER)
 
@@ -51,17 +56,11 @@ class ImagePositioningControllerNode(BasicNode):
             RC_IMAGE_ERROR, TwistStamped, queue_size=1
         )
 
-        # Define a publisher to publish if the image is centered
-        self.image_centered_publisher = Publisher(IMAGE_ROI_CENTERED, Bool, queue_size=1)
-
-        # Define a subscriber to listen for the imaging depth of the scanner
+        # Define subscribers
         Subscriber(IMAGE_DEPTH, Float64, self.imaging_depth_callback)
-
-        # Define a subscriber to listen for the filtered images
         Subscriber(IMAGE_FILTERED, image_data_message, self.filtered_image_callback)
-
-        # Define a publisher for publishing image centering commands
         Subscriber(RC_IMAGE_CENTERING_SIDE, Int8, self.image_centering_side_callback)
+        Subscriber(IMAGE_ROI_SHOWN, Bool, self.image_roi_shown_callback)
 
     def imaging_depth_callback(self, data: Float64):
 
@@ -84,7 +83,10 @@ class ImagePositioningControllerNode(BasicNode):
         """
         Updates the stored image centering side.
         """
-        self.image_positioning_controller.set_point_offset = msg.data * 0.25
+        self.image_positioning_controller.set_point_offset = msg.data * 0.1
+
+    def image_roi_shown_callback(self, msg: Bool):
+        self.image_roi_shown = msg.data
 
     def publish_position_error(self):
 
@@ -94,21 +96,20 @@ class ImagePositioningControllerNode(BasicNode):
             # Pop out the newest data
             image_data = self.received_images.pop(-1)
 
-            try:
+            # Define a zero error value as default
+            position_error = [0, 0, 0, 0, 0, 0]
 
-                # Calculate the error in the image centroids
-                position_error, is_image_centered = self.image_positioning_controller.calculate_position_error(image_data)
+            # Define a default value for is_image_centered
+            is_image_centered = False
 
-            except Exception as caught_exception:
-
-                # Define a zero error value as default
-                position_error = [0, 0, 0, 0, 0, 0]
-
-                # Define a default value for is_image_centered
-                is_image_centered = False
-
-            # Publish if the image is centered
-            self.image_centered_publisher.publish(Bool(is_image_centered))
+            # If the ROI is in the image,
+            if self.image_roi_shown:
+                try:
+                    # Calculate the error in the image centroids
+                    position_error, is_image_centered = self.image_positioning_controller.calculate_position_error(
+                        image_data)
+                except Exception:
+                    pass
 
             # Create a new TwistStamped message
             position_error_message = TwistStamped()
@@ -133,14 +134,13 @@ if __name__ == '__main__':
     controller = ImagePositioningControllerNode()
 
     # Define publishing frequency
-    publishing_rate = Rate(100)  # hz
+    publishing_rate = Rate(45)  # hz
 
     print("Node initialized.")
     print("Press ctrl+c to terminate.")
 
     # Let the program run indefinitely
     while not is_shutdown():
-
         # Publish the image based control input
         controller.publish_position_error()
 

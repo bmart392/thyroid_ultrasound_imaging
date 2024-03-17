@@ -44,21 +44,24 @@ def generate_ordered_list_of_directory_contents(directory_path: str,
         except ValueError:
             item_name_without_file_extension = item_name
 
-        # Split the item name by underscores
-        item_name_components = item_name_without_file_extension.split('_')
+        try:
+            # Split the item name by underscores
+            item_name_components = item_name_without_file_extension.split('_')
 
-        # Define a temporary variable to store the individual components that will be sorted by
-        temp_components = []
+            # Define a temporary variable to store the individual components that will be sorted by
+            temp_components = []
 
-        # Add the individual relevant components to the entry for the item
-        for index in sort_indices:
-            temp_components.append(item_name_components[index])
+            # Add the individual relevant components to the entry for the item
+            for index in sort_indices:
+                temp_components.append(item_name_components[index])
 
-        # Add the item name at the end
-        temp_components.append(item_name)
+            # Add the item name at the end
+            temp_components.append(item_name)
 
-        # Add the temporary list to the sorted list
-        sorted_directory_contents.append(temp_components)
+            # Add the temporary list to the sorted list
+            sorted_directory_contents.append(temp_components)
+        except IndexError:
+            print(item_name_without_file_extension + ' is not named correctly to be sorted.')
 
     # Create an itemgetter with the appropriate number of sort indices
     if len(sort_indices) == 1:

@@ -6,7 +6,7 @@ Contains the code for validating that the RealTimeImageFilterNode is successful.
 from rospy import Rate
 from cv2 import cvtColor, COLOR_BGR2GRAY, imshow, waitKey, COLOR_GRAY2RGB, COLOR_BGR2RGB, resize
 from numpy import load, array, uint8, zeros
-from matplotlib.pyplot import subplots, show, matshow, savefig
+from matplotlib.pyplot import subplots, show, matshow, savefig, figure, imshow, subplot
 
 # Import standard ROS packages
 from std_msgs.msg import Bool
@@ -21,6 +21,8 @@ from validation_constants import *
 from thyroid_ultrasound_imaging_support.Visualization.create_mask_overlay_array import create_mask_overlay_array, \
     COLORIZED, PREV_IMG_MASK
 from thyroid_ultrasound_imaging_support.Visualization.create_mask_display_array import create_mask_display_array
+from thyroid_ultrasound_imaging_support.Visualization.add_cross_and_center_lines_on_image import \
+    add_cross_and_center_lines_on_image
 
 # Import custom ROS packages
 from thyroid_ultrasound_imaging_support.ImageData.ImageData import ImageData
@@ -29,7 +31,7 @@ from RealTimeImageFilterNode import RealTimeImageFilterNode, GRABCUT_FILTER
 from thyroid_ultrasound_messages.msg import image_crop_coordinates, initialization_mask_message
 
 # Validation Options
-save_image_data = True
+save_image_data = False
 
 # Image Filter Options
 blurring = [False, True]
@@ -42,16 +44,16 @@ iteration_count = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
 ii = 0
 
 # Number of rows and columns for plotting
-NUM_ROWS = 3
+NUM_ROWS = 2
 NUM_COLS = 4
 
 # Create a figure to plot the results
-fig, axes = subplots(NUM_ROWS, NUM_COLS)
-fig.suptitle('Image Filter Process', fontsize=36)
+# fig, axes = subplots(NUM_ROWS, NUM_COLS)
+# fig.suptitle('Image Filter Process', fontsize=36)
 
 # Create the filter_node to be tested
 filter_node = RealTimeImageFilterNode(filter_type=GRABCUT_FILTER,
-                              debug_mode=False, analysis_mode=True)
+                                      debug_mode=False, analysis_mode=True)
 
 # Read in a list of images from a folder
 image_start_index = 51
@@ -63,11 +65,11 @@ crop_coords = load(INITIALIZATION_INFORMATION_PATH + CROP_FILE_NAME)
 user_mask = load(INITIALIZATION_INFORMATION_PATH + INITIALIZATION_FILE_NAME)
 
 # Show the user mask as loaded
-axes[int((ii - (ii % NUM_COLS)) / NUM_ROWS)][int(ii % NUM_COLS)].imshow(
-    cvtColor(user_mask * uint8(125), COLOR_GRAY2RGB))
-axes[int((ii - (ii % NUM_COLS)) / NUM_ROWS)][int(ii % NUM_COLS)].set_title(
-    'Segmentation Initialization\nMask as Loaded', fontsize=24)
-ii = ii + 1
+# axes[int((ii - (ii % NUM_COLS)) / NUM_ROWS)][int(ii % NUM_COLS)].imshow(
+#     cvtColor(user_mask * uint8(125), COLOR_GRAY2RGB))
+# axes[int((ii - (ii % NUM_COLS)) / NUM_ROWS)][int(ii % NUM_COLS)].set_title(
+#     'Segmentation Initialization\nMask as Loaded', fontsize=24)
+# ii = ii + 1
 
 # Define the maximum rate at which images should be processed
 rate = Rate(30)  # Hz
@@ -82,13 +84,16 @@ filter_node.crop_coordinates_callback(image_crop_coordinates_msg)
 # Send the previous image mask to use for the segmentation
 user_mask_msg = initialization_mask_message(previous_image_mask=convert_array_to_image_message(user_mask))
 filter_node.grabcut_initialization_mask_callback(user_mask_msg)
+filter_node.image_filter.do_not_create_new_previous_image_mask = False
+
+first_initialization_mask = filter_node.image_filter.previous_image_mask_array
 
 # Display the user mask as was loaded
-axes[int((ii - (ii % NUM_COLS)) / NUM_ROWS)][int(ii % NUM_COLS)].imshow(
-    cvtColor(filter_node.image_filter.previous_image_mask_array * uint8(125), COLOR_GRAY2RGB))
-axes[int((ii - (ii % NUM_COLS)) / NUM_ROWS)][int(ii % NUM_COLS)].set_title('Segmentation Initialization Mask as\n'
-                                                                           'Previous Image Mask', fontsize=24)
-ii = ii + 1
+# axes[int((ii - (ii % NUM_COLS)) / NUM_ROWS)][int(ii % NUM_COLS)].imshow(
+#     cvtColor(filter_node.image_filter.previous_image_mask_array * uint8(125), COLOR_GRAY2RGB))
+# axes[int((ii - (ii % NUM_COLS)) / NUM_ROWS)][int(ii % NUM_COLS)].set_title('Segmentation Initialization Mask as\n'
+#                                                                            'Previous Image Mask', fontsize=24)
+# ii = ii + 1
 
 filter_node.patient_contact_callback(Bool(True))
 
@@ -149,51 +154,116 @@ for image_array in images_as_arrays:
         # Otherwise just look at the data in the node
         result_object = filter_node.image_data
 
+    break
+
     rate.sleep()
 
+for image, name in zip([cvtColor(result_object.original_image, COLOR_GRAY2RGB),
+                        cvtColor(result_object.cropped_image, COLOR_GRAY2RGB),
+                        cvtColor(result_object.colorized_image, COLOR_BGR2RGB),
+                        cvtColor(result_object.down_sampled_image, COLOR_BGR2RGB),
+                        cvtColor(result_object.pre_processed_image, COLOR_BGR2RGB),
+                        create_mask_overlay_array(base_image=result_object.down_sampled_image,
+                                                  overlay_mask=first_initialization_mask,
+                                                  overlay_method=PREV_IMG_MASK),
+                        create_mask_overlay_array(base_image=result_object.down_sampled_image,
+                                                  overlay_mask=result_object.image_mask,
+                                                  overlay_method=COLORIZED, overlay_color=(55, 55, 0)),
+                        create_mask_overlay_array(base_image=result_object.down_sampled_image,
+                                                  overlay_mask=result_object.sure_foreground_mask,
+                                                  overlay_method=COLORIZED, overlay_color=(0, 55, 0)),
+                        create_mask_overlay_array(base_image=result_object.down_sampled_image,
+                                                  overlay_mask=result_object.sure_background_mask,
+                                                  overlay_method=COLORIZED, overlay_color=(55, 0, 0)),
+                        create_mask_overlay_array(base_image=result_object.down_sampled_image,
+                                                  overlay_mask=filter_node.image_filter.previous_image_mask_array,
+                                                  overlay_method=PREV_IMG_MASK),
+                        add_cross_and_center_lines_on_image(
+                            image_to_show=create_mask_overlay_array(base_image=result_object.down_sampled_image,
+                                                                    overlay_mask=result_object.image_mask,
+                                                                    overlay_method=COLORIZED,
+                                                                    overlay_color=(55, 55, 0)),
+                            image_data=result_object,
+                            goal_location=-0.125),
+                        add_cross_and_center_lines_on_image(
+                            image_to_show=create_mask_overlay_array(base_image=result_object.down_sampled_image,
+                                                                    overlay_mask=result_object.image_mask,
+                                                                    overlay_method=COLORIZED,
+                                                                    overlay_color=(55, 55, 0)),
+                            image_data=result_object,
+                            goal_location=0),
+                        add_cross_and_center_lines_on_image(
+                            image_to_show=create_mask_overlay_array(base_image=result_object.down_sampled_image,
+                                                                    overlay_mask=result_object.image_mask,
+                                                                    overlay_method=COLORIZED,
+                                                                    overlay_color=(55, 55, 0)),
+                            image_data=result_object,
+                            goal_location=0.125)
+                        ],
+                       ['Original Image',
+                        'Cropped Image',
+                        'Colorized Image',
+                        'Down-sampled Image',
+                        'Pre-processed Image',
+                        'Segmentation Initialization Mask\nfor This Image',
+                        'Result Image Mask',
+                        'Sure Foreground of This Image',
+                        'Sure Background of This Image',
+                        'Segmentation Initialization Mask\nfor Next Image',
+                        'Centroid of Result Area\nGoal Shifted Left',
+                        'Centroid of Result Area\nGoal Centered',
+                        'Centroid of Result Area\nGoal Shifted Right']):
+    fig = figure()
+    axes = subplot()
+    axes.imshow(image)
+    axes.set_title(name, fontsize=24)
+    fig.set_size_inches(10, 8)
+show()
 
+# axes[int((ii - (ii % NUM_COLS)) / NUM_COLS)][int(ii % NUM_COLS)].imshow(
+#     cvtColor(result_object.original_image, COLOR_GRAY2RGB))
+# axes[int((ii - (ii % NUM_COLS)) / NUM_COLS)][int(ii % NUM_COLS)].set_title('Original Image', fontsize=24)
+# ii = ii + 1
 
+# axes[int((ii - (ii % NUM_COLS)) / NUM_COLS)][int(ii % NUM_COLS)].imshow(
+#     cvtColor(result_object.cropped_image, COLOR_GRAY2RGB))
+# axes[int((ii - (ii % NUM_COLS)) / NUM_COLS)][int(ii % NUM_COLS)].set_title('Cropped Image', fontsize=24)
+# ii = ii + 1
 
-# Show the original image
-axes[int((ii - (ii % NUM_COLS)) / NUM_ROWS)][int(ii % NUM_COLS)].imshow(
-    cvtColor(result_object.original_image, COLOR_GRAY2RGB))
-axes[int((ii - (ii % NUM_COLS)) / NUM_ROWS)][int(ii % NUM_COLS)].set_title('Original Image', fontsize=24)
-ii = ii + 1
+# axes[int((ii - (ii % NUM_COLS)) / NUM_COLS)][int(ii % NUM_COLS)].imshow(
+#     cvtColor(result_object.colorized_image, COLOR_BGR2RGB))
+# axes[int((ii - (ii % NUM_COLS)) / NUM_COLS)][int(ii % NUM_COLS)].set_title('Colorized Image', fontsize=24)
+# ii = ii + 1
 
-axes[int((ii - (ii % NUM_COLS)) / NUM_ROWS)][int(ii % NUM_COLS)].imshow(
-    cvtColor(result_object.cropped_image, COLOR_GRAY2RGB))
-axes[int((ii - (ii % NUM_COLS)) / NUM_ROWS)][int(ii % NUM_COLS)].set_title('Cropped Image', fontsize=24)
-ii = ii + 1
+# axes[int((ii - (ii % NUM_COLS)) / NUM_COLS)][int(ii % NUM_COLS)].imshow(
+#     cvtColor(result_object.down_sampled_image, COLOR_BGR2RGB))
+# axes[int((ii - (ii % NUM_COLS)) / NUM_COLS)][int(ii % NUM_COLS)].set_title('Down-sampled Image', fontsize=24)
+# ii = ii + 1
 
-axes[int((ii - (ii % NUM_COLS)) / NUM_ROWS)][int(ii % NUM_COLS)].imshow(
-    cvtColor(result_object.colorized_image, COLOR_BGR2RGB))
-axes[int((ii - (ii % NUM_COLS)) / NUM_ROWS)][int(ii % NUM_COLS)].set_title('Colorized Image', fontsize=24)
-ii = ii + 1
+# axes[int((ii - (ii % NUM_COLS)) / NUM_COLS)][int(ii % NUM_COLS)].imshow(
+#     cvtColor(result_object.pre_processed_image, COLOR_BGR2RGB))
+# axes[int((ii - (ii % NUM_COLS)) / NUM_COLS)][int(ii % NUM_COLS)].set_title('Pre-processed Image', fontsize=24)
+# ii = ii + 1
 
-axes[int((ii - (ii % NUM_COLS)) / NUM_ROWS)][int(ii % NUM_COLS)].imshow(
-    cvtColor(result_object.down_sampled_image, COLOR_BGR2RGB))
-axes[int((ii - (ii % NUM_COLS)) / NUM_ROWS)][int(ii % NUM_COLS)].set_title('Down-sampled Image', fontsize=24)
-ii = ii + 1
+# axes[int((ii - (ii % NUM_COLS)) / NUM_COLS)][int(ii % NUM_COLS)].imshow(
+#     create_mask_overlay_array(base_image=result_object.down_sampled_image,
+#                               overlay_mask=first_initialization_mask,
+#                               overlay_method=PREV_IMG_MASK))
+# axes[int((ii - (ii % NUM_COLS)) / NUM_COLS)][int(ii % NUM_COLS)].set_title('Post-processed Image Mask', fontsize=24)
+# ii = ii + 1
 
-axes[int((ii - (ii % NUM_COLS)) / NUM_ROWS)][int(ii % NUM_COLS)].imshow(
-    cvtColor(result_object.pre_processed_image, COLOR_BGR2RGB))
-axes[int((ii - (ii % NUM_COLS)) / NUM_ROWS)][int(ii % NUM_COLS)].set_title('Pre-processed Image', fontsize=24)
-ii = ii + 1
+# axes[int((ii - (ii % NUM_COLS)) / NUM_COLS)][int(ii % NUM_COLS)].imshow(
+#     create_mask_overlay_array(base_image=result_object.down_sampled_image, overlay_mask=result_object.image_mask,
+#                               overlay_method=COLORIZED, overlay_color=(55, 55, 0)))
+# axes[int((ii - (ii % NUM_COLS)) / NUM_COLS)][int(ii % NUM_COLS)].set_title('Result Image Mask', fontsize=24)
+# ii = ii + 1
 
-axes[int((ii - (ii % NUM_COLS)) / NUM_ROWS)][int(ii % NUM_COLS)].imshow(
-    cvtColor(result_object.image_mask * uint8(125), COLOR_GRAY2RGB))
-axes[int((ii - (ii % NUM_COLS)) / NUM_ROWS)][int(ii % NUM_COLS)].set_title('Result Image Mask', fontsize=24)
-ii = ii + 1
-
-axes[int((ii - (ii % NUM_COLS)) / NUM_ROWS)][int(ii % NUM_COLS)].imshow(
-    cvtColor(result_object.post_processed_mask * uint8(125), COLOR_GRAY2RGB))
-axes[int((ii - (ii % NUM_COLS)) / NUM_ROWS)][int(ii % NUM_COLS)].set_title('Post-processed Image Mask', fontsize=24)
-ii = ii + 1
-
-axes[int((ii - (ii % NUM_COLS)) / NUM_ROWS)][int(ii % NUM_COLS)].imshow(
-    cvtColor(filter_node.image_filter.previous_image_mask_array * uint8(125), COLOR_GRAY2RGB))
-axes[int((ii - (ii % NUM_COLS)) / NUM_ROWS)][int(ii % NUM_COLS)].set_title('Previous Image Mask', fontsize=24)
-ii = ii + 1
+# axes[int((ii - (ii % NUM_COLS)) / NUM_COLS)][int(ii % NUM_COLS)].imshow(
+#     create_mask_overlay_array(base_image=result_object.down_sampled_image,
+#                               overlay_mask=filter_node.image_filter.previous_image_mask_array,
+#                               overlay_method=PREV_IMG_MASK))
+# axes[int((ii - (ii % NUM_COLS)) / NUM_COLS)][int(ii % NUM_COLS)].set_title('Post-processed Image Mask', fontsize=24)
+# ii = ii + 1
 
 #
 # imshow('Pre-processed Image', filter_node.image_data.pre_processed_image)
@@ -203,9 +273,9 @@ ii = ii + 1
 # waitKey(1)
 #
 # imshow('Image Mask', filter_node.image_data.image_mask)
-fig.set_size_inches(35, 20)
-savefig(RESULTS_PATH + 'result.png', bbox_inches='tight', dpi=300)
-show()
+# fig.set_size_inches(35, 20)
+# savefig(RESULTS_PATH + 'result.png', bbox_inches='tight', dpi=300)
+# show()
 print('Done')
 
 # # Define image series names

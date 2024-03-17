@@ -34,19 +34,15 @@ class ImageFilter:
     A parent class for all image filters to extend. Defines basic function calls
     """
 
-    def __init__(self, image_crop_included: bool = True, image_crop_coordinates: list = None):
+    def __init__(self, image_crop_coordinates: list = None):
         """
         Initialization function for an ImageFilter object.
 
         Parameters
         ----------
-        image_crop_included
-            a flag to indicate if the image needs to be cropped.
-
         image_crop_coordinates
             an iterable containing two points defining the rectangle with which to crop the image.
         """
-        self.image_crop_included: bool = image_crop_included
         self.image_crop_coordinates: np.array = image_crop_coordinates
         self.ready_to_filter = False
         self.filter_color = None
@@ -208,8 +204,21 @@ class ImageFilter:
                 the image data object containing the image to be cropped.
         """
 
-        # If the image needs to be cropped
-        if self.image_crop_included and self.image_crop_coordinates is not None:
+        # If the image does not already have crop coordinates
+        if self.image_crop_coordinates is None:
+
+            # Set them as the full image
+            self.image_crop_coordinates = [[int(0), int(0)],
+                                           [int(image_data.image_size_x) - 1, int(image_data.image_size_y) - 1]]
+
+            # Save the crop coordinates in the image data
+            image_data.image_crop_coordinates = copy(self.image_crop_coordinates)
+
+            # Save the original image as the cropped image
+            image_data.cropped_image = copy(image_data.original_image)
+
+        # Otherwise try to crop the image
+        else:
 
             try:
                 # Define the x and y values of the crop region
@@ -249,10 +258,6 @@ class ImageFilter:
 
             # Save the crop coordinates in the image data object
             image_data.image_crop_coordinates = [(int(crop_x_0), int(crop_y_0)), (int(crop_x_1), int(crop_y_1))]
-
-        # Otherwise pass the original image on
-        else:
-            image_data.cropped_image = copy(image_data.original_image)
 
     def colorize_image(self, image_data: ImageData) -> ImageData:
         """

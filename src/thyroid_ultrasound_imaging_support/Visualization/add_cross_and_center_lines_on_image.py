@@ -13,7 +13,9 @@ from thyroid_ultrasound_imaging_support.Visualization.add_centroids_on_image imp
 from thyroid_ultrasound_imaging_support.Visualization.add_center_lines_to_image import add_center_lines_to_image
 
 
-def add_cross_and_center_lines_on_image(image_to_show: array, image_data: ImageData):
+def add_cross_and_center_lines_on_image(image_to_show: array, image_data: ImageData,
+                                        goal_location: float = 0, goal_location_error: int = 20,
+                                        goal_location_error_color: tuple = (255, 0, 0)):
     """
     Add both a cross and the centroids from a given ImageData object to a given image array.
     This function draws the centroids, then the cross. Returns the input image array.
@@ -25,4 +27,6 @@ def add_cross_and_center_lines_on_image(image_to_show: array, image_data: ImageD
     image_data
         the ImageData object that contains the centroids to show.
     """
-    return add_center_lines_to_image(add_centroids_on_image(image_to_show, image_data, dot_radius=2))
+    return add_center_lines_to_image(image_to_show=add_centroids_on_image(image_to_show, image_data, dot_radius=2),
+                                     vertical_line_location=goal_location,
+                                     vertical_line_error=goal_location_error,)

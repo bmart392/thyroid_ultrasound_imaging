@@ -28,9 +28,9 @@ class ImagePositioningController:
         self.set_point_offset = 0
 
         # Define the acceptable position error of the centroid in the image for each dimension in the probe's space
-        self.acceptable_errors = [0.002,  # meters in x
-                                  0.005,  # meters in y
-                                  1.01,  # meters in z
+        self.acceptable_errors = [20,  # pixels in x
+                                  0.005,  # pixels in y
+                                  1.01,  # pixels in z
                                   10,  # deg in x
                                   10,  # deg in y
                                   1]  # deg in z
@@ -69,10 +69,8 @@ class ImagePositioningController:
         center = (image_data.ds_image_size_x / 2) + center_offset
         distance_from_center = centroid[0] - center
 
-        x_error = ((centroid[0] - ((image_data.down_sampled_image.shape[1] / 2) +
-                                   (self.set_point_offset * image_data.image_size_x))) *
-                   self.calculate_resolution(image_data.image_size_y)) * \
-                  (image_data.image_size_x / image_data.down_sampled_image.shape[1])
+        x_error = centroid[0] - image_data.ds_image_size_x * (self.set_point_offset + 0.5)
+
 
         # In Y in the image frame, measure the distance to the top of the image
         # y_error = centroid[1] * self.calculate_resolution(image_data.image_size_y)
