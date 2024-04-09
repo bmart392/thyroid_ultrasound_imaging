@@ -24,6 +24,7 @@ from thyroid_ultrasound_imaging_support.RegisteredData.MessageCompatibleObject i
 from thyroid_ultrasound_imaging_support.RegisteredData.RegisteredData import RegisteredData
 from thyroid_ultrasound_imaging_support.RegisteredData.load_folder_of_saved_registered_data import \
     load_folder_of_saved_registered_data
+from thyroid_ultrasound_imaging_support.Validation.date_stamp_str import date_stamp_str
 
 # Import standard ROS packages
 
@@ -77,6 +78,8 @@ class VolumeGenerationNode(BasicNode):
 
         self.stored_registered_data_objects = []
 
+        self.registered_data_load_location = ''
+
         self.volume_data_save_location = '/home/ben/thyroid_ultrasound_data/testing_and_validation/volume_data'
 
         self.volume_data_load_location = ''
@@ -105,6 +108,7 @@ class VolumeGenerationNode(BasicNode):
                    self.non_real_time_image_filter_progress_callback)
 
         # Services for data locations
+        Service(VG_REGISTERED_DATA_LOAD_LOCATION, StringRequest, self.registered_data_load_location_handler)
         Service(VG_VOLUME_DATA_SAVE_LOCATION, StringRequest, self.volume_data_save_location_handler)
         Service(VG_VOLUME_DATA_LOAD_LOCATION, StringRequest, self.volume_data_load_location_handler)
 
@@ -170,6 +174,13 @@ class VolumeGenerationNode(BasicNode):
         self.total_data_to_receive = msg.total_images_to_filter
         print("total to receive: " + str(self.total_data_to_receive) + '\n')
 
+    def registered_data_load_location_handler(self, req: StringRequestRequest):
+        if isdir(req.value):
+            self.registered_data_load_location = req.value
+            return StringRequestResponse(True, NO_ERROR)
+
+        return StringRequestResponse(False, 'Invalid directory')
+
     def volume_data_save_location_handler(self, req: StringRequestRequest):
         if isdir(req.value):
             self.volume_data_save_location = req.value
@@ -196,7 +207,6 @@ class VolumeGenerationNode(BasicNode):
         if self.commanded_to_create_volume and self.all_data_sent and \
                 len(self.stored_registered_data_msgs) == self.total_data_to_receive and \
                 not self.commanded_to_display_volume:
-
             # Populate the stored objects list
             self.stored_registered_data_objects = [RegisteredData(source_message=msg) for msg in
                                                    self.stored_registered_data_msgs]
@@ -239,10 +249,10 @@ class VolumeGenerationNode(BasicNode):
             contour_areas = [contourArea(image.contours_in_image[0]) *
                              ((image.imaging_depth * .01 / image.ds_image_size_x) *
                               (image.imaging_depth * .01 / image.ds_image_size_x)) for image in image_data_objects]
-            distances = [Surface([robot_poses[ii][0:3, 3],
-                                  robot_poses[ii][0:3, 3] + array([0, 1, 0]),
-                                  robot_poses[ii][0:3, 3] + array([0, 0, 1])]).distance_to_surface(
-                robot_poses[ii + 1][0:3, 3]) for ii in range(len(robot_poses) - 1)]
+            distances = [abs(Surface([robot_poses[ii][0:3, 3],
+                                      robot_poses[ii][0:3, 3] + array([0, 1, 0]),
+                                      robot_poses[ii][0:3, 3] + array([0, 0, 1])]).distance_to_surface(
+                robot_poses[ii + 1][0:3, 3])) for ii in range(len(robot_poses) - 1)]
 
             volume_direction_1 = 0
             volume_direction_2 = 0
@@ -261,12 +271,13 @@ class VolumeGenerationNode(BasicNode):
             # Save the registered data making up the volume
             if self.commanded_to_create_volume:
 
-                # Grab the current time
-                current_time = Time.now()
+                # Create a timestamp for the current time
+                current_time_timestamp = date_stamp_str(prefix='_', suffix='/')
 
                 # Name the directory where the information will be saved
-                this_save_directory = (self.volume_data_save_location + '/' + VOLUME_DATA_PREFIX + '_' +
-                            str(current_time.secs) + '_' + str(current_time.nsecs) + '/')
+                this_save_directory = (self.volume_data_save_location + '/' + VOLUME_DATA_PREFIX +
+                                       self.registered_data_load_location[-len(current_time_timestamp) + 1:] +
+                                       current_time_timestamp)
 
                 # Make the directory
                 mkdir(this_save_directory)
@@ -366,6 +377,7 @@ class VolumeGenerationNode(BasicNode):
             self.all_data_sent = False
             self.stored_registered_data_msgs = []
             self.stored_registered_data_objects = []
+            self.points_in_volume = []
 
             # Clear the plot
             # axis.cla()

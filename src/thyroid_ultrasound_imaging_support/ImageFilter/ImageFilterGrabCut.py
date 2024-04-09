@@ -8,6 +8,7 @@ from cv2 import GC_FGD, GC_PR_BGD, GC_BGD, GC_PR_FGD, convertScaleAbs
 
 # Import the super-class for all image filters
 from thyroid_ultrasound_imaging_support.ImageFilter.ImageFilter import *
+from thyroid_ultrasound_imaging_support.Validation.create_dice_score_mask import create_dice_score_mask
 
 
 class ImageFilterGrabCut(ImageFilter):
@@ -21,6 +22,8 @@ class ImageFilterGrabCut(ImageFilter):
                  segmentation_iteration_count: int = 1,  # 1
                  sure_foreground_creation_iterations: int = 3,
                  sure_background_creation_iterations: int = 8,
+                 sure_foreground_creation_dice_score: float = None,
+                 sure_background_creation_dice_score: float = None,
                  debug_mode: bool = False, analysis_mode: bool = False):
 
         """
@@ -63,6 +66,8 @@ class ImageFilterGrabCut(ImageFilter):
         self.segmentation_iteration_count = segmentation_iteration_count
         self.sure_foreground_creation_iterations = sure_foreground_creation_iterations
         self.sure_background_creation_iterations = sure_background_creation_iterations
+        self.sure_foreground_creation_dice_score = sure_foreground_creation_dice_score
+        self.sure_background_creation_dice_score = sure_background_creation_dice_score
 
         # Define characteristics of all GrabCut filters
         self.filter_color = COLOR_RGB
@@ -193,11 +198,18 @@ class ImageFilterGrabCut(ImageFilter):
         image_data
             the ImageData object containing the image mask.
         """
-        image_data.sure_foreground_mask = cv2.morphologyEx(
-            image_data.post_processed_mask, cv2.MORPH_ERODE,
-            np.ones((3, 3), np.uint8), iterations=self.sure_foreground_creation_iterations,  # 4 # 10, # 2
-            anchor=(1, 1)
-        )
+        if self.sure_foreground_creation_dice_score is None and self.sure_foreground_creation_iterations is not None:
+            image_data.sure_foreground_mask = cv2.morphologyEx(
+                image_data.post_processed_mask, cv2.MORPH_ERODE,
+                np.ones((3, 3), np.uint8), iterations=self.sure_foreground_creation_iterations,  # 4 # 10, # 2
+                anchor=(1, 1)
+            )
+        elif self.sure_foreground_creation_dice_score is not None and self.sure_foreground_creation_iterations is None:
+            image_data.sure_foreground_mask = create_dice_score_mask(image_data.post_processed_mask,
+                                                                     self.sure_foreground_creation_dice_score)
+
+        else:
+            raise Exception('Issue creating foreground mask')
 
     def create_sure_background_mask(self, image_data: ImageData):
         """
@@ -209,11 +221,17 @@ class ImageFilterGrabCut(ImageFilter):
         image_data
             the ImageData object containing the image mask.
         """
-        image_data.sure_background_mask = 1 - cv2.morphologyEx(
-            image_data.post_processed_mask, cv2.MORPH_DILATE,
-            np.ones((3, 3), np.uint8), iterations=self.sure_background_creation_iterations,  # 6 # 10
-            anchor=(1, 1)
-        )
+        if self.sure_background_creation_dice_score is None and self.sure_background_creation_iterations is not None:
+            image_data.sure_background_mask = 1 - cv2.morphologyEx(
+                image_data.post_processed_mask, cv2.MORPH_DILATE,
+                np.ones((3, 3), np.uint8), iterations=self.sure_background_creation_iterations,  # 6 # 10
+                anchor=(1, 1)
+            )
+        elif self.sure_background_creation_dice_score is not None and self.sure_background_creation_iterations is None:
+            image_data.sure_background_mask = 1 - create_dice_score_mask(image_data.post_processed_mask,
+                                                                         self.sure_background_creation_dice_score)
+        else:
+            raise Exception('Issue creating background mask')
 
     @staticmethod
     def create_probable_foreground_mask(image_data: ImageData):

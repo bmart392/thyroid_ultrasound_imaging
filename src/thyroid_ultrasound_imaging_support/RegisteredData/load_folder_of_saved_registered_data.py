@@ -42,7 +42,10 @@ def load_folder_of_saved_registered_data(directory_path: str) -> list:
         if REGISTERED_DATA_FOLDER_NAME in registered_data_item and \
                 len(listdir(registered_data_item)) == NUM_CONTENTS_IN_REGISTERED_DATA_FOLDER:
 
-            # Add a new RegisteredData object to the list of found objects
-            loaded_registered_data.append(RegisteredData(source_file_path=registered_data_item))
+            try:
+                # Add a new RegisteredData object to the list of found objects
+                loaded_registered_data.append(RegisteredData(source_file_path=registered_data_item))
+            except Exception:
+                pass
 
     return list(loaded_registered_data)

@@ -6,6 +6,9 @@ File containing the NonRealTimeImageFiterNode class definition and ROS running c
 
 # TODO - Dream - Add logging through BasicNode class
 # TODO - Dream - Add proper try-cath error checking everywhere and incorporate logging into it
+# TODO - Medium - To generate the seed for this segmentation, use the union of the mask generated from the real
+#  time segmentation and the result mask from the last image to build a new guess with the
+#  build_previous_image_mask_with_ground_truth function
 
 # Import standard python packages
 from os.path import isdir
@@ -47,9 +50,9 @@ class NonRealTimeImageFilterNode(BasicNode):
 
         # Define the image filter to use to filter the images
         self.image_filter = ImageFilterGrabCut(down_sampling_rate=1.0,
-                                               segmentation_iteration_count=8,
-                                               sure_background_creation_iterations=8,
-                                               sure_foreground_creation_iterations=8
+                                               segmentation_iteration_count=40,
+                                               sure_background_creation_iterations=1,
+                                               sure_foreground_creation_iterations=1,
                                                )
 
         # Create the node
@@ -142,6 +145,16 @@ class NonRealTimeImageFilterNode(BasicNode):
                                                       image_capture_time=registered_data.image_data.image_capture_time,
                                                       image_title=NON_REAL_TIME_IMAGE_FILTER,
                                                       imaging_depth=registered_data.image_data.imaging_depth)
+
+                    # Use the real-time segmentation as the guess for each step
+                    self.image_filter.update_previous_image_mask(
+                        build_previous_image_mask_from_ground_truth(
+                            ground_truth_mask=resize(registered_data.image_data.image_mask,
+                                                     dsize=(registered_data.image_data.cropped_image.shape[1],
+                                                            registered_data.image_data.cropped_image.shape[0]),
+                                                     interpolation=INTER_CUBIC),
+                        desired_foreground_accuracy=0.85,
+                        desired_probable_background_expansion_factor=0.15))
 
                     # Note the amount of time required to create an image data object
                     start_of_process_time = display_process_timer(start_of_process_time,
