@@ -21,6 +21,7 @@ from thyroid_ultrasound_messages.msg import image_data_message
 from thyroid_ultrasound_imaging_support.Controller.ImagePositioningController import ImagePositioningController
 from thyroid_ultrasound_imaging_support.ImageData.ImageData import ImageData
 from thyroid_ultrasound_support.BasicNode import *
+from thyroid_ultrasound_imaging_support.Controller.ImagePositioningControlConstants import IMAGE_CENTERING_OFFSET
 
 
 class ImagePositioningControllerNode(BasicNode):
@@ -83,7 +84,7 @@ class ImagePositioningControllerNode(BasicNode):
         """
         Updates the stored image centering side.
         """
-        self.image_positioning_controller.set_point_offset = msg.data * 0.1
+        self.image_positioning_controller.set_point_offset = msg.data * IMAGE_CENTERING_OFFSET
 
     def image_roi_shown_callback(self, msg: Bool):
         self.image_roi_shown = msg.data

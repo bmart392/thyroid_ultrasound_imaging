@@ -10,6 +10,9 @@ File containing VisualizationNode class definition and ROS running code.
 # TODO - Medium - Add in visualizations for non-real time image filtering that is separate from the real-time visualization framework
 # TODO - Dream - Store visuals in a dictionary so that windows can be closed whenever a command is sent to hide them
 
+# Import standard ROS messages
+from std_msgs.msg import Int8
+
 # Import standard python packages
 from copy import deepcopy
 from cv2 import imshow, waitKey
@@ -22,6 +25,7 @@ from thyroid_ultrasound_imaging_support.Visualization.VisualizationConstants imp
 from thyroid_ultrasound_imaging_support.Visualization.Visualization import Visualization
 from thyroid_ultrasound_imaging_support.ImageData.ImageData import ImageData
 from thyroid_ultrasound_support.BasicNode import *
+from thyroid_ultrasound_imaging_support.Controller.ImagePositioningControlConstants import IMAGE_CENTERING_OFFSET
 
 # Define constants for use in the node
 IMAGE: int = int(0)
@@ -40,13 +44,16 @@ class VisualizationNode(BasicNode):
 
         # noinspection PyTypeChecker
         # Define a place to store the Image Data object that will be visualized
-        self.images_to_visualize = {IMAGE_RAW: [None, [SHOW_ORIGINAL]],
-                                    IMAGE_CROPPED: [None, [SHOW_CROPPED]],
-                                    IMAGE_FILTERED: [None, [SHOW_BLUR, SHOW_FOREGROUND, SHOW_CENTROIDS_ONLY]],
-                                    IMAGE_SKIN_APPROXIMATION: [None, [SHOW_SKIN_APPROXIMATION], None]}
+        self.images_to_visualize = {IMAGE_RAW: [None, []],
+                                    IMAGE_CROPPED: [None, []],
+                                    IMAGE_FILTERED: [None, []],
+                                    IMAGE_SKIN_APPROXIMATION: [None, [], None]}
 
         # Create the node
         init_node(VISUALIZER)
+
+        # Define the subscriber to listen for the goal line location
+        Subscriber(RC_IMAGE_CENTERING_SIDE, Int8, self.image_centering_side_callback)
 
         # Define a subscriber to listen for raw images
         Subscriber(IMAGE_RAW, image_data_message, self.raw_image_data_message_callback)
@@ -61,9 +68,26 @@ class VisualizationNode(BasicNode):
         # Define a subscriber to listen for the skin approximation lines
         Subscriber(IMAGE_SKIN_APPROXIMATION, SkinContactLines, self.skin_contact_approximation_callback)
 
+        # Define services for setting the visualizations
+        for service_name in [VIS_STATUS_SHOW_ORIGINAL, VIS_STATUS_SHOW_CROPPED,
+                             VIS_STATUS_SHOW_RECOLOR, VIS_STATUS_SHOW_BLUR,
+                             VIS_STATUS_SHOW_RESULT_MASK, VIS_STATUS_SHOW_POST_PROCESSED_MASK,
+                             VIS_STATUS_SHOW_SURE_FOREGROUND, VIS_STATUS_SHOW_SURE_BACKGROUND,
+                             VIS_STATUS_SHOW_PROBABLE_FOREGROUND, VIS_STATUS_SHOW_INITIALIZATION_MASK,
+                             VIS_STATUS_SHOW_CENTROIDS_ONLY, VIS_STATUS_SHOW_CENTROIDS_CROSS_ONLY,
+                             VIS_STATUS_SHOW_MASK_CENTROIDS_CROSS_OVERLAY, VIS_STATUS_SHOW_FOREGROUND,
+                             VIS_STATUS_SHOW_SKIN_APPROXIMATION, VIS_STATUS_SHOW_GRABCUT_USER_INITIALIZATION_0]:
+            Service(service_name, StatusVisualization, self.set_visualization)
+
     ###########################
     # Define callback functions
     # region
+    def image_centering_side_callback(self, msg: Int8):
+        """
+        Sets the location of the imaging goal.
+        """
+        self.image_visualizer.image_centering_goal_offset = msg.data * IMAGE_CENTERING_OFFSET
+
     def raw_image_data_message_callback(self, message: image_data_message):
         """
         Converts the received raw image data message to an image data object and then visualizes it.
@@ -147,7 +171,6 @@ class VisualizationNode(BasicNode):
 
         # If a raw image has already been saved
         if self.images_to_visualize[IMAGE_RAW][IMAGE] is not None:
-
             # Create a temporary data object to use to visualize the skin approximation result
             temp_image_to_visualize: ImageData = deepcopy(self.images_to_visualize[IMAGE_RAW][IMAGE])
 
@@ -167,6 +190,37 @@ class VisualizationNode(BasicNode):
                 BEST_FIT_SHARED_LINE_A: message.best_fit_shared_line_a,
                 BEST_FIT_SHARED_LINE_B: message.best_fit_shared_line_b,
             }
+
+    def set_visualization(self, req: StatusVisualizationRequest):
+        # Find the correct dictionary category
+        if req.visualization == SHOW_ORIGINAL:
+            dict_category = IMAGE_RAW
+        elif req.visualization == SHOW_CROPPED:
+            dict_category = IMAGE_CROPPED
+        elif req.visualization == any([SHOW_RECOLOR, SHOW_BLUR, SHOW_MASK,
+                                       SHOW_POST_PROCESSED_MASK, SHOW_SURE_FOREGROUND,
+                                       SHOW_SURE_BACKGROUND, SHOW_PROBABLE_FOREGROUND,
+                                       SHOW_INITIALIZED_MASK, SHOW_CENTROIDS_ONLY,
+                                       SHOW_CENTROIDS_CROSS_ONLY, SHOW_MASK_CENTROIDS_CROSS_OVERLAY,
+                                       SHOW_FOREGROUND, SHOW_GRABCUT_USER_INITIALIZATION_0]):
+            dict_category = IMAGE_FILTERED
+        elif req.visualization == SHOW_SKIN_APPROXIMATION:
+            dict_category = IMAGE_SKIN_APPROXIMATION
+        else:
+            return StatusVisualizationResponse(was_succesful=False, message='Visualization not recognized')
+
+        # Add the visualization if necessary
+        if req.status:
+            if req.visualization not in self.images_to_visualize[dict_category][VISUALIZATIONS]:
+                self.images_to_visualize[dict_category][VISUALIZATIONS].append(req.visualization)
+
+        # Otherwise remove the visualization if necessary
+        else:
+            if req.visualization in self.images_to_visualize[dict_category][VISUALIZATIONS]:
+                self.images_to_visualize[dict_category][VISUALIZATIONS].pop(
+                    self.images_to_visualize[dict_category][VISUALIZATIONS].index(req.visualization))
+
+        return StatusVisualizationResponse(was_succesful=True, message='')
 
     # endregion
     ###########################
@@ -190,6 +244,7 @@ class VisualizationNode(BasicNode):
                     self.image_visualizer.visualize_images(
                         deepcopy(self.images_to_visualize[key][IMAGE]),  # Coping avoids issues with data modification
                         specific_visualizations=self.images_to_visualize[key][VISUALIZATIONS])
+
 
 
 if __name__ == '__main__':

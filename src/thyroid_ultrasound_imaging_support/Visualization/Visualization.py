@@ -8,6 +8,7 @@ from matplotlib.pyplot import axes, figure, show
 from numpy import array, zeros, ones, uint8, newaxis, where, repeat
 from cv2 import GC_BGD, GC_PR_FGD, imshow, waitKey, line, circle, \
     namedWindow, startWindowThread, setMouseCallback, destroyWindow
+from cv2 import Error as cv2Error
 
 # Import custom python packages
 from thyroid_ultrasound_imaging_support.ImageFilter.FilterConstants import COLOR_RGB
@@ -50,6 +51,28 @@ class Visualization:
         self.visualizations = visualizations
         self.visualization_title = visualization_title
         self.num_cols_in_fig = num_cols_in_fig
+        self.image_centering_goal_offset = 0
+
+        self.image_titles = {
+            SHOW_ORIGINAL: TITLE_ORIGINAL,
+            SHOW_CROPPED: TITLE_CROPPED,
+            SHOW_RECOLOR: TITLE_RECOLOR,
+            SHOW_BLUR: TITLE_PRE_PROCESSED,
+            SHOW_MASK: TITLE_RESULT_MASK,
+            SHOW_POST_PROCESSED_MASK: TITLE_POST_PROCESSED_MASK,
+            SHOW_SURE_FOREGROUND: TITLE_SURE_FOREGROUND,
+            SHOW_SURE_BACKGROUND: TITLE_SURE_BACKGROUND,
+            SHOW_PROBABLE_FOREGROUND: TITLE_PROBABLE_FOREGROUND,
+            SHOW_INITIALIZED_MASK: TITLE_INITIALIZED_MASK,
+            SHOW_CENTROIDS_ONLY: TITLE_CENTROIDS_ONLY,
+            SHOW_CENTROIDS_CROSS_ONLY: TITLE_CENTROIDS_CROSS_ONLY,
+            SHOW_MASK_OVERLAY: TITLE_MASK_OVERLAY,
+            SHOW_CENTROIDS_CROSS_OVERLAY: TITLE_CENTROIDS_CROSS_OVERLAY,
+            SHOW_MASK_CENTROIDS_CROSS_OVERLAY: TITLE_MASK_CENTROIDS_CROSS_OVERLAY,
+            SHOW_FOREGROUND: TITLE_FOREGROUND,
+            SHOW_SKIN_APPROXIMATION: TITLE_BALANCE_LINE_APPROXIMATION,
+            SHOW_GRABCUT_USER_INITIALIZATION_0: TITLE_GRABCUT_USER_INITIALIZATION_0,
+        }
 
     def visualize_images(self, image_data: ImageData, specific_visualizations: list = None,
                          image_array: array = None, image_title: str = None, callback_function=None,
@@ -118,29 +141,23 @@ class Visualization:
 
                 if visual == SHOW_ORIGINAL:
                     image_to_show = image_data.original_image
-                    image_title = "Original Image"
 
                 elif visual == SHOW_CROPPED:
                     image_to_show = image_data.cropped_image
-                    image_title = "Cropped Image"
 
                 elif visual == SHOW_RECOLOR:
                     image_to_show = image_data.colorized_image
-                    image_title = "Recolored Image"
 
                 elif visual == SHOW_BLUR:
                     image_to_show = image_data.pre_processed_image
-                    image_title = "Blurred Image"
 
                 elif visual == SHOW_MASK:
                     if image_data.image_mask is not None:
                         image_to_show = create_mask_display_array(image_data.image_mask)
-                    image_title = "Image Mask\nfrom Segmentation"
 
                 elif visual == SHOW_POST_PROCESSED_MASK:
                     if image_data.post_processed_mask is not None:
                         image_to_show = create_mask_display_array(image_data.post_processed_mask)
-                    image_title = "Full Size Image Mask\nfrom Segmentation"
 
                 elif visual == SHOW_FOREGROUND:
                     if image_data.original_image is not None and image_data.post_processed_mask is not None:
@@ -149,7 +166,6 @@ class Visualization:
                                                                   base_image_color=COLOR_RGB,
                                                                   output_image_color=COLOR_BGR,
                                                                   overlay_method=COLORIZED, overlay_color=(35, 0, 0))
-                    image_title = "Foreground of the Image"
 
                 elif visual == SHOW_SURE_FOREGROUND:
                     if image_data.sure_foreground_mask is not None:
@@ -158,7 +174,6 @@ class Visualization:
                                                                   base_image_color=COLOR_RGB,
                                                                   output_image_color=COLOR_RGB,
                                                                   overlay_method=COLORIZED, overlay_color=(0, 35, 0))
-                    image_title = "Sure Foreground of Image"
 
                 elif visual == SHOW_SURE_BACKGROUND:
                     if image_data.sure_background_mask is not None:
@@ -167,7 +182,6 @@ class Visualization:
                                                                   base_image_color=COLOR_RGB,
                                                                   output_image_color=COLOR_BGR,
                                                                   overlay_method=COLORIZED)
-                    image_title = "Sure Background of Image"
 
                 elif visual == SHOW_PROBABLE_FOREGROUND:
                     if image_data.probable_foreground_mask is not None:
@@ -176,24 +190,20 @@ class Visualization:
                                                                   base_image_color=COLOR_RGB,
                                                                   output_image_color=COLOR_BGR,
                                                                   overlay_method=COLORIZED)
-                    image_title = "Probable Foreground of Image"
 
                 elif visual == SHOW_INITIALIZED_MASK:
                     if image_data.segmentation_initialization_mask is not None:
                         image_to_show = create_mask_display_array(image_data.segmentation_initialization_mask,
                                                                   multiplier=INITIALIZED_MASK_MULTIPLIER)
-                        image_title = "Mask for Initializing\nSegmentation"
 
                     else:
                         image_to_show = create_mask_display_array(ones(image_data.image_mask.shape, uint8), 255)
-                        image_title = "No Initialization Mask\nProvided"
 
                 elif visual == SHOW_GRABCUT_USER_INITIALIZATION_0:
                     if image_data.segmentation_initialization_mask is not None:
                         initialization_mask = image_data.segmentation_initialization_mask[:, :, newaxis]
                         image_to_show = image_data.cropped_image * where((initialization_mask == GC_BGD) |
                                                                          (initialization_mask == GC_PR_FGD), 0, 1)
-                    image_title = "Initialized Region of Image"
 
                 elif visual == SHOW_CENTROIDS_ONLY:
 
@@ -204,8 +214,6 @@ class Visualization:
                         # Draw each centroid from the image
                         image_to_show = add_centroids_on_image(image_to_show, image_data)
 
-                    image_title = "Image Centroids"
-
                 elif visual == SHOW_CENTROIDS_CROSS_ONLY:
 
                     if len(image_data.contour_centroids) > 0:
@@ -213,30 +221,24 @@ class Visualization:
                         image_to_show = zeros(image_data.down_sampled_image.shape, uint8)
 
                         # Draw each centroid from the image and a cross
-                        image_to_show = add_cross_and_center_lines_on_image(image_to_show, image_data)
-
-                    image_title = "Image Centroids with Crosshair."
+                        image_to_show = \
+                            add_cross_and_center_lines_on_image(image_to_show, image_data,
+                                                                goal_location=self.image_centering_goal_offset)
 
                 elif visual == SHOW_MASK_OVERLAY:
 
                     # Copy the original image
                     image_to_show = image_data.original_image
 
-                    image_title = "Mask Overlaid\non Original Image."
-
                 elif visual == SHOW_CENTROIDS_CROSS_OVERLAY:
 
                     # Copy the original image
                     image_to_show = image_data.original_image
 
-                    image_title = "Centroids Overlaid\non Original Image."
-
                 elif visual == SHOW_MASK_CENTROIDS_CROSS_OVERLAY:
 
                     # Copy the original image
                     image_to_show = image_data.original_image
-
-                    image_title = "Mask, Centroids, and Cross\nOverlaid on Original Image."
 
                 elif visual == SHOW_SKIN_APPROXIMATION:
 
@@ -252,13 +254,11 @@ class Visualization:
                                                                           BEST_FIT_SHARED_LINE_B])),
                                          color=(255, 0, 0), thickness=2)
 
-                    image_title = "Skin Approximation"
-
                 else:
                     raise Exception("Visualization type not recognized.")
 
                 # Add message image title to image title
-                image_title = image_data.image_title + ":\n " + image_title
+                image_title = image_data.image_title + ":\n " + self.image_titles[visual]
 
                 # Remove carriage return if continuous images are shown
                 if self.image_mode == IMG_CONTINUOUS:
