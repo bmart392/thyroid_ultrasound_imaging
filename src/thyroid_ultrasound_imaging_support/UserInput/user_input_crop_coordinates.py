@@ -98,7 +98,7 @@ def user_input_crop_coordinates(image_data: ImageData,
                                                                    )
 
             # Ignore the X value of the selection
-            second_corner[1] = int(image_data.original_image.shape[0] - 1)
+            second_corner[0] = int(image_data.original_image.shape[1] - 1)
 
             # Go back to the top of the loop if no point was selected
             if len(second_corner) == 0:

@@ -39,6 +39,10 @@ class ExperimentStreamRecordedData(BasicNode):
         self.stream_images = False
         self.restart_image_stream = False
         self.playback_images_in_reverse = False
+        self.path_to_images_changed = False
+
+        # Define a variable to store the image streaming_frequency
+        self.streaming_frequency = 20.
 
         # Define variable to store the path to the images
         self.path_to_images = None
@@ -60,10 +64,13 @@ class ExperimentStreamRecordedData(BasicNode):
         Service(CS_IMAGE_STREAMING_CONTROL, BoolRequest, self.streaming_commands_handler)
         Service(CS_IMAGE_STREAMING_RESTART, BoolRequest, self.restart_streaming_command_handler)
         Service(CS_IMAGE_STREAMING_REVERSE_PLAYBACK_DIRECTION, BoolRequest, self.reverse_playback_direction_handler)
+        Service(CS_IMAGE_STREAMING_SET_FREQUENCY, Float64Request, self.set_frequency_handler)
 
     def image_location_handler(self, req: StringRequestRequest):
         if isdir(req.value):
-            self.path_to_images = req.value
+            self.path_to_images_changed = self.path_to_images != req.value
+            if self.path_to_images_changed:
+                self.path_to_images = req.value
             return StringRequestResponse(True, NO_ERROR)
         else:
             return StringRequestResponse(False, 'Directory is invalid.')
@@ -80,9 +87,14 @@ class ExperimentStreamRecordedData(BasicNode):
         self.playback_images_in_reverse = req.value
         return BoolRequestResponse(True, NO_ERROR)
 
+    def set_frequency_handler(self, req: Float64RequestRequest):
+        self.streaming_frequency = req.value
+        return Float64RequestResponse(True, NO_ERROR)
+
     def main(self):
 
-        if self.stream_images and self.created_objects is not None and not self.restart_image_stream:
+        if self.stream_images and self.created_objects is not None and not self.restart_image_stream and \
+                not self.path_to_images_changed:
 
             # If the end of the stream has not been reached and the stream does not need to be restarted
             if ((not self.playback_images_in_reverse and self.ii < len(self.created_objects)) or
@@ -119,7 +131,7 @@ class ExperimentStreamRecordedData(BasicNode):
 
             self.restart_image_stream = False
 
-        elif self.created_objects is None:
+        elif self.created_objects is None or self.path_to_images_changed:
 
             if self.path_to_images is not None:
 
@@ -133,6 +145,14 @@ class ExperimentStreamRecordedData(BasicNode):
                             self.path_to_images, sort_indices=tuple([0]))]
                     except Exception:
                         raise Exception('Image files not named as expected.')
+                # Reset the flag
+                self.path_to_images_changed = False
+
+                # Reset the image counter appropriately
+                if self.playback_images_in_reverse:
+                    self.ii = len(self.created_objects) - 1
+                else:
+                    self.ii = 0
 
 
 if __name__ == '__main__':
@@ -143,10 +163,24 @@ if __name__ == '__main__':
     print("Press ctrl+c to terminate.")
 
     # Define the publishing rate for these images
-    pub_rate = Rate(20)  # Hz
+    pub_rate = Rate(node.streaming_frequency)  # Hz
+
+    # Save the previous streaming frequency
+    previous_streaming_frequency = node.streaming_frequency
 
     while not is_shutdown():
+
+        # Run the main loop
         node.main()
+
+        # If the streaming frequency has changed,
+        if previous_streaming_frequency != node.streaming_frequency:
+
+            # Update the publishing rate and save the old value
+            pub_rate = Rate(node.streaming_frequency)
+            previous_streaming_frequency = node.streaming_frequency
+
+        # Sleep
         pub_rate.sleep()
 
     print("Node terminated.")

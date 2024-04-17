@@ -197,12 +197,13 @@ class VisualizationNode(BasicNode):
             dict_category = IMAGE_RAW
         elif req.visualization == SHOW_CROPPED:
             dict_category = IMAGE_CROPPED
-        elif req.visualization == any([SHOW_RECOLOR, SHOW_BLUR, SHOW_MASK,
-                                       SHOW_POST_PROCESSED_MASK, SHOW_SURE_FOREGROUND,
-                                       SHOW_SURE_BACKGROUND, SHOW_PROBABLE_FOREGROUND,
-                                       SHOW_INITIALIZED_MASK, SHOW_CENTROIDS_ONLY,
-                                       SHOW_CENTROIDS_CROSS_ONLY, SHOW_MASK_CENTROIDS_CROSS_OVERLAY,
-                                       SHOW_FOREGROUND, SHOW_GRABCUT_USER_INITIALIZATION_0]):
+        elif any([req.visualization == option for option in [SHOW_RECOLOR, SHOW_BLUR, SHOW_MASK,
+                                                             SHOW_POST_PROCESSED_MASK, SHOW_SURE_FOREGROUND,
+                                                             SHOW_SURE_BACKGROUND, SHOW_PROBABLE_FOREGROUND,
+                                                             SHOW_INITIALIZED_MASK, SHOW_CENTROIDS_ONLY,
+                                                             SHOW_CENTROIDS_CROSS_ONLY,
+                                                             SHOW_MASK_CENTROIDS_CROSS_OVERLAY,
+                                                             SHOW_FOREGROUND, SHOW_GRABCUT_USER_INITIALIZATION_0]]):
             dict_category = IMAGE_FILTERED
         elif req.visualization == SHOW_SKIN_APPROXIMATION:
             dict_category = IMAGE_SKIN_APPROXIMATION
@@ -244,7 +245,6 @@ class VisualizationNode(BasicNode):
                     self.image_visualizer.visualize_images(
                         deepcopy(self.images_to_visualize[key][IMAGE]),  # Coping avoids issues with data modification
                         specific_visualizations=self.images_to_visualize[key][VISUALIZATIONS])
-
 
 
 if __name__ == '__main__':

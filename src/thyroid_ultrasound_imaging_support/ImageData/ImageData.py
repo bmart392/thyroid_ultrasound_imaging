@@ -383,7 +383,9 @@ class ImageData:
 
     def generate_transformed_contours(self, transformation: ndarray,
                                       imaging_depth: float,
-                                      image_axis_alignment: str = ZY_ALIGNED):
+                                      image_axis_alignment: str = ZY_ALIGNED,
+                                      horizontal_resolution: float = 0.000128,
+                                      vertical_resolution: float = 0.000126):
 
         # Define the default result
         contours_list = []
@@ -414,7 +416,11 @@ class ImageData:
                     point_in_px_from_center = point_in_px_with_crop_offset - array([round(self.ds_image_size_x / 2), 0])
 
                     # Convert the units
-                    point_in_m = point_in_px_from_center * (imaging_depth / self.ds_image_size_y)
+                    if horizontal_resolution is not None and vertical_resolution is not None:
+                        point_in_m = array([point_in_px_from_center[0] * horizontal_resolution,
+                                            point_in_px_from_center[1] * vertical_resolution])
+                    else:
+                        point_in_m = point_in_px_from_center * (imaging_depth / self.ds_image_size_y)
                     normal_vector_in_m = normal_vector_in_px * (imaging_depth / self.ds_image_size_y)
 
                     # Rearrange the points
