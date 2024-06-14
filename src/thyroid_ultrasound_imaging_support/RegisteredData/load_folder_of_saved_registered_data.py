@@ -8,7 +8,7 @@ from os import listdir
 # Import custom python packages
 from thyroid_ultrasound_imaging_support.RegisteredData.RegisteredData import RegisteredData, \
     REGISTERED_DATA_FOLDER_NAME, NUM_CONTENTS_IN_REGISTERED_DATA_FOLDER
-from thyroid_ultrasound_imaging_support.RegisteredData.generate_ordered_list_of_directory_contents import \
+from thyroid_ultrasound_support.Functions.generate_ordered_list_of_directory_contents import \
     generate_ordered_list_of_directory_contents
 
 

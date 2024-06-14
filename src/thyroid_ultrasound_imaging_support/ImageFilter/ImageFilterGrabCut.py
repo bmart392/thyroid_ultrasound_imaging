@@ -3,12 +3,14 @@ Define object class for GrabCut based image filters.
 """
 
 # Import standard python packages
-from numpy import uint8, where
-from cv2 import GC_FGD, GC_PR_BGD, GC_BGD, GC_PR_FGD, convertScaleAbs
+from numpy import uint8, where, median, std, ones, zeros, array
+from cv2 import GC_FGD, GC_PR_BGD, GC_BGD, GC_PR_FGD, convertScaleAbs, morphologyEx, MORPH_ERODE, MORPH_DILATE
+from copy import deepcopy
 
 # Import the super-class for all image filters
 from thyroid_ultrasound_imaging_support.ImageFilter.ImageFilter import *
 from thyroid_ultrasound_imaging_support.Validation.create_dice_score_mask import create_dice_score_mask
+from thyroid_ultrasound_support.Constants.SharedConstants import GROWTH_PHASE, REST_PHASE
 
 
 class ImageFilterGrabCut(ImageFilter):
@@ -18,12 +20,19 @@ class ImageFilterGrabCut(ImageFilter):
 
     def __init__(self, previous_mask_array: np.array = None, image_crop_coordinates: iter = None,
                  include_pre_blurring: bool = False,
-                 increase_contrast=True, down_sampling_rate: float = 0.4,  # 0.5
+                 increase_contrast=True, down_sampling_rate: float = 0.30,  # 0.35, 0.5
                  segmentation_iteration_count: int = 1,  # 1
-                 sure_foreground_creation_iterations: int = 3,
-                 sure_background_creation_iterations: int = 8,
-                 sure_foreground_creation_dice_score: float = None,
-                 sure_background_creation_dice_score: float = None,
+                 sure_foreground_creation_iterations: int = None,  # 3
+                 sure_background_creation_iterations: int = None,  # 8
+                 sure_foreground_creation_dice_score: float = 0.8,
+                 sure_background_creation_dice_score: float = 1.25,
+                 sure_foreground_creation_kernel_size: float = (3, 3),
+                 sure_background_creation_kernel_size: float = (5, 5),
+                 segmentation_phase: str = GROWTH_PHASE,
+                 bright_threshold_upper_bound: float = 2.0,
+                 bap_cutoff_percentage: float = 1.25, map_cutoff_percentage: float = 9.,
+                 num_previous_masks_to_combine: float = 20, composite_mask_cutoff_value: float = 0.85,
+                 allowed_variation_in_stability: float = 4.,
                  debug_mode: bool = False, analysis_mode: bool = False):
 
         """
@@ -43,6 +52,31 @@ class ImageFilterGrabCut(ImageFilter):
 
         segmentation_iteration_count
             the number of iterations that the grabcut filter runs on each image.
+
+        segmentation_phase
+            defines the level of aggression of the filter in expanding and contracting
+
+        bright_threshold_upper_bound
+            defines the number of standard deviations above the median value in which a pixel is considered bright
+            within the region of interest
+
+        bap_cutoff_percentage
+            the percentage of area that the bright area makes up within the region of interest when it may
+            start being excluded
+
+        map_cutoff_percentage
+            the percentage of area that the region of interest makes up within the whole image when the bright area
+            may start being excluded
+
+        num_previous_masks_to_combine
+            the number of previous masks to retain for creating the composite previous mask image
+
+        composite_mask_cutoff_value
+            the minimum value at which a pixel in the composite mask will be influence the final mask
+
+        allowed_variation_in_stability
+            the allowed variation for the segmentation to be considered stable measured as percent of the mean number
+             of pixels in each of the previous image masks
 
         debug_mode
             a flag indicating that helpful information should be displayed in the terminal during runtime.
@@ -68,6 +102,8 @@ class ImageFilterGrabCut(ImageFilter):
         self.sure_background_creation_iterations = sure_background_creation_iterations
         self.sure_foreground_creation_dice_score = sure_foreground_creation_dice_score
         self.sure_background_creation_dice_score = sure_background_creation_dice_score
+        self.sure_foreground_creation_kernel_size = sure_foreground_creation_kernel_size
+        self.sure_background_creation_kernel_size = sure_background_creation_kernel_size
 
         # Define characteristics of all GrabCut filters
         self.filter_color = COLOR_RGB
@@ -76,11 +112,34 @@ class ImageFilterGrabCut(ImageFilter):
         # Define a flag to determine when NOT to create a previous-image mask from the current mask
         self.do_not_create_new_previous_image_mask = False
 
-    def filter_image(self, image_data: ImageData):
+        # Define variables for the bright area exclusion
+        self.segmentation_phase: str = segmentation_phase
+        self.bright_threshold_upper_bound = bright_threshold_upper_bound  # Measured in standard deviations
+        self.bap_cutoff_percentage = bap_cutoff_percentage
+        self.map_cutoff_percentage = map_cutoff_percentage
+        self.num_previous_masks_to_combine = num_previous_masks_to_combine
+        self.composite_mask_cutoff_value = composite_mask_cutoff_value
+        self.previous_image_masks = []
+
+        # Define the allowed level of variation for the segmentation to be considered stable
+        self.allowed_variation_in_stability = allowed_variation_in_stability / 100
+
+    def filter_image(self, image_data: ImageData, override_existing_data: bool = False):
+        """
+        Filters an ImageData object using the process defined in the ImageFilter.
+
+        Parameters
+        ----------
+        image_data
+            the ImageData object containing the image to be filtered.
+        override_existing_data
+            if true, the segmentation process ignores any previous data and
+            starts segmentation process at original image.
+        """
 
         try:
             # Perform the basic image filtering actions
-            self.basic_filter_image(image_data)
+            self.basic_filter_image(image_data, override_existing_data=override_existing_data)
 
         # Otherwise raise another exception with the root cause
         except SegmentationError as caught_exception:
@@ -174,19 +233,95 @@ class ImageFilterGrabCut(ImageFilter):
 
     def post_process_image_mask(self, image_data: ImageData):
         """
-        Do nothing to the image mask. Overrides the super-class definition.
+        Prepare the mask for use to generate the previous image mask
 
         Parameters
         ----------
         image_data
             the ImageData object containing the image mask.
         """
-        """if self.down_sampling_rate is not None:
-            image_data.image_mask = cv2.resize(image_data.image_mask, (0, 0),
-                                               fx=self.down_sampling_rate,
-                                               fy=self.down_sampling_rate,
-                                               interpolation=cv2.INTER_CUBIC)"""
-        image_data.post_processed_mask = image_data.image_mask
+
+        if sum(sum(image_data.image_mask)) > 0:
+
+            # diagnostic_data = [('Original Mask', deepcopy(image_data.image_mask))]
+
+            # Capture only the portion of the image that contains the ROI
+            region_of_interest = image_data.down_sampled_image[:, :, 0] * image_data.image_mask
+
+            # Capture all the non-zero values within the ROI
+            non_zero_values = region_of_interest[region_of_interest > 0]
+
+            # Calculate the median and standard deviation of the intensity value within the ROI
+            median_intensity = median(non_zero_values)
+            std_dev_intensity = std(non_zero_values)
+
+            # Isolate only the areas that are bright
+            bright_area_mask = (median_intensity + (self.bright_threshold_upper_bound * std_dev_intensity) <
+                                region_of_interest).astype(uint8)
+
+            # diagnostic_data.append(('Original Bright', deepcopy(bright_area_mask)))
+
+            # Calculate the area of the image that is the ROI
+            mask_area_percentage = round(
+                100 * sum(sum(image_data.image_mask)) / (image_data.ds_image_size_x * image_data.ds_image_size_y), 3)
+
+            # diagnostic_data.append(mask_area_percentage)
+
+            # Calculate the percentage of the ROI that is bright
+            bright_area_percentage = round(100 * sum(sum(bright_area_mask)) / sum(sum(image_data.image_mask)), 3)
+
+            # diagnostic_data.append(bright_area_percentage)
+
+            # If the bright area is too large, exclude it from the mask
+            if bright_area_percentage > self.bap_cutoff_percentage and mask_area_percentage < self.map_cutoff_percentage:
+
+                # Modify the mask to remove small areas and increase effectiveness
+                bright_area_mask = morphologyEx(bright_area_mask, MORPH_ERODE, kernel=ones((2, 2)), iterations=1)
+                bright_area_mask = morphologyEx(bright_area_mask, MORPH_DILATE, kernel=ones((3, 3)), anchor=(1, 1),
+                                                iterations=3)
+
+                # Combine the two masks
+                mask_for_object = ((image_data.image_mask - bright_area_mask) == 1).astype(uint8)
+                # diagnostic_data.append('BA Excluded')
+            else:
+                mask_for_object = image_data.image_mask
+                # diagnostic_data.append('BA Included')
+
+            # Create a blank mask for the first two images
+            if len(self.previous_image_masks) == 0:
+                gradient_composite_previous_image_mask = ones(mask_for_object.shape).astype(uint8)
+                composite_previous_image_mask = gradient_composite_previous_image_mask
+            else:
+                # Build the single previous image mask
+                composite_previous_image_mask = zeros(mask_for_object.shape)
+                for single_mask in self.previous_image_masks:
+                    composite_previous_image_mask = composite_previous_image_mask + single_mask
+                gradient_composite_previous_image_mask = composite_previous_image_mask / len(self.previous_image_masks)
+                composite_previous_image_mask = (
+                        gradient_composite_previous_image_mask > self.composite_mask_cutoff_value).astype(uint8)
+
+            # diagnostic_data.append(('Gradient Mask', gradient_composite_previous_image_mask))
+
+            if self.segmentation_phase == REST_PHASE:
+                # Combine the masks
+                mask_for_object = ((mask_for_object + composite_previous_image_mask) == 2).astype(uint8)
+            elif self.segmentation_phase == GROWTH_PHASE:
+                pass
+            else:
+                raise Exception(self.segmentation_phase + ' is not a recognized phase.')
+
+            # Save the resulting mask to use
+            image_data.post_processed_mask = mask_for_object
+
+            # Update the previous image masks for the next iteration
+            self.previous_image_masks.append(image_data.image_mask)
+            if len(self.previous_image_masks) > self.num_previous_masks_to_combine:
+                self.previous_image_masks.pop(0)
+
+            # return diagnostic_data
+
+        else:
+            image_data.post_processed_mask = image_data.image_mask
 
     def create_sure_foreground_mask(self, image_data: ImageData):
         """
@@ -198,15 +333,20 @@ class ImageFilterGrabCut(ImageFilter):
         image_data
             the ImageData object containing the image mask.
         """
-        if self.sure_foreground_creation_dice_score is None and self.sure_foreground_creation_iterations is not None:
+        if self.sure_foreground_creation_dice_score is None and \
+                self.sure_foreground_creation_kernel_size is None and \
+                self.sure_foreground_creation_iterations is not None:
             image_data.sure_foreground_mask = cv2.morphologyEx(
                 image_data.post_processed_mask, cv2.MORPH_ERODE,
                 np.ones((3, 3), np.uint8), iterations=self.sure_foreground_creation_iterations,  # 4 # 10, # 2
                 anchor=(1, 1)
             )
-        elif self.sure_foreground_creation_dice_score is not None and self.sure_foreground_creation_iterations is None:
+        elif self.sure_foreground_creation_dice_score is not None and \
+                self.sure_foreground_creation_kernel_size is not None and \
+                self.sure_foreground_creation_iterations is None:
             image_data.sure_foreground_mask = create_dice_score_mask(image_data.post_processed_mask,
-                                                                     self.sure_foreground_creation_dice_score)
+                                                                     self.sure_foreground_creation_dice_score,
+                                                                     given_kernel_size=self.sure_foreground_creation_kernel_size)
 
         else:
             raise Exception('Issue creating foreground mask')
@@ -221,15 +361,20 @@ class ImageFilterGrabCut(ImageFilter):
         image_data
             the ImageData object containing the image mask.
         """
-        if self.sure_background_creation_dice_score is None and self.sure_background_creation_iterations is not None:
+        if self.sure_background_creation_dice_score is None and \
+                self.sure_background_creation_kernel_size is None and \
+                self.sure_background_creation_iterations is not None:
             image_data.sure_background_mask = 1 - cv2.morphologyEx(
                 image_data.post_processed_mask, cv2.MORPH_DILATE,
                 np.ones((3, 3), np.uint8), iterations=self.sure_background_creation_iterations,  # 6 # 10
                 anchor=(1, 1)
             )
-        elif self.sure_background_creation_dice_score is not None and self.sure_background_creation_iterations is None:
+        elif self.sure_background_creation_dice_score is not None and \
+                self.sure_background_creation_kernel_size is not None and \
+                self.sure_background_creation_iterations is None:
             image_data.sure_background_mask = 1 - create_dice_score_mask(image_data.post_processed_mask,
-                                                                         self.sure_background_creation_dice_score)
+                                                                         self.sure_background_creation_dice_score,
+                                                                         given_kernel_size=self.sure_background_creation_kernel_size)
         else:
             raise Exception('Issue creating background mask')
 
@@ -321,3 +466,32 @@ class ImageFilterGrabCut(ImageFilter):
 
         else:
             self.previous_image_mask_array = new_previous_image_mask
+
+    def update_segmentation_phase(self, new_phase: str):
+        if new_phase in [GROWTH_PHASE, REST_PHASE]:
+            self.segmentation_phase = new_phase
+            return True, 'No Error'
+        else:
+            return False, 'Unrecognized phase'
+
+    def has_segmentation_stabilized(self) -> bool:
+        """Determine if the segmentation has stabilized by determining if the number of pixels within each stored
+        previous image mask is within the allowed variation from the mean number of pixels."""
+
+        # If a full set of previous image masks has not been stored, return false
+        if len(self.previous_image_masks) != self.num_previous_masks_to_combine:
+            return False
+
+        # Find the number of pixels in each previous image mask
+        previous_mask_sums = [sum(sum(mask)) for mask in self.previous_image_masks]
+
+        # Calculate the average number of pixels in each mask
+        avg_sum = sum(previous_mask_sums) / len(previous_mask_sums)
+
+        # If any previous mask sum is outside the allowed variation, return False
+        for single_sum in previous_mask_sums:
+            if single_sum < avg_sum * (1 - self.allowed_variation_in_stability) or \
+                    single_sum > avg_sum * (1 + self.allowed_variation_in_stability):
+                return False
+
+        return True

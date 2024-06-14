@@ -3,30 +3,30 @@
 <launch>
     
     <!-- start the image data converter -->
-    <node name="ImageDataConverter" pkg="thyroid_ultrasound_imaging" type="ImageDataConverter.py" />
+    <!-- <node name="ImageDataConverter" pkg="thyroid_ultrasound_imaging" type="ImageDataConverter.py" /> -->
 
     <!-- start the image filter -->
-    <node name="RealTimeImageFilterNode" pkg="thyroid_ultrasound_imaging" type="RealTimeImageFilterNode.py" />
+    <node name="RealTimeImageFilter" pkg="thyroid_ultrasound_imaging" type="RealTimeImageFilterNode.py" />
 
     <!-- start the image visualization node -->
-    <node name="VisualizationNode" pkg="thyroid_ultrasound_imaging" type="VisualizationNode.py" />
+    <node name="Visualizer" pkg="thyroid_ultrasound_imaging" type="VisualizationNode.py" />
     
     <!-- start the image based user input node -->
     <node name="ImageBasedUserInput" pkg="thyroid_ultrasound_imaging" type="ImageBasedUserInput.py" />
     
     <!-- start the image base position control node -->
-    <node name="ImagePositioningControllerNode" pkg="thyroid_ultrasound_imaging" type="ImagePositioningControllerNode.py" />
+    <node name="ImagePositioningController" pkg="thyroid_ultrasound_imaging" type="ImagePositioningControllerNode.py" />
     
     <!-- start the image base position control node -->
-    <node name="ImagePositionRegistrationNode" pkg="thyroid_ultrasound_imaging" type="ImagePositionRegistrationNode.py" />
+    <node name="ImagePositionRegistration" pkg="thyroid_ultrasound_imaging" type="ImagePositionRegistrationNode.py" />
     
     <!-- start the image contact balance node -->
-    <node name="ImageContactBalanceNode" pkg="thyroid_ultrasound_imaging" type="ImageContactBalanceNode.py" />
+    <node name="ImageContactBalancing" pkg="thyroid_ultrasound_imaging" type="ImageContactBalanceNode.py" />
     
     <!-- start the non-real-time image filter -->
-    <node name="NonRealTimeImageFilterNode" pkg="thyroid_ultrasound_imaging" type="NonRealTimeImageFilterNode.py" />
+    <node name="NonRealTimeImageFilter" pkg="thyroid_ultrasound_imaging" type="NonRealTimeImageFilterNode.py" />
     
     <!-- start the volume generation node -->
-    <node name="VolumeGenerationNode" pkg="thyroid_ultrasound_imaging" type="VolumeGenerationNode.py" />
+    <node name="VolumeGeneration" pkg="thyroid_ultrasound_imaging" type="VolumeGenerationNode.py" />
 
 </launch>

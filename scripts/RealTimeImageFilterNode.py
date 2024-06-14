@@ -19,6 +19,9 @@ from numpy import frombuffer, reshape, uint8
 from time import time
 from copy import copy
 
+# Import standard ROS packages
+from sensor_msgs.msg import Image
+
 # Import custom ROS packages
 from thyroid_ultrasound_messages.msg import image_data_message, image_crop_coordinates, \
     initialization_mask_message, threshold_parameters
@@ -81,10 +84,11 @@ class RealTimeImageFilterNode(BasicNode):
         self.image_data: ImageData = None  # for storing the data about the image to be filtered
         self.time_of_last_image_filtered = 0  # for storing when the first image was filtered
         self.temporary_visualization_block = False
+        self.current_imaging_depth = 5.2  # cm
 
         # Define a list to store the images received by the node
         self.received_images = []
-        self.max_images_to_store = 20
+        self.max_images_to_store = 3
 
         # Set the basic name to attach to each image
         image_title = "Image Filter Node - "
@@ -98,6 +102,7 @@ class RealTimeImageFilterNode(BasicNode):
 
         elif filter_type == GRABCUT_FILTER:
             self.image_filter = ImageFilterGrabCut(None, debug_mode=self.debug_mode, analysis_mode=self.analysis_mode,
+                                                   down_sampling_rate=0.35
                                                    # down_sampling_rate=1/4  # originally 0.5
                                                    # image_crop_coordinates=[[171, 199], [530, 477]],
                                                    # image_crop_coordinates=[[585, 455], [639, 479]],
@@ -139,31 +144,43 @@ class RealTimeImageFilterNode(BasicNode):
         Service(RTS_UPDATE_IMAGE_CROP_COORDINATES, UpdateImageCropCoordinates, self.crop_coordinates_handler)
         Service(RTS_UPDATE_INITIALIZATION_MASK, UpdateInitializationMask, self.grabcut_initialization_mask_handler)
         Service(RTS_UPDATE_THRESHOLD_PARAMETERS, UpdateThresholdParameters, self.update_threshold_parameters_handler)
+        Service(RTS_NEWEST_IMAGE_DATA, NewestImageData, self.retrieve_newest_image_data_handler)
+        Service(RTS_SET_SEGMENTATION_PHASE, StringRequest, self.set_segmentation_phase_handler)
+        Service(RTS_HAS_SEGMENTATION_STABILIZED, ActionRequest, self.has_segmentation_stabilized_handler)
 
         # Create a subscriber to receive the ultrasound images
-        Subscriber(IMAGE_RAW, image_data_message, self.raw_image_callback)
+        Subscriber(IMAGE_SOURCE, Image, self.raw_image_callback)
 
         # Create a subscriber to receive if the patient is in the image
         Subscriber(IMAGE_PATIENT_CONTACT, Bool, self.patient_contact_callback)
 
+        # Create a subscriber top listen for the imaging depth of the US probe
+        Subscriber(IMAGE_DEPTH, Float64, self.imaging_depth_callback)
+
         # endregion
         #######################
+
+        self.log_single_message('Node ready')
 
     ######################
     # Define ROS callbacks
     # region
 
-    def raw_image_callback(self, data: image_data_message):
+    def raw_image_callback(self, msg: Image):
         """
         Updates the list of received images and places the newest message at the end of the list.
         """
 
         # Create new image data based on received image and add it to the list
-        self.received_images.append(ImageData(image_data_msg=data))
+        self.received_images.append(ImageData(image_msg=msg, imaging_depth=self.current_imaging_depth))
 
         # Remove the oldest image if the list is now too long
         if len(self.received_images) > self.max_images_to_store:
             self.received_images.pop(0)
+
+    def imaging_depth_callback(self, msg: Float64):
+        """Saves the received imaging depth."""
+        self.current_imaging_depth = msg.data
 
     def crop_coordinates_handler(self, req: UpdateImageCropCoordinatesRequest):
         """
@@ -178,6 +195,11 @@ class RealTimeImageFilterNode(BasicNode):
             [req.first_coordinate_x, req.first_coordinate_y],
             [req.second_coordinate_x, req.second_coordinate_y]
         ]
+
+        # Clear the history of masks in the filter
+        self.image_filter.previous_image_masks = []
+
+        self.log_single_message('New crop coordinates received')
 
         return UpdateImageCropCoordinatesResponse(True, NO_ERROR)
 
@@ -206,6 +228,9 @@ class RealTimeImageFilterNode(BasicNode):
             # Save the mask to the image filter
             self.image_filter.update_previous_image_mask(initialization_mask)
 
+            # Clear the history of masks in the filter
+            self.image_filter.previous_image_masks = []
+
             # update status message
             self.log_single_message("New initialization mask saved to the filter", LONG)
 
@@ -231,6 +256,21 @@ class RealTimeImageFilterNode(BasicNode):
             return UpdateThresholdParametersResponse(True, NO_ERROR)
 
         return UpdateThresholdParametersResponse(False, 'Wrong filter type')
+
+    def retrieve_newest_image_data_handler(self, req: NewestImageDataRequest):
+        """Retrieves the data stored in the newest image data variable."""
+        return NewestImageDataResponse(image_data=self.newest_image_data.convert_to_message())
+
+    def set_segmentation_phase_handler(self, req: StringRequestRequest):
+        """Sets the segmentation phase of the image filter"""
+        status, msg = self.image_filter.update_segmentation_phase(req.value)
+        self.log_single_message('New segmentation phase of ' + req.value + ' has been set')
+        return StringRequestResponse(status, msg)
+
+    def has_segmentation_stabilized_handler(self, req: ActionRequestRequest):
+        """Checks if the segmentation has stabilized"""
+        status = self.image_filter.has_segmentation_stabilized()
+        return ActionRequestResponse(status, NO_ERROR)
 
     def patient_contact_callback(self, data: Bool):
         self.image_filter.is_in_contact_with_patient = data.data
@@ -263,8 +303,12 @@ class RealTimeImageFilterNode(BasicNode):
         """
         Process the newest available image.
         """
+        # Define the default status to publish
+        new_status = None
 
         if len(self.received_images) > 0:
+
+            new_status = 'New image available'
 
             # record the current time for timing of processes
             start_of_process_time = time()
@@ -296,11 +340,13 @@ class RealTimeImageFilterNode(BasicNode):
 
             # Publish this data so that it can be monitored before any filtering is completed
             self.newest_image_data.image_title = self.image_title
-            self.cropped_image_publisher.publish(self.newest_image_data.convert_to_message())
+            # self.cropped_image_publisher.publish(self.newest_image_data.convert_to_message())
+
+            new_status = 'Not ready to filter'
 
             if self.image_filter.ready_to_filter and self.image_filter.is_in_contact_with_patient:
                 # Create new image data based on received image
-                self.image_data = copy(self.newest_image_data)
+                # self.image_data = copy(self.newest_image_data)
 
                 # note the amount of time required to create an image data object
                 start_of_analysis_time = self.display_process_timer(start_of_process_time,
@@ -315,7 +361,9 @@ class RealTimeImageFilterNode(BasicNode):
                 try:
 
                     # Filter the image
-                    self.image_filter.filter_image(self.image_data)
+                    self.image_filter.filter_image(self.newest_image_data, override_existing_data=False)
+
+                    new_status = 'Analyzing image'
 
                 except SegmentationError as caught_exception:
                     # Note that the image filter can no longer filter images
@@ -332,26 +380,19 @@ class RealTimeImageFilterNode(BasicNode):
                     return
 
                 # find the contours in the mask
-                self.image_data.generate_contours_in_image()
+                self.newest_image_data.generate_contours_in_image()
 
                 # find the centroids of each contour
-                self.image_data.calculate_image_centroids()
+                self.newest_image_data.calculate_image_centroids()
 
                 # note the time required to fully filter the image
                 start_of_process_time = self.display_process_timer(start_of_process_time, "Time to fully filter")
 
-                # publish the result of the image filtering
-                self.filtered_image_publisher.publish(self.image_data.convert_to_message())
-
-                # note the time required to visualize the image
-                start_of_process_time = self.display_process_timer(start_of_process_time,
-                                                                   "Time to publish the filtered image")
-
                 # Publish if the region of interest is in the image
                 self.is_roi_in_image_status_publisher.publish(
-                    Bool((len(self.image_data.contours_in_image) > 0 and
-                          len(self.image_data.contours_in_image) == len(
-                                self.image_data.contour_centroids))))
+                    Bool((len(self.newest_image_data.contours_in_image) > 0 and
+                          len(self.newest_image_data.contours_in_image) == len(
+                                self.newest_image_data.contour_centroids))))
 
                 # note the time required to determine and publish the status of the thyroid in the image
                 start_of_process_time = self.display_process_timer(start_of_process_time, "Thyroid status check time")
@@ -362,16 +403,10 @@ class RealTimeImageFilterNode(BasicNode):
                 # note the amount of time required to analyze the image
                 self.display_process_timer(start_of_analysis_time, "Image analysis time")
 
-            # Set the status of the node
-            if not self.image_filter.ready_to_filter:
-                node_status = SEGMENTATION_INACTIVE
-            elif self.image_filter.ready_to_filter:
-                node_status = SEGMENTATION_FILTERING
-            else:
-                node_status = SEGMENTATION_UNKNOWN
+            # publish the result of the image filtering
+            self.filtered_image_publisher.publish(self.newest_image_data.convert_to_message())
 
-            # Publish the status of the node
-            self.publish_node_status(node_status)
+        self.publish_node_status(new_status=new_status, delay_publishing=0.5, default_status='Waiting')
 
 
 if __name__ == '__main__':

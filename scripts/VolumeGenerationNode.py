@@ -6,17 +6,11 @@ File containing VolumeGenerationNode class definition and ROS running code.
 from os import listdir, mkdir
 
 # Import standard python packages
-from numpy import array, mgrid, ones, vstack, load
-from plotly.graph_objects import Figure, Mesh3d, Scatter3d
+from numpy import array
+from plotly.graph_objects import Mesh3d, Scatter3d
 from plotly.subplots import make_subplots
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
-from scipy.spatial import ConvexHull
-from alphashape import alphashape, optimizealpha
-from os.path import isdir, isfile
-from rospy import Time
-from numpy import savez
-import open3d as o3d
+from os.path import isdir
 from cv2 import contourArea
 
 from thyroid_ultrasound_imaging_support.RegisteredData.MessageCompatibleObject import SAVE_OBJECT
@@ -24,7 +18,7 @@ from thyroid_ultrasound_imaging_support.RegisteredData.MessageCompatibleObject i
 from thyroid_ultrasound_imaging_support.RegisteredData.RegisteredData import RegisteredData
 from thyroid_ultrasound_imaging_support.RegisteredData.load_folder_of_saved_registered_data import \
     load_folder_of_saved_registered_data
-from thyroid_ultrasound_imaging_support.Validation.date_stamp_str import date_stamp_str
+from thyroid_ultrasound_support.Functions.date_stamp_str import date_stamp_str
 
 # Import standard ROS packages
 

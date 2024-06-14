@@ -11,7 +11,7 @@ from cv2 import morphologyEx, MORPH_ERODE, MORPH_DILATE, imshow, waitKey
 from thyroid_ultrasound_imaging_support.Validation.calculate_dice_score import calculate_dice_score
 
 
-def create_dice_score_mask(original_mask: ndarray, dice_score_to_achieve: float) -> ndarray:
+def create_dice_score_mask(original_mask: ndarray, dice_score_to_achieve: float, given_kernel_size: tuple = None) -> ndarray:
     """
     Creates an image mask with the desired DICE score relative to the original mask by eroding the original mask.
 
@@ -21,6 +21,8 @@ def create_dice_score_mask(original_mask: ndarray, dice_score_to_achieve: float)
         The image mask to erode.
     dice_score_to_achieve :
         The DICE score that should be achieved.
+    given_kernel_size :
+        The size of the kernel to use to morph the given mask
 
     Returns
     -------
@@ -41,6 +43,16 @@ def create_dice_score_mask(original_mask: ndarray, dice_score_to_achieve: float)
     # Verify that the DICE score to achieve is valid
     if dice_score_to_achieve <= 0.0:
         raise Exception("DICE score given of " + str(dice_score_to_achieve) + " is less than 0.")
+
+    if given_kernel_size is not None:
+        kernel_size_to_use = given_kernel_size
+        if given_kernel_size[0] % 2 == 1 and given_kernel_size[1] % 2 == 1:
+            anchor_point = (int((given_kernel_size[0] - 1) / 2), int((given_kernel_size[1] - 1) / 2))
+        else:
+            anchor_point = None
+    else:
+        kernel_size_to_use = (3, 3)
+        anchor_point = (1, 1)
 
     # Define the inverse dice score to use when the desired mask should be an expansion of the original mask
     inverse_dice_score_to_achieve = 1 / dice_score_to_achieve
@@ -74,9 +86,9 @@ def create_dice_score_mask(original_mask: ndarray, dice_score_to_achieve: float)
             # Shrink the current mask
             current_mask = morphologyEx(current_mask,
                                         MORPH_ERODE,
-                                        ones((3, 3), current_mask.dtype),
+                                        ones(kernel_size_to_use, current_mask.dtype),
                                         iterations=1,
-                                        anchor=(1, 1))
+                                        anchor=anchor_point)
 
             # Recalculate the score of the updated mask
             current_mask_score = calculate_dice_score(original_mask, current_mask)
@@ -84,9 +96,9 @@ def create_dice_score_mask(original_mask: ndarray, dice_score_to_achieve: float)
             # Expand the current mask
             current_mask = morphologyEx(current_mask,
                                         MORPH_DILATE,
-                                        ones((3, 3), current_mask.dtype),
+                                        ones(kernel_size_to_use, current_mask.dtype),
                                         iterations=1,
-                                        anchor=(1, 1))
+                                        anchor=anchor_point)
 
             # Recalculate the score of the updated mask
             current_mask_score = calculate_dice_score(current_mask, original_mask)

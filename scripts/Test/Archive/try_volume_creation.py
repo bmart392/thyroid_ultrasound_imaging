@@ -1,6 +1,6 @@
 # Import standard packages
 from math import ceil
-from numpy import array, zeros
+from numpy import array, zeros, identity
 from pymeshfix import clean_from_file
 from stl import mesh
 from matplotlib import pyplot as plt
@@ -29,8 +29,11 @@ from thyroid_ultrasound_imaging_support.VolumeGeneration.plot_transformation imp
 # Read in the data
 list_of_registered_data = \
     load_folder_of_saved_registered_data('/home/ben/thyroid_ultrasound_data/testing_and_validation/'
-                                         'VolumeGenerationExperiment/VolumeData/'
-                                         'VolumeData_2024-04-10_15-23-55-331210_2024-04-11_08-14-19-675417')
+                                         'registered_data/Exam_2024-05-15_13-35-15-203385')
+    # load_folder_of_saved_registered_data('/home/ben/thyroid_ultrasound_data/testing_and_validation/'
+    #                                      'VolumeGenerationExperiment/VolumeData/'
+    #                                      'VolumeData_2024-04-10_15-28-34-603222_2024-04-11_08-20-47-828371')
+
 
 # Create a variable to store the point cloud data
 this_point_cloud = []
@@ -49,25 +52,38 @@ visualization_plot.set_ylabel('Y Label')
 visualization_plot.set_zlabel('Z Label')
 visualization_plot.set_proj_type('ortho')
 
+first_pose = list_of_registered_data[0].robot_pose.robot_pose
+
 # For each registered data, pull out the contour and save it to the point cloud
 for registered_data in list_of_registered_data:
     registered_data: RegisteredData
 
     # Pull out the corresponding data
     image_data = registered_data.image_data
-    robot_pose_at_image_capture_time = registered_data.robot_pose.robot_pose
+    robot_pose_at_image_capture_time = identity(4) + (registered_data.robot_pose.robot_pose - first_pose)
 
     # Plot the transformation
     plot_transformation(robot_pose_at_image_capture_time, visualization_plot)
 
+    rotation_about_z = array([[1, 0, 0, 0],
+                              [0, -1, 0, 0],
+                              [0, 0, -1, 0],
+                              [0, 0, 0, 1]])
+
     # Generate a transformed list of points for the largest contour
-    transformed_contours, transformed_vectors = image_data.generate_transformed_contours(
-        transformation=robot_pose_at_image_capture_time,
+    transformed_contours, transformed_vectors, transformed_centroids = image_data.generate_transformed_contours(
+        transformation=robot_pose_at_image_capture_time @ rotation_about_z,
         imaging_depth=image_data.imaging_depth / 100)
 
-    # visualization_plot.scatter3D(array(transformed_contours)[0, :, 0],
-    #                              array(transformed_contours)[0, :, 1],
-    #                              array(transformed_contours)[0, :, 2])
+    visualization_plot.scatter3D(array(transformed_contours)[0, :, 0],
+                                 array(transformed_contours)[0, :, 1],
+                                 array(transformed_contours)[0, :, 2])
+
+    visualization_plot.scatter3D(array(transformed_centroids)[0, :, 0],
+                                 array(transformed_centroids)[0, :, 1],
+                                 array(transformed_centroids)[0, :, 2],
+                                 c='black', s=75
+                                 )
 
     this_point_cloud.append([tuple(point) for point in transformed_contours[0][::ceil(
         len(registered_data.image_data.contours_in_image[0]) / 100)]])
@@ -79,7 +95,7 @@ for registered_data in list_of_registered_data:
 
 
 # Calculate the triangles in the point cloud
-point_cloud_triangles = create_mesh_triangles(this_point_cloud, None)  # visualization_plot)
+point_cloud_triangles = create_mesh_triangles(this_point_cloud, visualization_plot)
 
 print("Number of faces: " + str(len(point_cloud_triangles)))
 

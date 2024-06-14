@@ -12,6 +12,7 @@ File containing VisualizationNode class definition and ROS running code.
 
 # Import standard ROS messages
 from std_msgs.msg import Int8
+from sensor_msgs.msg import Image
 
 # Import standard python packages
 from copy import deepcopy
@@ -56,10 +57,10 @@ class VisualizationNode(BasicNode):
         Subscriber(RC_IMAGE_CENTERING_SIDE, Int8, self.image_centering_side_callback)
 
         # Define a subscriber to listen for raw images
-        Subscriber(IMAGE_RAW, image_data_message, self.raw_image_data_message_callback)
+        Subscriber(IMAGE_SOURCE, Image, self.raw_image_data_message_callback)
 
         # Define a subscriber to listen for cropped images
-        Subscriber(IMAGE_CROPPED, image_data_message, self.cropped_image_data_message_callback)
+        # Subscriber(IMAGE_CROPPED, image_data_message, self.cropped_image_data_message_callback)
 
         # Define a subscriber to listen for fully filtered images
         Subscriber(IMAGE_FILTERED, image_data_message,
@@ -88,7 +89,7 @@ class VisualizationNode(BasicNode):
         """
         self.image_visualizer.image_centering_goal_offset = msg.data * IMAGE_CENTERING_OFFSET
 
-    def raw_image_data_message_callback(self, message: image_data_message):
+    def raw_image_data_message_callback(self, message: Image):
         """
         Converts the received raw image data message to an image data object and then visualizes it.
 
@@ -99,7 +100,7 @@ class VisualizationNode(BasicNode):
         """
 
         # Generate a temporary image data object
-        temp_image_to_visualize = ImageData(image_data_msg=message)
+        temp_image_to_visualize = ImageData(image_msg=message, image_title='Ultrasound Probe')
 
         # Copy the original image field into the data to visualize
         if self.images_to_visualize[IMAGE_RAW][IMAGE] is None:
@@ -119,11 +120,11 @@ class VisualizationNode(BasicNode):
         # Generate a temporary image data object
         temp_image_to_visualize = ImageData(image_data_msg=message)
 
-        # Copy the cropped image field into the data to visualize
-        if self.images_to_visualize[IMAGE_CROPPED][IMAGE] is None:
-            self.images_to_visualize[IMAGE_CROPPED][IMAGE] = temp_image_to_visualize
-        else:
-            self.images_to_visualize[IMAGE_CROPPED][IMAGE].cropped_image = temp_image_to_visualize.cropped_image
+        # # Copy the cropped image field into the data to visualize
+        # if self.images_to_visualize[IMAGE_CROPPED][IMAGE] is None:
+        #     self.images_to_visualize[IMAGE_CROPPED][IMAGE] = temp_image_to_visualize
+        # else:
+        #     self.images_to_visualize[IMAGE_CROPPED][IMAGE].cropped_image = temp_image_to_visualize.cropped_image
 
     def filtered_image_data_message_callback(self, message: image_data_message):
         """
@@ -136,6 +137,12 @@ class VisualizationNode(BasicNode):
         """
 
         temp_image_to_visualize = ImageData(image_data_msg=message)
+
+        # Copy the cropped image field into the data to visualize
+        if self.images_to_visualize[IMAGE_CROPPED][IMAGE] is None:
+            self.images_to_visualize[IMAGE_CROPPED][IMAGE] = temp_image_to_visualize
+        else:
+            self.images_to_visualize[IMAGE_CROPPED][IMAGE].cropped_image = temp_image_to_visualize.cropped_image
 
         # Copy the relevant image fields into the data to visualize
         if self.images_to_visualize[IMAGE_FILTERED][IMAGE] is None:

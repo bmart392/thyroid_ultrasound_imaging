@@ -4,12 +4,6 @@
 File containing code to stream recorded data as ROS Topic.
 """
 
-# TODO - Dream - Convert this into standard node format
-# TODO - Dream - Add logging through BasicNode class
-# TODO - Dream - Add ability to play images in reverse order
-# TODO - Dream - Add proper try-cath error checking everywhere and incorporate logging into it
-# TODO - Dream - Replace node name with constant from NodeNameConstants
-# TODO - Dream - Add proper status publishing
 
 # Import ROS specific packages
 from cv_bridge import CvBridge
@@ -24,7 +18,7 @@ from os.path import isdir
 from thyroid_ultrasound_support.BasicNode import *
 
 # Import custom python packages
-from thyroid_ultrasound_imaging_support.RegisteredData.generate_ordered_list_of_directory_contents import \
+from thyroid_ultrasound_support.Functions.generate_ordered_list_of_directory_contents import \
     generate_ordered_list_of_directory_contents
 
 
@@ -67,73 +61,121 @@ class ExperimentStreamRecordedData(BasicNode):
         Service(CS_IMAGE_STREAMING_SET_FREQUENCY, Float64Request, self.set_frequency_handler)
 
     def image_location_handler(self, req: StringRequestRequest):
+        """Updates the directory from which to stream images."""
+
+        # If the directory is valid,
         if isdir(req.value):
+
+            # Note if the directory path has changed
             self.path_to_images_changed = self.path_to_images != req.value
+
+            # If it has changed, save the new path
             if self.path_to_images_changed:
                 self.path_to_images = req.value
+
+            self.log_single_message('New image location selected')
+
+            # Send the response
             return StringRequestResponse(True, NO_ERROR)
+
+        # Otherwise, send a response noting that the directory is not valid
         else:
+            self.log_single_message('New image location was invalid')
             return StringRequestResponse(False, 'Directory is invalid.')
 
     def streaming_commands_handler(self, req: BoolRequestRequest):
+        """Updates the local variable based on the value included in the request."""
         self.stream_images = req.value
+        if req.value:
+            self.log_single_message('Streaming requested to start')
+        else:
+            self.log_single_message('Streaming request to stop')
         return BoolRequestResponse(True, NO_ERROR)
 
     def restart_streaming_command_handler(self, req: BoolRequestRequest):
+        """Updates the local variable based on the value included in the request."""
         self.restart_image_stream = req.value
         return BoolRequestResponse(True, NO_ERROR)
 
     def reverse_playback_direction_handler(self, req: BoolRequestRequest):
+        """Updates the local variable based on the values included in the request."""
         self.playback_images_in_reverse = req.value
+        if req.value:
+            self.log_single_message('Image streaming order reversed')
+        else:
+            self.log_single_message('Image streaming order normal')
         return BoolRequestResponse(True, NO_ERROR)
 
     def set_frequency_handler(self, req: Float64RequestRequest):
+        """Updates the local variable based on the value included in the request."""
         self.streaming_frequency = req.value
         return Float64RequestResponse(True, NO_ERROR)
 
     def main(self):
+        # Define the publishing rate for these images
+        pub_rate = Rate(self.streaming_frequency)  # Hz
 
-        if self.stream_images and self.created_objects is not None and not self.restart_image_stream and \
-                not self.path_to_images_changed:
+        # Save the previous streaming frequency
+        previous_streaming_frequency = self.streaming_frequency
 
-            # If the end of the stream has not been reached and the stream does not need to be restarted
-            if ((not self.playback_images_in_reverse and self.ii < len(self.created_objects)) or
-                    (self.playback_images_in_reverse and self.ii >= 0)):
-                # Recolor the image to grayscale
-                bscan = cvtColor(self.created_objects[self.ii], COLOR_BGR2GRAY)
+        while not is_shutdown():
 
-                # Generate an image message to publish
-                resulting_image_message: Image = CvBridge().cv2_to_imgmsg(bscan, encoding="passthrough")
+            if self.stream_images and self.created_objects is not None and not self.restart_image_stream and \
+                    not self.path_to_images_changed:
 
-                # Register when the image was taken
-                resulting_image_message.header.stamp = Time.now()
+                # If the end of the stream has not been reached and the stream does not need to be restarted
+                if ((not self.playback_images_in_reverse and self.ii < len(self.created_objects)) or
+                        (self.playback_images_in_reverse and self.ii >= 0)):
 
-                # Publish the image
-                self.us_pub.publish(resulting_image_message)
+                    try:
+                        # Recolor the image to grayscale
+                        bscan = cvtColor(self.created_objects[self.ii], COLOR_BGR2GRAY)
 
-                # Print how many images have been sent
-                stdout.write(f'Image {self.ii + 1} of {len(self.created_objects)} sent.\r')
-                stdout.flush()
+                        # Generate an image message to publish
+                        resulting_image_message: Image = CvBridge().cv2_to_imgmsg(bscan, encoding="passthrough")
 
-                # Increment the iterator
-                if self.playback_images_in_reverse:
-                    change = -1
+                        # Register when the image was taken
+                        resulting_image_message.header.stamp = Time.now()
+
+                        # Publish the image
+                        self.us_pub.publish(resulting_image_message)
+
+                        # Print how many images have been sent
+                        stdout.write(f'Image {self.ii + 1} of {len(self.created_objects)} sent.\r')
+                        stdout.flush()
+
+                        # Increment the iterator
+                        if self.playback_images_in_reverse:
+                            change = -1
+                        else:
+                            change = 1
+                        self.ii = self.ii + change
+
+                        self.publish_node_status('Streaming active')
+
+                    except Exception:
+                        self.log_single_message('Could not convert image')
+                        self.created_objects = None
+                        self.path_to_images = None
+                        self.log_single_message('Images and filepaths cleared')
+
                 else:
-                    change = 1
-                self.ii = self.ii + change
+                    self.publish_node_status('All images streamed')
 
-        elif self.restart_image_stream:
+            elif self.restart_image_stream:
 
-            if self.playback_images_in_reverse:
-                self.ii = len(self.created_objects) - 1
-            else:
-                self.ii = 0
+                if self.playback_images_in_reverse:
+                    self.ii = len(self.created_objects) - 1
+                else:
+                    self.ii = 0
 
-            self.restart_image_stream = False
+                self.restart_image_stream = False
 
-        elif self.created_objects is None or self.path_to_images_changed:
+                self.log_single_message('Image series restarted')
 
-            if self.path_to_images is not None:
+            elif (self.created_objects is None or self.path_to_images_changed) and self.path_to_images is not None:
+
+                self.log_single_message('Reading in new images at ' + self.path_to_images)
 
                 # Pull out the images from the given folder location
                 try:
@@ -145,6 +187,7 @@ class ExperimentStreamRecordedData(BasicNode):
                             self.path_to_images, sort_indices=tuple([0]))]
                     except Exception:
                         raise Exception('Image files not named as expected.')
+
                 # Reset the flag
                 self.path_to_images_changed = False
 
@@ -154,33 +197,36 @@ class ExperimentStreamRecordedData(BasicNode):
                 else:
                     self.ii = 0
 
+                self.log_single_message('New images read in')
+
+            else:
+
+                self.publish_node_status('Streaming inactive')
+
+            # If the streaming frequency has changed,
+            if previous_streaming_frequency != self.streaming_frequency:
+                # Update the publishing rate and save the old value
+                pub_rate = Rate(self.streaming_frequency)
+                previous_streaming_frequency = self.streaming_frequency
+
+                self.log_single_message('New streaming frequency is ' + str(self.streaming_frequency) + ' Hz')
+
+            # Sleep
+            pub_rate.sleep()
+
 
 if __name__ == '__main__':
 
     node = ExperimentStreamRecordedData()
 
+    node.log_single_message('Node initialized')
+
     print("Node initialized.")
     print("Press ctrl+c to terminate.")
 
-    # Define the publishing rate for these images
-    pub_rate = Rate(node.streaming_frequency)  # Hz
+    # Run the main loop
+    node.main()
 
-    # Save the previous streaming frequency
-    previous_streaming_frequency = node.streaming_frequency
-
-    while not is_shutdown():
-
-        # Run the main loop
-        node.main()
-
-        # If the streaming frequency has changed,
-        if previous_streaming_frequency != node.streaming_frequency:
-
-            # Update the publishing rate and save the old value
-            pub_rate = Rate(node.streaming_frequency)
-            previous_streaming_frequency = node.streaming_frequency
-
-        # Sleep
-        pub_rate.sleep()
+    node.log_single_message('Node terminated')
 
     print("Node terminated.")

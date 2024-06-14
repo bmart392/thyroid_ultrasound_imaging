@@ -14,6 +14,7 @@ from thyroid_ultrasound_imaging_support.VolumeGeneration.wrapping_range import w
 def create_mesh_triangles(point_cloud: list, progress_plot: Axes3D = None):
     """
     Calculates a closed
+
     Parameters
     ----------
     point_cloud :

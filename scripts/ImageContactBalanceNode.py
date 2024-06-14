@@ -4,9 +4,6 @@
 File containing code to ensure even patient contact.
 """
 
-# TODO - Dream - Add logging through BasicNode class
-# TODO - Dream - Add proper try-cath error checking everywhere and incorporate logging into it
-# TODO - Dream - Add proper node status publishing
 # TODO - Dream - Create an easy way to update the parameters of this node
 # TODO - Dream - Change this to look for the skin by finding the pattern of light area -> dark area -> light area and
 #  then finding the boundary between the dark area and the second light area. If the boundary is at the bottom of the
@@ -14,10 +11,11 @@ File containing code to ensure even patient contact.
 # TODO - Dream - Use array slicing to break the image into 20 even rectangular slices and then use sums to get the
 #  average intensity of each area. Look at the middle 66% of the image to determine if the patient is in contact and
 #  then also only look at the same window to find the skin layer.
-# TODO - High - Figure out what happens when the imaging depth changes
 
 # Import standard python packages
 from numpy import zeros, linspace, array, polyfit
+from rospy import Time, Duration
+from sensor_msgs.msg import Image
 
 # Import custom ROS packages
 from thyroid_ultrasound_support.BasicNode import *
@@ -166,15 +164,17 @@ class ImageContactBalanceNode(BasicNode):
         self.skin_approximation_publisher = Publisher(IMAGE_SKIN_APPROXIMATION, SkinContactLines, queue_size=1)
 
         # Define a subscriber to listen for the raw image
-        Subscriber(IMAGE_RAW, image_data_message, self.new_raw_image_callback)
+        Subscriber(IMAGE_SOURCE, Image, self.new_raw_image_callback)
 
         # Define a subscriber to listen for the imaging depth
-        Subscriber(IMAGE_DEPTH, Float64)
+        Subscriber(IMAGE_DEPTH, Float64, self.image_depth_callback)
+
+        self.log_single_message('Node initialized')
 
     ###############
     # ROS Callbacks
     # region
-    def new_raw_image_callback(self, data: image_data_message):
+    def new_raw_image_callback(self, data: Image):
         """
         Receives a new ultrasound image and saves it. If too many ultrasound images have been saved,
         the oldest image is purged.
@@ -186,7 +186,7 @@ class ImageContactBalanceNode(BasicNode):
         """
 
         # Create a temporary ImageData object from the message
-        temp_image_data_object = ImageData(image_data_msg=data)
+        temp_image_data_object = ImageData(image_msg=data)
 
         # Save the original ultrasound image
         self.new_ultrasound_images.append(temp_image_data_object.original_image)
@@ -198,7 +198,9 @@ class ImageContactBalanceNode(BasicNode):
     def image_depth_callback(self, msg: Float64):
         """Update the imaging depth and rebuild the sectors"""
         self.imaging_depth_meters[NEW_VALUE] = msg.data / 100  # convert cm to m
+        self.log_single_message('New imaging depth of ' + str(msg.data) + ' cm')
         self.rebuild_sectors()
+        self.log_single_message('Sectors rebuilt')
 
     # endregion
     ###############
@@ -292,8 +294,15 @@ class ImageContactBalanceNode(BasicNode):
         patient_contact_status = False
         patient_contact_error = 0.0
 
+        # Define a default status to be published
+        new_status = None
+
         # If there is a new ultrasound image
         if len(self.new_ultrasound_images) > 0:
+
+            self.time_of_last_analysis = Time.now()
+
+            new_status = 'Images available'
 
             # Pop out the latest image
             latest_image = self.new_ultrasound_images.pop(-1)
@@ -374,6 +383,8 @@ class ImageContactBalanceNode(BasicNode):
             # If patient contact is detected at all
             if (num_dark_sectors[0] + num_dark_sectors[1]) < floor(len(self.sectors) * 0.25):  # abs(dark_sector_difference) < floor(len(self.sectors) * 0.5):
 
+                new_status = 'Patient in contact'
+
                 # Publish the true patient contact message
                 patient_contact_status = True
 
@@ -382,6 +393,8 @@ class ImageContactBalanceNode(BasicNode):
 
                 # Check if there is enough patient contact to calculate the error from the skin layer
                 if abs(dark_sector_difference) < floor((len(self.sectors) * 0.1)):
+
+                    new_status = 'Calculating balance error'
 
                     # Define an iterator for the half-sector
                     ii = 0
@@ -491,12 +504,22 @@ class ImageContactBalanceNode(BasicNode):
                         # Publish the skin approximation
                         self.skin_approximation_publisher.publish(skin_approximation_msg)
 
+                        new_status = 'Balance error calculated'
+
+                    else:
+                        new_status = 'Contact is too uneven'
+
+            else:
+                new_status = 'No patient contact'
+
             # Publish the patient contact and image error
             self.patient_contact_status_publisher.publish(Bool(patient_contact_status))
             patient_contact_error_msg = Float64Stamped()
             patient_contact_error_msg.header.stamp = Time.now()
             patient_contact_error_msg.data.data = patient_contact_error
             self.patient_contact_error_publisher.publish(patient_contact_error_msg)
+
+        self.publish_node_status(new_status, delay_publishing=0.5, default_status='No images available')
 
 
 if __name__ == '__main__':
@@ -510,5 +533,7 @@ if __name__ == '__main__':
     while not is_shutdown():
         # Run the main code of the node
         node.main_loop()
+
+    node.log_single_message('Node terminated')
 
     print("Node terminated.")

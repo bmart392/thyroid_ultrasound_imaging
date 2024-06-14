@@ -4,10 +4,6 @@
 File containing code to receive raw ultrasound images and rebroadcast them as ImageData objects.
 """
 
-# TODO - Dream - Add logging through BasicNode class
-# TODO - Dream - Add proper try-cath error checking everywhere and incorporate logging into it
-# TODO - Dream - Add proper node status publishing
-
 # Import standard ROS specific packages
 from sensor_msgs.msg import Image
 
@@ -17,7 +13,7 @@ from thyroid_ultrasound_messages.msg import image_data_message
 # Import from custom packages
 from thyroid_ultrasound_imaging_support.ImageData.ImageData import ImageData
 from thyroid_ultrasound_imaging_support.ImageFilter.FilterConstants import COLOR_GRAY
-from thyroid_ultrasound_imaging_support.ImageData.convert_image_message_to_array import convert_image_message_to_array
+from thyroid_ultrasound_support.MessageConversion.convert_image_message_to_array import convert_image_message_to_array
 from thyroid_ultrasound_support.BasicNode import *
 
 
@@ -46,11 +42,15 @@ class ImageDataConverter(BasicNode):
         # Create a subscriber top listen for the imaging depth of the US probe
         Subscriber(IMAGE_DEPTH, Float64, self.imaging_depth_callback)
 
+        self.log_single_message('Node initialized')
+        self.publish_node_status('Waiting for image')
+
     def imaging_depth_callback(self, msg: Float64):
         """
         Stores the current imaging depth
         """
         self.current_imaging_depth = msg.data
+        self.log_single_message('New imaging depth of ' + str(msg.data) + ' cm')
 
     def raw_image_callback(self, data: Image) -> image_data_message:
         """
@@ -73,6 +73,8 @@ class ImageDataConverter(BasicNode):
 
         # Publish the new_image_data_message
         self.raw_image_publisher.publish(new_image_data_message)
+
+        self.publish_node_status('Image converted')
 
         # Return the image data message to allow for validation
         return new_image_data_message

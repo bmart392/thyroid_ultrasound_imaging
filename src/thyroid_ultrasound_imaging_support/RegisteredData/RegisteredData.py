@@ -14,7 +14,7 @@ from thyroid_ultrasound_imaging_support.RegisteredData.MessageCompatibleObject i
 from thyroid_ultrasound_imaging_support.ImageData.ImageData import ImageData, IMAGE_DATA_OBJECT
 from thyroid_ultrasound_imaging_support.RegisteredData.RobotPose import RobotPose, ROBOT_POSE_FILE_NAME
 from thyroid_ultrasound_imaging_support.RegisteredData.RobotForce import RobotForce, ROBOT_FORCE_FILE_NAME
-from thyroid_ultrasound_imaging_support.Validation.date_stamp_str import date_stamp_str
+from thyroid_ultrasound_support.Functions.date_stamp_str import date_stamp_str
 
 # Import custom ROS packages
 from thyroid_ultrasound_messages.msg import RegisteredDataMsg

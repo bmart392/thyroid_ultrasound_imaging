@@ -5,9 +5,8 @@ Contains the code necessary for experimentally determining the effectiveness of 
 # Import standard python packages
 from _csv import writer
 from copy import copy
-from cv2 import cvtColor, COLOR_BGR2GRAY, resize, GC_PR_BGD, GC_BGD, GC_FGD, COLOR_GRAY2RGB, imshow, waitKey, imwrite
-from matplotlib.pyplot import matshow, subplots
-from numpy import load, where, uint8, array, median, average, std, zeros
+from cv2 import cvtColor, COLOR_BGR2GRAY, resize, imwrite
+from numpy import median, average, std, zeros
 from os.path import isdir
 from os import mkdir
 
@@ -17,7 +16,7 @@ from std_msgs.msg import Bool
 # Import custom python packages
 from thyroid_ultrasound_imaging_support.ImageData.ImageData import ImageData
 from thyroid_ultrasound_imaging_support.ImageData.convert_array_to_image_message import convert_array_to_image_message
-from thyroid_ultrasound_imaging_support.ImageFilter.FilterConstants import COLOR_GRAY, COLOR_BGR, COLOR_RGB
+from thyroid_ultrasound_imaging_support.ImageFilter.FilterConstants import COLOR_GRAY, COLOR_BGR
 from thyroid_ultrasound_imaging_support.ImageFilter.ImageFilter import UP_SAMPLING_MODE
 from thyroid_ultrasound_imaging_support.ImageManipulation.load_folder_of_image_files import \
     load_folder_of_image_files
@@ -26,12 +25,11 @@ from thyroid_ultrasound_imaging_support.ImageManipulation.load_folder_of_numpy_a
 from thyroid_ultrasound_imaging_support.Validation.build_previous_image_mask_from_ground_truth import \
     build_previous_image_mask_from_ground_truth
 from thyroid_ultrasound_imaging_support.Validation.calculate_dice_score import calculate_dice_score
-from thyroid_ultrasound_imaging_support.Validation.create_dice_score_mask import create_dice_score_mask
 from thyroid_ultrasound_imaging_support.Visualization.create_mask_display_array import create_mask_display_array
 from thyroid_ultrasound_imaging_support.Visualization.display_process_timer import display_process_timer, time
-from thyroid_ultrasound_imaging_support.Validation.date_stamp_str import date_stamp_str
+from thyroid_ultrasound_support.Functions.date_stamp_str import date_stamp_str
 from thyroid_ultrasound_imaging_support.Visualization.create_mask_overlay_image import create_mask_overlay_array, \
-    FADED, COLORIZED, PREV_IMG_MASK
+    COLORIZED, PREV_IMG_MASK
 from experimentation_column_headers import TEST_NUM, IMAGE_NUM, INITIAL_MASK_DICE_SCORE, DOWN_SAMPLING_RATE, \
     NUM_ITERATIONS, PROB_BKGD_EXP_FACTOR, SEGMENTATION_TIME_MEDIAN, SEGMENTATION_TIME_AVERAGE, \
     SEGMENTATION_TIME_STD_DEV, DICE_SCORE_MEDIAN, DICE_SCORE_AVERAGE, DICE_SCORE_STD_DEV

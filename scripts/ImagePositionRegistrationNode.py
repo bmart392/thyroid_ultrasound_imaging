@@ -7,8 +7,6 @@ File containing ImagePositionRegistrationNode class definition and ROS running c
 from os import mkdir
 from os.path import isdir
 from copy import copy
-from rospy import sleep
-from math import ceil
 
 # Import standard ROS packages
 from geometry_msgs.msg import WrenchStamped
@@ -19,7 +17,7 @@ from thyroid_ultrasound_imaging_support.ImageData.ImageData import ImageData
 from thyroid_ultrasound_imaging_support.ImageData.BridgeImageDataMessageConstants import TO_MESSAGE
 from thyroid_ultrasound_imaging_support.ImageData.bridge_list_of_points_multi_array import \
     bridge_list_of_points_multi_array, FOUR_D, FLOAT_ARRAY
-from thyroid_ultrasound_imaging_support.Validation.date_stamp_str import date_stamp_str
+from thyroid_ultrasound_support.Functions.date_stamp_str import date_stamp_str
 from thyroid_ultrasound_robot_control_support.Helpers.convert_pose_to_transform_matrix import \
     convert_pose_to_transform_matrix
 from thyroid_ultrasound_support.BasicNode import *
@@ -68,7 +66,7 @@ class ImagePositionRegistrationNode(BasicNode):
         self.imaging_depth = 60  # mm
 
         # Define the oldest any piece of data is allowed to be
-        self.data_age_limit = 10  # seconds
+        self.data_age_limit = 60  # seconds
 
         # Define a flag to store if the node has been commanded to register new data
         self.register_new_data_flag = False
@@ -141,11 +139,14 @@ class ImagePositionRegistrationNode(BasicNode):
                                                                 msg_type=FLOAT_ARRAY,
                                                                 point_dim=FOUR_D)
 
+        # Capture the current time
+        current_time = Time.now()
+
         # Define the outer level key to store in the dictionary
-        outer_level_key = msg.ee_pose.header.stamp.secs
+        outer_level_key = current_time.secs  # msg.ee_pose.header.stamp.secs
 
         # Define the lower level key and the value to store in the dictionary
-        key_value_pair = {msg.ee_pose.header.stamp.nsecs: (RobotPose(robot_pose=pose_as_matrix), pose_as_multi_array)}
+        key_value_pair = {current_time.nsecs: (RobotPose(robot_pose=pose_as_matrix), pose_as_multi_array)}
 
         try:
             # Try to add the new data into the existing place in the dictionary

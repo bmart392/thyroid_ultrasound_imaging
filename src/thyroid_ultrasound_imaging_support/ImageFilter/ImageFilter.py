@@ -58,7 +58,7 @@ class ImageFilter:
     # Image filtering functions
     # region
 
-    def filter_image(self, image_data: ImageData):
+    def filter_image(self, image_data: ImageData, override_existing_data: bool = False):
         """
         Filters an ImageData object using the process defined in the ImageFilter.
 
@@ -66,11 +66,14 @@ class ImageFilter:
         ----------
         image_data
             the ImageData object containing the image to be filtered.
+        override_existing_data
+            if true, the segmentation process ignores any previous data and
+            starts segmentation process at original image.
         """
         # Perform the basic image filtering actions
-        self.basic_filter_image(image_data)
+        self.basic_filter_image(image_data, override_existing_data=override_existing_data)
 
-    def basic_filter_image(self, image_data: ImageData):
+    def basic_filter_image(self, image_data: ImageData, override_existing_data: bool = False):
         """
         Perform the basic image filtering operations on the ImageData object using the process defined in the
         ImageFilter
@@ -79,14 +82,21 @@ class ImageFilter:
         ----------
         image_data
             the ImageData object containing the image to be filtered.
+        override_existing_data
+            if true, the segmentation process ignores any previous data and
+            starts segmentation process at original image.
         """
 
         # record the current time for timing each process
         start_of_process_time = time()
 
         try:
-            # Crop the image
-            self.crop_image(image_data)
+            if override_existing_data or image_data.cropped_image is None:
+                # Crop the image
+                self.crop_image(image_data)
+
+                # Note that everything other step must be completed now
+                override_existing_data = True
             start_of_process_time = self.display_process_timer(start_of_process_time,
                                                                "Crop image time")
         except Exception as caught_exception:
@@ -94,8 +104,12 @@ class ImageFilter:
                                     caught_exception.args[0])
 
         try:
-            # Colorize the image
-            self.colorize_image(image_data)
+            if override_existing_data or image_data.colorized_image is None:
+                # Colorize the image
+                self.colorize_image(image_data)
+
+                # Note that everything other step must be completed now
+                override_existing_data = True
             start_of_process_time = self.display_process_timer(start_of_process_time,
                                                                "Recolor image time")
         except Exception as caught_exception:
@@ -103,8 +117,12 @@ class ImageFilter:
                                     caught_exception.args[0])
 
         try:
-            # Down-sample the image
-            self.down_sample_image(image_data)
+            if override_existing_data or image_data.down_sampled_image is None:
+                # Down-sample the image
+                self.down_sample_image(image_data)
+
+                # Note that everything other step must be completed now
+                override_existing_data = True
             start_of_process_time = self.display_process_timer(start_of_process_time,
                                                                "Down-sample time")
         except Exception as caught_exception:
@@ -112,8 +130,12 @@ class ImageFilter:
                                     caught_exception.args[0])
 
         try:
-            # Pre-process the image
-            self.pre_process_image(image_data)
+            if override_existing_data or image_data.pre_processed_image is None:
+                # Pre-process the image
+                self.pre_process_image(image_data)
+
+                # Note that everything other step must be completed now
+                override_existing_data = True
             start_of_process_time = self.display_process_timer(start_of_process_time,
                                                                "Pre-process image time")
         except Exception as caught_exception:
@@ -121,8 +143,12 @@ class ImageFilter:
                                     caught_exception.args[0])
 
         try:
-            # Create image mask
-            self.create_image_mask(image_data)
+            if override_existing_data or image_data.image_mask is None:
+                # Create image mask
+                self.create_image_mask(image_data)
+
+                # Note that everything other step must be completed now
+                override_existing_data = True
             start_of_process_time = self.display_process_timer(start_of_process_time,
                                                                "Mask creation time")
         except Exception as caught_exception:
@@ -130,8 +156,12 @@ class ImageFilter:
                                     caught_exception.args[0])
 
         try:
-            # Post-process the image mask
-            self.post_process_image_mask(image_data)
+            if override_existing_data or image_data.post_processed_mask is None:
+                # Post-process the image mask
+                self.post_process_image_mask(image_data)
+
+                # Note that everything other step must be completed now
+                override_existing_data = True
             start_of_process_time = self.display_process_timer(start_of_process_time,
                                                                "Post-process image mask time")
         except Exception as caught_exception:
@@ -139,8 +169,12 @@ class ImageFilter:
                                     caught_exception.args[0])
 
         try:
-            # Create sure foreground mask
-            self.create_sure_foreground_mask(image_data)
+            if override_existing_data or image_data.sure_foreground_mask is None:
+                # Create sure foreground mask
+                self.create_sure_foreground_mask(image_data)
+
+                # Note that everything other step must be completed now
+                override_existing_data = True
             start_of_process_time = self.display_process_timer(start_of_process_time,
                                                                "Sure foreground mask creation time")
         except Exception as caught_exception:
@@ -148,8 +182,12 @@ class ImageFilter:
                                     caught_exception.args[0])
 
         try:
-            # Create sure background mask
-            self.create_sure_background_mask(image_data)
+            if override_existing_data or image_data.sure_background_mask is None:
+                # Create sure background mask
+                self.create_sure_background_mask(image_data)
+
+                # Note that everything other step must be completed now
+                override_existing_data = True
             start_of_process_time = self.display_process_timer(start_of_process_time,
                                                                "Sure background mask creation time")
         except Exception as caught_exception:
@@ -157,8 +195,12 @@ class ImageFilter:
                                     caught_exception.args[0])
 
         try:
-            # Create probable foreground mask
-            self.create_probable_foreground_mask(image_data)
+            if override_existing_data or image_data.probable_foreground_mask is None:
+                # Create probable foreground mask
+                self.create_probable_foreground_mask(image_data)
+
+                # Note that everything other step must be completed now
+                override_existing_data = True
             start_of_process_time = self.display_process_timer(start_of_process_time,
                                                                "Probable foreground mask creation time")
         except Exception as caught_exception:

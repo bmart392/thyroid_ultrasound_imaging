@@ -86,6 +86,9 @@ class ClariusUltrasoundConnectionNode(BasicNode):
         # Initialize the ROS node for publishing the data
         init_node(CLARIUS_US_PUBLISHER)
 
+        self.publish_node_status('Node initializing')
+        self.log_single_message('Waiting to connect to scanner')
+
         # Capture current time
         init_time = Time.now()
 
@@ -109,26 +112,32 @@ class ClariusUltrasoundConnectionNode(BasicNode):
                 if ret:
                     successful_connection = True
                     print("Casting connected to {0} on port {1}".format(IP, PORT))
+                    self.log_single_message('Connection successful')
                     break
 
         if not successful_connection:
             self.cast.destroy()
             self.error_message = "Casting connection to {0} on port {1} failed.".format(IP, PORT)
-            raise Exception(self.error_message)
+            self.log_single_message('Connection failed')
+            # raise Exception(self.error_message)
 
-        # Define the image publisher
-        self.image_publisher = Publisher(IMAGE_SOURCE, Image, queue_size=100)
+        else:
 
-        # Define a publisher for when the image has been frozen and unfrozen
-        self.image_frozen_status_publisher = Publisher(IMAGE_FROZEN_STATUS, Bool, queue_size=1)
+            # Define the image publisher
+            self.image_publisher = Publisher(IMAGE_SOURCE, Image, queue_size=100)
 
-        # Define services for saving raw images
-        Service(CC_SAVE_IMAGES, BoolRequest, self.save_images_handler)
-        Service(CC_SAVED_IMAGES_DESTINATION, StringRequest, self.saved_images_destination_handler)
+            # Define a publisher for when the image has been frozen and unfrozen
+            self.image_frozen_status_publisher = Publisher(IMAGE_FROZEN_STATUS, Bool, queue_size=1)
 
-        # Define the frequency at which to publish images
-        freq = 30  # CHANGE THIS LINE to change the rate at which images are published
-        self.rate = Rate(freq)
+            # Define services for saving raw images
+            Service(CC_SAVE_IMAGES, BoolRequest, self.save_images_handler)
+            Service(CC_SAVED_IMAGES_DESTINATION, StringRequest, self.saved_images_destination_handler)
+
+            # Define the frequency at which to publish images
+            freq = 30  # CHANGE THIS LINE to change the rate at which images are published
+            self.rate = Rate(freq)
+
+            self.log_single_message('Node ready')
 
     # noinspection PyUnusedLocal
     @staticmethod
@@ -248,4 +257,5 @@ if __name__ == '__main__':
 
         node.main_loop()
 
-        print("\nShutdown signal received.")
+    node.log_single_message('Node terminating')
+    print("\nShutdown signal received.")

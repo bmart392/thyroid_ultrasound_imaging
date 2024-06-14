@@ -8,28 +8,29 @@ Contains code for ImageData class.
 
 # Import standard python packages
 from cv2 import findContours, RETR_EXTERNAL, CHAIN_APPROX_NONE, contourArea, moments
-from numpy import sum, uint8, array, frombuffer, reshape, append, savez, load, ndarray
+from numpy import sum, uint8, array, frombuffer, reshape, savez, load, ndarray
 from numpy.linalg import norm
 from rospy import Time
 from cv_bridge import CvBridge, CvBridgeError
 from os.path import exists
 from os import mkdir, listdir
-from datetime import date, datetime
 
 # Import standard ROS packages
 from sensor_msgs.msg import Image
-from thyroid_ultrasound_imaging_support.Validation.date_stamp_str import date_stamp_str
+from thyroid_ultrasound_support.Functions.date_stamp_str import date_stamp_str
 
 # Import custom python packages
 from thyroid_ultrasound_messages.msg import image_data_message
 from thyroid_ultrasound_imaging_support.ImageData.single_line_representations import \
-    create_single_line_simple_data, create_single_line_array_data, create_single_line_list_data, \
+    create_single_line_simple_data, create_single_line_list_data, \
     create_single_line_time_stamp, rebuild_data, NEW_LINE
 from thyroid_ultrasound_imaging_support.RegisteredData.validate_transformation_matrix import \
     validate_transformation_matrix
+from thyroid_ultrasound_support.MessageConversion.convert_image_message_to_array import \
+    convert_image_message_to_array
+from thyroid_ultrasound_imaging_support.ImageFilter.FilterConstants import COLOR_GRAY, COLOR_BGR
 
 # Import custom ROS packages
-from thyroid_ultrasound_imaging_support.ImageData.BridgeImageDataMessageConstants import PLACEHOLDER_COORDINATE
 from thyroid_ultrasound_imaging_support.RegisteredData.MessageCompatibleObject import TO_MESSAGE, TO_OBJECT
 from thyroid_ultrasound_imaging_support.ImageData.bridge_list_of_points_multi_array import \
     bridge_list_of_points_multi_array
@@ -140,6 +141,7 @@ class ImageData:
                  segmentation_initialization_mask: array = None,
                  image_data_msg: image_data_message = None,
                  image_data_location: str = None,
+                 image_msg: Image = None,
                  display_error_messages: bool = False,
                  imaging_depth: float = None):
         """
@@ -165,6 +167,8 @@ class ImageData:
             an image_data ros message object.
         image_data_location
             a string representing the filepath to a saved image data object.
+        image_msg
+            an Image message containing an image and a timestamp.
         imaging_depth
             the imaging depth of the scanner when the image was taken
         """
@@ -196,6 +200,17 @@ class ImageData:
         self.sure_foreground_mask = None
         self.sure_background_mask = None
         self.probable_foreground_mask = None
+
+        # If an image message is given, pull out the image as an array and the timestamp. Then continue on as normal.
+        if image_msg is not None:
+            image_data = convert_image_message_to_array(image_msg)
+            image_capture_time = image_msg.header.stamp
+            if len(image_data.shape) == 3:
+                image_color = COLOR_BGR
+            elif len(image_data.shape) == 2:
+                image_color = COLOR_GRAY
+            else:
+                raise Exception('Image has unrecognized dimensions of ' + str(image_data.shape))
 
         # If the image data object is being created from an image_data message object
         if image_data_msg is not None:
@@ -264,11 +279,11 @@ class ImageData:
         # Only create the contours if the expanded image mask has been created
         # AND
         # the expanded image mask contains any contours.
-        if self.post_processed_mask is not None and not sum(self.post_processed_mask) == 0:
+        if self.image_mask is not None and not sum(self.image_mask) == 0:
 
             # Use a built-in function to generate the contours
             contours_in_image, hierarchy = findContours(
-                self.post_processed_mask.astype(uint8),
+                self.image_mask.astype(uint8),
                 RETR_EXTERNAL,
                 CHAIN_APPROX_NONE
             )
@@ -390,6 +405,7 @@ class ImageData:
         # Define the default result
         contours_list = []
         vectors_list = []
+        centroids_list = []
 
         # Check to make sure that the transformation is valid
         if validate_transformation_matrix(transformation):
@@ -398,13 +414,22 @@ class ImageData:
             all_normal_vectors = self.calculate_normal_vectors_of_contours()
 
             # Iterate through each contour
-            for contour, normal_vector_contour in zip(self.contours_in_image, all_normal_vectors):
+            for contour, normal_vector_contour, centroid in zip(self.contours_in_image, all_normal_vectors,
+                                                                self.contour_centroids):
 
                 # Define a temporary list to store the points from this contour
                 this_contour_list = []
 
                 # Define a temporary list to store the vectors from this contour
                 this_vector_list = []
+
+                this_centroid = array(centroid) + array(self.image_crop_coordinates[0])
+                this_centroid = +this_centroid - array([round(self.ds_image_size_x / 2), 0])
+                this_centroid = this_centroid @ array([[-1, 0], [0, 1]])
+                this_centroid = array([this_centroid[0] * horizontal_resolution,
+                                       this_centroid[1] * vertical_resolution])
+                this_centroid = array([[0], [this_centroid[0]], [this_centroid[1]], [1]])
+                this_centroid = transformation @ this_centroid
 
                 # Iterate through every point in the contour
                 for point_in_px, normal_vector_in_px in zip(contour, normal_vector_contour):
@@ -413,7 +438,9 @@ class ImageData:
                     point_in_px_with_crop_offset = point_in_px + array(self.image_crop_coordinates[0])
 
                     # Shift all values to be measured from the center of the image X axis
-                    point_in_px_from_center = point_in_px_with_crop_offset - array([round(self.ds_image_size_x / 2), 0])
+                    point_in_px_from_center = +point_in_px_with_crop_offset - array([round(self.ds_image_size_x / 2), 0])
+
+                    point_in_px_from_center = point_in_px_from_center @ array([[-1, 0], [0, 1]])
 
                     # Convert the units
                     if horizontal_resolution is not None and vertical_resolution is not None:
@@ -458,8 +485,9 @@ class ImageData:
                 # Add the list from this contour to the list for all contours
                 contours_list.append(array(this_contour_list))
                 vectors_list.append(array(this_vector_list))
+                centroids_list.append(array([this_centroid[:3].reshape(3)]))
 
-        return contours_list, vectors_list
+        return contours_list, vectors_list, centroids_list
 
     def bridge_image_data_and_message(self, direction: str, message: image_data_message = None):
         """
