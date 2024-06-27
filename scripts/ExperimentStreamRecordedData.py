@@ -151,7 +151,7 @@ class ExperimentStreamRecordedData(BasicNode):
                             change = 1
                         self.ii = self.ii + change
 
-                        self.publish_node_status('Streaming active')
+                        self.publish_node_status(STREAMING_ACTIVE)
 
                     except Exception:
                         self.log_single_message('Could not convert image')
@@ -160,7 +160,7 @@ class ExperimentStreamRecordedData(BasicNode):
                         self.log_single_message('Images and filepaths cleared')
 
                 else:
-                    self.publish_node_status('All images streamed')
+                    self.publish_node_status(ALL_IMAGES_STREAMED)
 
             elif self.restart_image_stream:
 
@@ -201,7 +201,7 @@ class ExperimentStreamRecordedData(BasicNode):
 
             else:
 
-                self.publish_node_status('Streaming inactive')
+                self.publish_node_status(STREAMING_INACTIVE)
 
             # If the streaming frequency has changed,
             if previous_streaming_frequency != self.streaming_frequency:

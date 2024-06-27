@@ -167,7 +167,6 @@ catkin_install_python(PROGRAMS
   scripts/ImagePositioningControllerNode.py
   scripts/ExperimentStreamRecordedData.py
   scripts/VisualizationNode.py
-  scripts/ImageDataConverter.py
   scripts/ImageBasedUserInput.py
   scripts/ImagePositionRegistrationNode.py
   scripts/ImageContactBalanceNode.py

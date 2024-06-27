@@ -302,7 +302,7 @@ class ImageContactBalanceNode(BasicNode):
 
             self.time_of_last_analysis = Time.now()
 
-            new_status = 'Images available'
+            new_status = IMAGES_AVAILABLE
 
             # Pop out the latest image
             latest_image = self.new_ultrasound_images.pop(-1)
@@ -383,7 +383,7 @@ class ImageContactBalanceNode(BasicNode):
             # If patient contact is detected at all
             if (num_dark_sectors[0] + num_dark_sectors[1]) < floor(len(self.sectors) * 0.25):  # abs(dark_sector_difference) < floor(len(self.sectors) * 0.5):
 
-                new_status = 'Patient in contact'
+                new_status = PATIENT_IN_CONTACT
 
                 # Publish the true patient contact message
                 patient_contact_status = True
@@ -394,7 +394,7 @@ class ImageContactBalanceNode(BasicNode):
                 # Check if there is enough patient contact to calculate the error from the skin layer
                 if abs(dark_sector_difference) < floor((len(self.sectors) * 0.1)):
 
-                    new_status = 'Calculating balance error'
+                    new_status = CALCULATING_BALANCE_ERROR
 
                     # Define an iterator for the half-sector
                     ii = 0
@@ -504,13 +504,13 @@ class ImageContactBalanceNode(BasicNode):
                         # Publish the skin approximation
                         self.skin_approximation_publisher.publish(skin_approximation_msg)
 
-                        new_status = 'Balance error calculated'
+                        new_status = BALANCE_ERROR_CALCULATED
 
                     else:
-                        new_status = 'Contact is too uneven'
+                        new_status = CONTACT_TOO_UNEVEN
 
             else:
-                new_status = 'No patient contact'
+                new_status = PATIENT_NOT_IN_CONTACT
 
             # Publish the patient contact and image error
             self.patient_contact_status_publisher.publish(Bool(patient_contact_status))
@@ -519,7 +519,7 @@ class ImageContactBalanceNode(BasicNode):
             patient_contact_error_msg.data.data = patient_contact_error
             self.patient_contact_error_publisher.publish(patient_contact_error_msg)
 
-        self.publish_node_status(new_status, delay_publishing=0.5, default_status='No images available')
+        self.publish_node_status(new_status, delay_publishing=0.5, default_status=NO_IMAGES_AVAILABLE)
 
 
 if __name__ == '__main__':

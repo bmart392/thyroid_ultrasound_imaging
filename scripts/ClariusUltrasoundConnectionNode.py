@@ -86,7 +86,7 @@ class ClariusUltrasoundConnectionNode(BasicNode):
         # Initialize the ROS node for publishing the data
         init_node(CLARIUS_US_PUBLISHER)
 
-        self.publish_node_status('Node initializing')
+        self.publish_node_status(INITIALIZING)
         self.log_single_message('Waiting to connect to scanner')
 
         # Capture current time

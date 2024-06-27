@@ -13,7 +13,7 @@ from thyroid_ultrasound_imaging_support.ImageManipulation.load_folder_of_image_f
 from thyroid_ultrasound_imaging_support.ImageData.convert_array_to_image_message import convert_array_to_image_message
 
 # Import custom ROS packages
-from ImageDataConverter import *
+from Test.Archive.ImageDataConverter import *
 
 
 # Define the node to test

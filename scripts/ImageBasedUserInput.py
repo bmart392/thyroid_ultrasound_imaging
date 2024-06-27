@@ -89,7 +89,7 @@ class ImageBasedUserInput(BasicNode):
             # If the next action is to generate a crop from a template
             if next_action == GENERATE_CROP_FROM_TEMPLATE:
 
-                self.publish_node_status(new_status='Loading crop coordinates')
+                self.publish_node_status(new_status=LOADING_CROP_COORDINATES)
 
                 # Create a window that will be used to ask the user
                 root = Tk()
@@ -151,7 +151,7 @@ class ImageBasedUserInput(BasicNode):
             # If the next action is to crop the image,
             if next_action == GENERATE_CROP:
 
-                self.publish_node_status('Generating crop')
+                self.publish_node_status(GENERATING_CROP)
                 self.log_single_message('Ready for user to select the coordinates')
 
                 # Allow the user to define the crop coordinates
@@ -199,7 +199,7 @@ class ImageBasedUserInput(BasicNode):
             # If the next action is to generate a segmentation initialization,
             elif next_action == GENERATE_INITIALIZATION:
 
-                self.publish_node_status(new_status='Generating new initialization')
+                self.publish_node_status(new_status=GENERATING_INITIALIZATION)
                 self.log_single_message('Creating initial mask')
 
                 # Define variables to store the selected points
@@ -266,7 +266,7 @@ class ImageBasedUserInput(BasicNode):
             # If the next action is to generate the parameters for a thresholding filter,
             elif next_action == GENERATE_PARAMETERS:
 
-                self.publish_node_status('Generating threshold parameters')
+                self.publish_node_status(GENERATING_THRESHOLD)
 
                 self.log_single_message('Ready to select threshold parameters')
 
@@ -294,7 +294,7 @@ class ImageBasedUserInput(BasicNode):
             # If the next action is to generate a ground truth mask,
             elif next_action == GENERATE_GROUND_TRUTH_MASK:
 
-                self.publish_node_status('Generating ground truth mask')
+                self.publish_node_status(GENERATING_GROUND_TRUTH)
 
                 self.log_single_message('Ready to select points')
 
@@ -346,7 +346,7 @@ class ImageBasedUserInput(BasicNode):
             else:
                 raise Exception("Action type was not recognized.")
 
-        self.publish_node_status(new_status=None, delay_publishing=0.5, default_status='Waiting')
+        self.publish_node_status(new_status=None, delay_publishing=0.5, default_status=WAITING)
 
     def generate_crop_coordinates_handler(self, req: BoolRequestRequest):
         if req.value:

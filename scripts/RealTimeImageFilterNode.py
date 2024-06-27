@@ -121,6 +121,9 @@ class RealTimeImageFilterNode(BasicNode):
         self.image_positioning_controller = ImagePositioningController(debug_mode=self.debug_mode,
                                                                        analysis_mode=self.analysis_mode)
 
+        # Define a variable to store a new initialization mask given to the node
+        self.new_initialization_mask = None
+
         # endregion
         #########################
 
@@ -214,25 +217,13 @@ class RealTimeImageFilterNode(BasicNode):
             # from the current image
             self.image_filter.do_not_create_new_previous_image_mask = True
 
-            # update the flag to allow image filtering to occur
-            self.image_filter.ready_to_filter = True
-
             # update status message
             self.log_single_message("New initialization mask received", LONG)
 
             # Convert the initialization mask from message form to array form
             initialization_mask = frombuffer(req.previous_image_mask.data, dtype=uint8)
-            initialization_mask = reshape(initialization_mask, (req.previous_image_mask.height,
+            self.new_initialization_mask = reshape(initialization_mask, (req.previous_image_mask.height,
                                                                 req.previous_image_mask.width))
-
-            # Save the mask to the image filter
-            self.image_filter.update_previous_image_mask(initialization_mask)
-
-            # Clear the history of masks in the filter
-            self.image_filter.previous_image_masks = []
-
-            # update status message
-            self.log_single_message("New initialization mask saved to the filter", LONG)
 
             return UpdateInitializationMaskResponse(True, NO_ERROR)
 
@@ -308,7 +299,7 @@ class RealTimeImageFilterNode(BasicNode):
 
         if len(self.received_images) > 0:
 
-            new_status = 'New image available'
+            new_status = IMAGES_AVAILABLE
 
             # record the current time for timing of processes
             start_of_process_time = time()
@@ -342,7 +333,26 @@ class RealTimeImageFilterNode(BasicNode):
             self.newest_image_data.image_title = self.image_title
             # self.cropped_image_publisher.publish(self.newest_image_data.convert_to_message())
 
-            new_status = 'Not ready to filter'
+            new_status = NOT_READY_TO_FILTER
+
+            if self.new_initialization_mask is not None:
+
+                new_status = UPDATING_FILTER_INITIALIZATION_MASK
+
+                # Save the mask to the image filter
+                self.image_filter.update_previous_image_mask(self.new_initialization_mask)
+
+                # Clear the history of masks in the filter
+                self.image_filter.previous_image_masks = []
+
+                # Clear the new initialization mask
+                self.new_initialization_mask = None
+
+                # update status message
+                self.log_single_message("New initialization mask saved to the filter", LONG)
+
+                # update the flag to allow image filtering to occur
+                self.image_filter.ready_to_filter = True
 
             if self.image_filter.ready_to_filter and self.image_filter.is_in_contact_with_patient:
                 # Create new image data based on received image
@@ -363,7 +373,7 @@ class RealTimeImageFilterNode(BasicNode):
                     # Filter the image
                     self.image_filter.filter_image(self.newest_image_data, override_existing_data=False)
 
-                    new_status = 'Analyzing image'
+                    new_status = ANALYZING_IMAGE
 
                 except SegmentationError as caught_exception:
                     # Note that the image filter can no longer filter images
@@ -406,7 +416,7 @@ class RealTimeImageFilterNode(BasicNode):
             # publish the result of the image filtering
             self.filtered_image_publisher.publish(self.newest_image_data.convert_to_message())
 
-        self.publish_node_status(new_status=new_status, delay_publishing=0.5, default_status='Waiting')
+        self.publish_node_status(new_status=new_status, delay_publishing=0.5, default_status=WAITING)
 
 
 if __name__ == '__main__':

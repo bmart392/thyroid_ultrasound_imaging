@@ -6,11 +6,13 @@ File containing ImagePositionRegistrationNode class definition and ROS running c
 # Import standard python packages
 from os import mkdir
 from os.path import isdir
-from copy import copy
+from copy import copy, deepcopy
+from cv_bridge import CvBridge
 
 # Import standard ROS packages
 from geometry_msgs.msg import WrenchStamped
 from armer_msgs.msg import ManipulatorState
+from std_msgs.msg import Float64MultiArray, MultiArrayDimension
 
 # Import custom python packages
 from thyroid_ultrasound_imaging_support.ImageData.ImageData import ImageData
@@ -77,8 +79,22 @@ class ImagePositionRegistrationNode(BasicNode):
         # Define a variable to store where to save the registered data
         self.registered_data_save_location = '/home/ben/thyroid_ultrasound_data/testing_and_validation/registered_data'
 
+        # Define a flag to know when to save a valid position
+        self.save_valid_positions = False
+
+        # Define two lists to store the last valid positions and masks
+        self.last_valid_positions = []
+        self.last_valid_masks = []
+        self.max_num_valid_data_points = 10
+
+        # Define the length of time between saving valid data
+        self.valid_position_time_interval = 0.25
+
         # Create the node object
         init_node(IMAGE_POSITION_REGISTRATION)
+
+        # Define a variable to store the last time a valid position and mask was saved
+        self.time_of_last_valid_position = Time.now()
 
         # Define the service proxy for notifying the trajectory node that data has been registered
         self.data_has_been_registered_service = ServiceProxy(TM_DATA_HAS_BEEN_REGISTERED, BoolRequest)
@@ -88,6 +104,12 @@ class ImagePositionRegistrationNode(BasicNode):
 
         # Define the service for setting the registered data save location
         Service(IPR_REGISTERED_DATA_SAVE_LOCATION, StringRequest, self.registered_data_save_location_handler)
+
+        # Define the service for starting to save valid data
+        Service(IPR_SAVE_VALID_POSITIONS, Float64Request, self.save_valid_positions_handler)
+
+        # Define the service for retrieving valid data
+        Service(IPR_RETRIEVE_VALID_DATA, ValidData, self.retrieve_valid_data_handler)
 
         # Publishes the resulting transformed data points from registered pairs of data
         self.transformed_points_publisher = Publisher(IMAGE_TRANSFORMED_POINTS, transformed_points,
@@ -116,7 +138,6 @@ class ImagePositionRegistrationNode(BasicNode):
             A message containing an image data object.
         """
         if self.register_new_data_flag and self.filtered_image is None:
-
             # Save the image data object equivalent
             self.filtered_image = ImageData(image_data_msg=msg)
 
@@ -208,9 +229,57 @@ class ImagePositionRegistrationNode(BasicNode):
         else:
             return StringRequestResponse(was_succesful=False, message='Invalid directory.')
 
+    def save_valid_positions_handler(self, req: Float64RequestRequest):
+        if req.value == 0:
+            self.save_valid_positions = False
+        else:
+            self.save_valid_positions = True
+            self.valid_position_time_interval = abs(req.value)
+        return Float64RequestResponse(True, NO_ERROR)
+
     def register_new_data_handler(self, req: BoolRequestRequest):
         self.register_new_data_flag = req.value
         return BoolRequestResponse(True, NO_ERROR)
+
+    # endregion
+    ##################
+
+    ##################
+    # Service callbacks
+    # region
+
+    def retrieve_valid_data_handler(self, req: ValidDataRequest):
+
+        # Make copies of the data that will be sent
+        pose_to_send = deepcopy(self.last_valid_positions[req.data_point_index])
+        mask_to_send = deepcopy(self.last_valid_masks[req.data_point_index])
+
+        # Create the message that will contain the pose
+        pose_message = Float64MultiArray()
+
+        # Define the data padding to be zero
+        pose_message.layout.data_offset = 0
+
+        # Define the layout of the array
+        pose_message.layout.dim.append(MultiArrayDimension())
+        pose_message.layout.dim[0].label = "rows"
+        pose_message.layout.dim[0].size = pose_to_send.shape[0]
+        pose_message.layout.dim[0].stride = pose_to_send.shape[0] * pose_to_send.shape[1]
+
+        pose_message.layout.dim.append(MultiArrayDimension())
+        pose_message.layout.dim[1].label = "columns"
+        pose_message.layout.dim[1].size = pose_to_send.shape[1]
+        pose_message.layout.dim[1].stride = 0
+
+        # Create a bridge to convert the mask
+        bridge = CvBridge()
+
+        # Convert the mask to an image
+        mask_message = bridge.cv2_to_imgmsg(mask_to_send)
+
+        return ValidDataResponse(valid_pose=pose_message,
+                                 valid_mask=mask_message,
+                                 was_succesful=True, message=NO_ERROR)
 
     # endregion
     ##################
@@ -288,14 +357,16 @@ class ImagePositionRegistrationNode(BasicNode):
 
     def main_loop(self):
 
-        if self.register_new_data_flag:
+        if self.register_new_data_flag or (self.save_valid_positions and
+                                           Time.now() - self.time_of_last_valid_position >
+                                           self.valid_position_time_interval):
 
             # Wait until a new filtered image has been received
             if self.filtered_image is None:
                 return
 
             # Create a local copy of the filtered image
-            local_filtered_image = copy(self.filtered_image)
+            local_filtered_image: ImageData = copy(self.filtered_image)
 
             # Find the outer level key of the oldest image
             newest_image_seconds = local_filtered_image.image_capture_time.secs
@@ -326,35 +397,49 @@ class ImagePositionRegistrationNode(BasicNode):
 
             # If a pose and a force were found that match the image
             if closest_pose_nanoseconds is not None and closest_force_nanoseconds is not None:
-                # Publish the pose and the image
-                new_registered_data = RegisteredData(image_data_object=local_filtered_image,
-                                                     robot_pose=local_list_of_robot_poses[
-                                                         closest_pose_nanoseconds][
-                                                         OBJECT],
-                                                     robot_force=local_list_of_robot_forces[
-                                                         closest_force_nanoseconds][
-                                                         OBJECT],
-                                                     )
 
-                # Save the new registered data object
-                new_registered_data.save_load(action=SAVE_OBJECT,
-                                              path_to_file_location=self.registered_data_save_location)
-                # Publish the registered data
-                # self.registered_data_publisher.publish(new_registered_data.convert_object_message(TO_MESSAGE))
+                if self.register_new_data_flag:
 
-                # Remove both the pose and the force from the selection of stored data
-                try:
-                    self.list_of_robot_poses[newest_image_seconds].pop(closest_pose_nanoseconds)
-                except KeyError:
-                    pass
-                try:
-                    self.list_of_robot_forces[newest_image_seconds].pop(closest_pose_nanoseconds)
-                except KeyError:
-                    pass
+                    # Publish the pose and the image
+                    new_registered_data = RegisteredData(image_data_object=local_filtered_image,
+                                                         robot_pose=local_list_of_robot_poses[
+                                                             closest_pose_nanoseconds][
+                                                             OBJECT],
+                                                         robot_force=local_list_of_robot_forces[
+                                                             closest_force_nanoseconds][
+                                                             OBJECT],
+                                                         )
 
-                self.data_has_been_registered_service(True)
-                self.filtered_image = None
-                self.register_new_data_flag = False
+                    # Save the new registered data object
+                    new_registered_data.save_load(action=SAVE_OBJECT,
+                                                  path_to_file_location=self.registered_data_save_location)
+                    # Publish the registered data
+                    # self.registered_data_publisher.publish(new_registered_data.convert_object_message(TO_MESSAGE))
+
+                    # Remove both the pose and the force from the selection of stored data
+                    try:
+                        self.list_of_robot_poses[newest_image_seconds].pop(closest_pose_nanoseconds)
+                    except KeyError:
+                        pass
+                    try:
+                        self.list_of_robot_forces[newest_image_seconds].pop(closest_pose_nanoseconds)
+                    except KeyError:
+                        pass
+
+                    self.data_has_been_registered_service(True)
+                    self.filtered_image = None
+                    self.register_new_data_flag = False
+
+                elif self.save_valid_positions:
+
+                    # Save the position and mask
+                    self.last_valid_positions.append(local_list_of_robot_poses[closest_pose_nanoseconds][OBJECT])
+                    self.last_valid_masks.append(local_filtered_image.image_mask)
+
+                    # Maintain the length of the lists
+                    for this_list in [self.last_valid_positions, self.last_valid_masks]:
+                        if len(this_list) > self.max_num_valid_data_points:
+                            this_list.pop(0)
 
 
 if __name__ == '__main__':
