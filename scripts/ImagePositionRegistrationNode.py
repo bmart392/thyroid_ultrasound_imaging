@@ -41,6 +41,7 @@ FOLDER_OF_REGISTERED_DATA_PREFIX: str = '/Exam'
 # TODO - Dream - Add proper try-catch error checking everywhere and incorporate logging into it
 # TODO - Dream - Add logging through the BasicNode class
 # TODO - Medium - Why does it register more than one data per waypoint?
+# TODO - Low - This is for a test
 
 
 class ImagePositionRegistrationNode(BasicNode):
