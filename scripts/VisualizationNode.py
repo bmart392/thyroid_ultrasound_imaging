@@ -4,11 +4,9 @@
 File containing VisualizationNode class definition and ROS running code.
 """
 
-# TODO - Dream - Add logging with the BasicNode class
-# TODO - Dream - Add proper try-cath error checking everywhere and incorporate logging into it
-# TODO - Dream - Add proper node status publishing
-# TODO - Medium - Add in visualizations for non-real time image filtering that is separate from the real-time visualization framework
-# TODO - Dream - Store visuals in a dictionary so that windows can be closed whenever a command is sent to hide them
+# TODO - Medium - Add in visualizations for non-real time image filtering that is separate from
+#  the real-time visualization framework
+# TODO - Dream - Find a way to destroy the visualization windows when images are no longer being published to them
 
 # Import standard ROS messages
 from std_msgs.msg import Int8
@@ -16,7 +14,6 @@ from sensor_msgs.msg import Image
 
 # Import standard python packages
 from copy import deepcopy
-from cv2 import imshow, waitKey
 
 # Import custom ROS messages and services
 from thyroid_ultrasound_messages.msg import image_data_message, SkinContactLines
@@ -58,9 +55,6 @@ class VisualizationNode(BasicNode):
 
         # Define a subscriber to listen for raw images
         Subscriber(IMAGE_SOURCE, Image, self.raw_image_data_message_callback)
-
-        # Define a subscriber to listen for cropped images
-        # Subscriber(IMAGE_CROPPED, image_data_message, self.cropped_image_data_message_callback)
 
         # Define a subscriber to listen for fully filtered images
         Subscriber(IMAGE_FILTERED, image_data_message,
@@ -107,24 +101,6 @@ class VisualizationNode(BasicNode):
             self.images_to_visualize[IMAGE_RAW][IMAGE] = temp_image_to_visualize
         else:
             self.images_to_visualize[IMAGE_RAW][IMAGE].original_image = temp_image_to_visualize.original_image
-
-    def cropped_image_data_message_callback(self, message: image_data_message):
-        """
-        Converts the received cropped image data message to an image data object and then visualizes it.
-
-        Parameters
-        ----------
-        message
-            An image_data_msg representing the cropped image to visualize.
-        """
-        # Generate a temporary image data object
-        temp_image_to_visualize = ImageData(image_data_msg=message)
-
-        # # Copy the cropped image field into the data to visualize
-        # if self.images_to_visualize[IMAGE_CROPPED][IMAGE] is None:
-        #     self.images_to_visualize[IMAGE_CROPPED][IMAGE] = temp_image_to_visualize
-        # else:
-        #     self.images_to_visualize[IMAGE_CROPPED][IMAGE].cropped_image = temp_image_to_visualize.cropped_image
 
     def filtered_image_data_message_callback(self, message: image_data_message):
         """
@@ -199,6 +175,8 @@ class VisualizationNode(BasicNode):
             }
 
     def set_visualization(self, req: StatusVisualizationRequest):
+        """Handles the request to update the list of visualizations."""
+
         # Find the correct dictionary category
         if req.visualization == SHOW_ORIGINAL:
             dict_category = IMAGE_RAW
@@ -215,43 +193,59 @@ class VisualizationNode(BasicNode):
         elif req.visualization == SHOW_SKIN_APPROXIMATION:
             dict_category = IMAGE_SKIN_APPROXIMATION
         else:
+            self.log_single_message('Visualization requested was not recognized')
             return StatusVisualizationResponse(was_succesful=False, message='Visualization not recognized')
 
         # Add the visualization if necessary
         if req.status:
             if req.visualization not in self.images_to_visualize[dict_category][VISUALIZATIONS]:
                 self.images_to_visualize[dict_category][VISUALIZATIONS].append(req.visualization)
+                self.log_single_message('New visualization of added')
 
         # Otherwise remove the visualization if necessary
         else:
             if req.visualization in self.images_to_visualize[dict_category][VISUALIZATIONS]:
                 self.images_to_visualize[dict_category][VISUALIZATIONS].pop(
                     self.images_to_visualize[dict_category][VISUALIZATIONS].index(req.visualization))
+                self.log_single_message('Existing visualization removed')
 
         return StatusVisualizationResponse(was_succesful=True, message='')
 
     # endregion
     ###########################
     def publish_updated_image(self):
-        """
-        Display all available images.
-        """
+        """Display all available images."""
+
+        # Define the local variable for the status
+        new_status = None
 
         # For each type of image in the data set
         for key in self.images_to_visualize.keys():
 
-            # If the image exists
+            # Only set the status the first time
+            if new_status is None:
+                new_status = NO_IMAGES_AVAILABLE
+
+            # If the image exists,
             if self.images_to_visualize[key][IMAGE] is not None:
-                # Visualize it
+
+                # Set the local skin approximation parameters only if visualizing the skin approximation
                 if key == IMAGE_SKIN_APPROXIMATION:
-                    self.image_visualizer.visualize_images(
-                        deepcopy(self.images_to_visualize[key][IMAGE]),  # Coping avoids issues with data modification
-                        specific_visualizations=self.images_to_visualize[key][VISUALIZATIONS],
-                        skin_approximation_parameters=self.images_to_visualize[key][SKIN_CONTACT_PARAMETERS])
+                    local_skin_approximation_parameters = self.images_to_visualize[key][SKIN_CONTACT_PARAMETERS]
                 else:
-                    self.image_visualizer.visualize_images(
-                        deepcopy(self.images_to_visualize[key][IMAGE]),  # Coping avoids issues with data modification
-                        specific_visualizations=self.images_to_visualize[key][VISUALIZATIONS])
+                    local_skin_approximation_parameters = None
+
+                # Visualize the image
+                self.image_visualizer.visualize_images(
+                    deepcopy(self.images_to_visualize[key][IMAGE]),  # Copying avoids issues with data modification
+                    specific_visualizations=self.images_to_visualize[key][VISUALIZATIONS],
+                    skin_approximation_parameters=local_skin_approximation_parameters)
+
+                # Set the appropriate status
+                new_status = VISUALIZING_IMAGES
+
+        self.publish_node_status(new_status=new_status, delay_publishing=0.5,
+                                 default_status=NO_VISUALIZATIONS_ACTIVE)
 
 
 if __name__ == '__main__':

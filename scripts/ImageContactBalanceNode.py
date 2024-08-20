@@ -13,13 +13,12 @@ File containing code to ensure even patient contact.
 #  then also only look at the same window to find the skin layer.
 
 # Import standard python packages
-from numpy import zeros, linspace, array, polyfit
-from rospy import Time, Duration
+from numpy import zeros, linspace, polyfit
 from sensor_msgs.msg import Image
 
 # Import custom ROS packages
 from thyroid_ultrasound_support.BasicNode import *
-from thyroid_ultrasound_messages.msg import image_data_message, Float64Stamped, SkinContactLines
+from thyroid_ultrasound_messages.msg import Float64Stamped, SkinContactLines
 
 # Import custom python packages
 from thyroid_ultrasound_imaging_support.ImageData.ImageData import ImageData
@@ -169,6 +168,10 @@ class ImageContactBalanceNode(BasicNode):
         # Define a subscriber to listen for the imaging depth
         Subscriber(IMAGE_DEPTH, Float64, self.image_depth_callback)
 
+        # Save the current time as the last time an image was published
+        self.time_of_last_publishing = Time.now()
+
+        # Log that the node is ready
         self.log_single_message('Node initialized')
 
     ###############
@@ -299,8 +302,6 @@ class ImageContactBalanceNode(BasicNode):
 
         # If there is a new ultrasound image
         if len(self.new_ultrasound_images) > 0:
-
-            self.time_of_last_analysis = Time.now()
 
             new_status = IMAGES_AVAILABLE
 

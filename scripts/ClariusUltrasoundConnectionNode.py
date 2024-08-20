@@ -4,23 +4,17 @@
 File containing ImageFiterNode class definition and ROS running code.
 """
 
-# TODO - Dream - Add proper logging stuff using the BasicNode class
-# TODO - Dream - Add proper try-cath error checking everywhere and incorporate logging into it
-# TODO - Dream - Add proper status publishing
-# TODO - High - Use the imaging depth stored within each image data object
 
 # Import standard python packages
 from numpy import zeros, uint8, array
 import ctypes
 from os.path import exists, expanduser, isdir
 from os import makedirs
-import sys
 from PIL import Image
 from PySide2 import QtGui
 from cv2 import imshow, cvtColor, waitKey, destroyAllWindows, COLOR_BGR2GRAY, COLOR_GRAY2BGR
 from datetime import date, datetime
 from matplotlib.image import imsave
-from rospy import Duration
 
 # Import standard ROS packages
 from cv_bridge import CvBridge
@@ -142,6 +136,7 @@ class ClariusUltrasoundConnectionNode(BasicNode):
     # noinspection PyUnusedLocal
     @staticmethod
     def new_processed_image(image, width, height, sz, microns_per_pixel, timestamp, angle, imu):
+        """Updates the new processed image variable."""
         global processed_image
 
         # Process the image received
@@ -154,50 +149,82 @@ class ClariusUltrasoundConnectionNode(BasicNode):
 
     @staticmethod
     def new_raw_image(image, lines, samples, bps, axial, lateral, timestamp, jpg, rf, angle):
+        """Does nothing but is required for the class."""
         return
 
     @staticmethod
     def new_spectrum_image(image, lines, samples, bps, period, microns_per_sample, velocity_per_sample, pw):
+        """Does nothing but is required for the class."""
         return
 
     @staticmethod
     def freeze_function(frozen):
+        """Updates the global variable tracking when the image is frozen."""
         global is_image_frozen
         is_image_frozen[OLD_VALUE] = is_image_frozen[NEW_VALUE]
         is_image_frozen[NEW_VALUE] = frozen
 
     @staticmethod
     def buttons_function(button, clicks):
+        """Updates when a button has been pressed."""
         print("button pressed: {0}, clicks: {1}".format(button, clicks))
         return
 
     def save_images_handler(self, req: BoolRequestRequest):
+        """Handles the request to save images."""
 
+        # Save request for future use
         self.save_incoming_images = req.value
 
+        # If requested to save images
         if req.value:
+
+            # If a destination for the images exists,
             if self.folder_destination is not None:
+
+                # Create the path to the folder where the images will be saved
                 self.folder_path = self.folder_destination + '/' + str(date.today()) + '_' + \
                                    datetime.now().strftime('%H-%M')
+
+                # Make a folder if it does not already exist
                 if not exists(self.folder_path):
                     makedirs(self.folder_path)
+                    self.log_single_message('New folder for saved images created at ' + self.folder_path)
+
+                # Reset the index number for each image saved and log the update
                 self.saved_image_index = 1
+                self.log_single_message('Image saving activated')
+
+            # Otherwise, fail the request
             else:
                 return BoolRequestResponse(False, 'No selected directory')
+
+        # Otherwise, log the request
+        else:
+            self.log_single_message('Image saving de-activated')
+
         return BoolRequestResponse(True, NO_ERROR)
 
     def saved_images_destination_handler(self, req: StringRequestRequest):
+        """Handle the request to update where the images should be saved."""
 
+        # If the requested destination exists,
         if isdir(req.value):
+
+            # Save the destination and log the change
             self.folder_destination = req.value
+            self.log_single_message('New destination for saved images is ' + req.value)
             return StringRequestResponse(True, NO_ERROR)
+
+        # Otherwise, fail the request as invalid
         else:
             return StringRequestResponse(False, 'Path is invalid')
 
     def save_image(self, image: array):
+        """Saves the image currently saved in the class to the disk."""
 
-        if image.sum() / (IMAGE_HEIGHT * IMAGE_WIDTH) > 25 and not \
-                is_image_frozen[NEW_VALUE] and self.folder_path is not None:
+        # If the image is not empty, not frozen, and the path to where to save the images exists,
+        if image.sum() / (IMAGE_HEIGHT * IMAGE_WIDTH) > 25 and self.folder_path is not None:
 
             # Save the image to the proper location
             imsave(self.folder_path + '/Slice_' + str(self.saved_image_index).zfill(5) + FILE_EXTENSION,
@@ -226,8 +253,23 @@ class ClariusUltrasoundConnectionNode(BasicNode):
                 imshow('raw image', bscan)
                 waitKey(1)
 
-            if self.save_incoming_images:
-                self.save_image(bscan)
+            # If the image is not frozen,
+            if is_image_frozen[NEW_VALUE]:
+
+                # If the image should be saved,
+                if self.save_incoming_images:
+
+                    # Save the image and send the appropriate status
+                    self.save_image(bscan)
+                    self.publish_node_status(SENDING_IMAGES_SAVING_IMAGES)
+
+                # Otherwise don't save the image and publish the appropriate status
+                else:
+                    self.publish_node_status(SENDING_IMAGES_NOT_SAVING_IMAGES)
+
+            # Otherwise publish that the image is frozen
+            else:
+                self.publish_node_status(IMAGE_FROZEN_NOT_SAVING_IMAGES)
 
             # Only publish a new status when the status of the image has changed
             if is_image_frozen[NEW_VALUE] != is_image_frozen[OLD_VALUE]:

@@ -5,14 +5,6 @@ File containing the RealTimeImageFiterNode class definition and ROS running code
 """
 
 # TODO - Dream - Create fusion filter of Grabcut & Threshold types. Combine using Beysian probability.
-# TODO - Dream - Add logging through BasicNode class
-# TODO - Dream - Add a comparison between the image used to generate the initialization mask and the current image to
-#  ensure mask is still good
-# TODO - Dream - Add proper try-cath error checking everywhere and incorporate logging into it
-# TODO - Dream - Add a check to make sure that any image processed by the image filter is no less than half a second old
-# TODO - High - Add a catch to ensure that if an image message is too old it will not be segmented and just thrown out
-#  instead
-# TODO - High - Make sure that the foreground shrinking actually goes by DICE score so that the region can never be shrunk out of the mask
 
 # Import standard packages
 from numpy import frombuffer, reshape, uint8
@@ -23,8 +15,7 @@ from copy import copy
 from sensor_msgs.msg import Image
 
 # Import custom ROS packages
-from thyroid_ultrasound_messages.msg import image_data_message, image_crop_coordinates, \
-    initialization_mask_message, threshold_parameters
+from thyroid_ultrasound_messages.msg import image_data_message
 
 # Import custom packages
 from thyroid_ultrasound_imaging_support.ImageData.ImageData import ImageData
@@ -223,7 +214,7 @@ class RealTimeImageFilterNode(BasicNode):
             # Convert the initialization mask from message form to array form
             initialization_mask = frombuffer(req.previous_image_mask.data, dtype=uint8)
             self.new_initialization_mask = reshape(initialization_mask, (req.previous_image_mask.height,
-                                                                req.previous_image_mask.width))
+                                                                         req.previous_image_mask.width))
 
             return UpdateInitializationMaskResponse(True, NO_ERROR)
 
@@ -336,7 +327,6 @@ class RealTimeImageFilterNode(BasicNode):
             new_status = NOT_READY_TO_FILTER
 
             if self.new_initialization_mask is not None:
-
                 new_status = UPDATING_FILTER_INITIALIZATION_MASK
 
                 # Save the mask to the image filter

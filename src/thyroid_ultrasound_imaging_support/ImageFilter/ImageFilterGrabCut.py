@@ -346,7 +346,8 @@ class ImageFilterGrabCut(ImageFilter):
                 self.sure_foreground_creation_iterations is None:
             image_data.sure_foreground_mask = create_dice_score_mask(image_data.post_processed_mask,
                                                                      self.sure_foreground_creation_dice_score,
-                                                                     given_kernel_size=self.sure_foreground_creation_kernel_size)
+                                                                     given_kernel_size=self.sure_foreground_creation_kernel_size,
+                                                                     mandate_minimum_one_iteration=True)
 
         else:
             raise Exception('Issue creating foreground mask')
@@ -374,7 +375,8 @@ class ImageFilterGrabCut(ImageFilter):
                 self.sure_background_creation_iterations is None:
             image_data.sure_background_mask = 1 - create_dice_score_mask(image_data.post_processed_mask,
                                                                          self.sure_background_creation_dice_score,
-                                                                         given_kernel_size=self.sure_background_creation_kernel_size)
+                                                                         given_kernel_size=self.sure_background_creation_kernel_size,
+                                                                         mandate_minimum_one_iteration=True)
         else:
             raise Exception('Issue creating background mask')
 

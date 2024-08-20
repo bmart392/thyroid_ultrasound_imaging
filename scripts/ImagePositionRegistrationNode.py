@@ -8,6 +8,7 @@ from os import mkdir
 from os.path import isdir
 from copy import copy, deepcopy
 from cv_bridge import CvBridge
+from numpy import array, median
 
 # Import standard ROS packages
 from geometry_msgs.msg import WrenchStamped
@@ -41,7 +42,6 @@ FOLDER_OF_REGISTERED_DATA_PREFIX: str = '/Exam'
 # TODO - Dream - Add proper try-catch error checking everywhere and incorporate logging into it
 # TODO - Dream - Add logging through the BasicNode class
 # TODO - Medium - Why does it register more than one data per waypoint?
-# TODO - Low - This is for a test
 
 
 class ImagePositionRegistrationNode(BasicNode):
@@ -90,6 +90,15 @@ class ImagePositionRegistrationNode(BasicNode):
 
         # Define the length of time between saving valid data
         self.valid_position_time_interval = 0.25
+
+        # Define variables to use to calculate the necessary time offset for data coming from the robot
+        self.time_of_first_pose_message = None
+        self.measurement_delay_time = Duration(secs=3)  # seconds
+        self.number_of_messages_to_count = 500
+        self.measured_delays = []
+        self.calculated_time_difference = Duration()
+        self.has_time_delay_been_reached = False
+        self.has_time_difference_been_calculated = False
 
         # Create the node object
         init_node(IMAGE_POSITION_REGISTRATION)
@@ -152,6 +161,36 @@ class ImagePositionRegistrationNode(BasicNode):
             A message containing the full state of the robot
         """
 
+        # If the time difference between the robot pose message time stamps and
+        # the current time at this node not has been calculated
+        if not self.has_time_difference_been_calculated:
+
+            # Note the time that this message arrived if it is the first message to arrive
+            if self.time_of_first_pose_message is None:
+                self.time_of_first_pose_message = msg.ee_pose.header.stamp
+
+            # Otherwise,
+            else:
+                # Get the current time at this node
+                current_time = Time.now()
+
+                # If the node has already waited the required amount of time before calculating the difference
+                if self.has_time_delay_been_reached:
+
+                    # Record the difference between the current time and the timestamp
+                    self.measured_delays.append((current_time - msg.ee_pose.header.stamp).to_sec())
+
+                    # If enough data has been recorded,
+                    if len(self.measured_delays) >= self.number_of_messages_to_count:
+
+                        # Calculate the median delay time as a duration
+                        self.calculated_time_difference = Duration().from_sec(median(array(self.measured_delays)))
+                        self.has_time_difference_been_calculated = True
+
+                # Otherwise, if the node has delayed for long enough, note that data can be collected now
+                elif current_time - self.time_of_first_pose_message > self.measurement_delay_time:
+                    self.has_time_delay_been_reached = True
+
         # Convert the pose from the message into an array
         pose_as_matrix = convert_pose_to_transform_matrix(msg.ee_pose.pose)
 
@@ -161,14 +200,14 @@ class ImagePositionRegistrationNode(BasicNode):
                                                                 msg_type=FLOAT_ARRAY,
                                                                 point_dim=FOUR_D)
 
-        # Capture the current time
-        current_time = Time.now()
+        # Capture the time of the message
+        message_time = msg.ee_pose.header.stamp - self.calculated_time_difference
 
         # Define the outer level key to store in the dictionary
-        outer_level_key = current_time.secs  # msg.ee_pose.header.stamp.secs
+        outer_level_key = message_time.secs  # msg.ee_pose.header.stamp.secs
 
         # Define the lower level key and the value to store in the dictionary
-        key_value_pair = {current_time.nsecs: (RobotPose(robot_pose=pose_as_matrix), pose_as_multi_array)}
+        key_value_pair = {message_time.nsecs: (RobotPose(robot_pose=pose_as_matrix), pose_as_multi_array)}
 
         try:
             # Try to add the new data into the existing place in the dictionary

@@ -11,7 +11,10 @@ from cv2 import morphologyEx, MORPH_ERODE, MORPH_DILATE, imshow, waitKey
 from thyroid_ultrasound_imaging_support.Validation.calculate_dice_score import calculate_dice_score
 
 
-def create_dice_score_mask(original_mask: ndarray, dice_score_to_achieve: float, given_kernel_size: tuple = None) -> ndarray:
+def create_dice_score_mask(original_mask: ndarray,
+                           dice_score_to_achieve: float,
+                           given_kernel_size: tuple = None,
+                           mandate_minimum_one_iteration: bool = False) -> ndarray:
     """
     Creates an image mask with the desired DICE score relative to the original mask by eroding the original mask.
 
@@ -23,6 +26,9 @@ def create_dice_score_mask(original_mask: ndarray, dice_score_to_achieve: float,
         The DICE score that should be achieved.
     given_kernel_size :
         The size of the kernel to use to morph the given mask
+    mandate_minimum_one_iteration :
+        Requires that the mask is shrunk or grown by at least one iteration
+        even if it results in a less accurate DICE score.
 
     Returns
     -------
@@ -75,6 +81,9 @@ def create_dice_score_mask(original_mask: ndarray, dice_score_to_achieve: float,
     else:
         continue_iterating_flag = inverse_dice_score_to_achieve <= current_mask_score
 
+    # Define an iteration counter
+    iteration_counter = 0
+
     # While the mask has not reached the desired DICE score,
     while continue_iterating_flag:
 
@@ -109,13 +118,18 @@ def create_dice_score_mask(original_mask: ndarray, dice_score_to_achieve: float,
         else:
             continue_iterating_flag = inverse_dice_score_to_achieve <= current_mask_score
 
+        # Increment the iteration counter
+        iteration_counter = iteration_counter + 1
+
     # Choose the mask with the score closest to the desired score to return
     if shrink_mask:
         comparison_score = dice_score_to_achieve
     else:
         comparison_score = inverse_dice_score_to_achieve
 
-    if abs(previous_result_mask_score - comparison_score) < abs(current_mask_score - comparison_score):
+    if mandate_minimum_one_iteration and iteration_counter == 1:
+        result_mask = current_mask
+    elif abs(previous_result_mask_score - comparison_score) < abs(current_mask_score - comparison_score):
         result_mask = previous_result_mask
     else:
         result_mask = current_mask

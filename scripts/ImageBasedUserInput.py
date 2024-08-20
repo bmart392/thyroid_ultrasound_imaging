@@ -4,28 +4,23 @@
 Contains all code for the ImageBasedUserInput node.
 """
 
-# TODO - Dream - Allow the user to either select just the foreground or the foreground and the background of the image
-# TODO - Dream - Stop having the whole window close after giving each input step when generating threshold parameters.
-
 # Import ROS packages
 from cv_bridge import CvBridge
-from sensor_msgs.msg import Image
+from rospy import sleep
 
 # Import custom ROS specific packages
-from thyroid_ultrasound_messages.msg import image_data_message, image_crop_coordinates, \
+from thyroid_ultrasound_messages.msg import image_crop_coordinates, \
     initialization_mask_message, threshold_parameters
 from thyroid_ultrasound_support.BasicNode import *
 from thyroid_ultrasound_services.srv import *
 
 # Import from standard packages
-from copy import copy
 from numpy import load, save, array
 from tkinter.filedialog import askopenfilename, asksaveasfilename
 from tkinter import Tk
 
 # Import from custom packages
 from thyroid_ultrasound_imaging_support.ImageData.ImageData import ImageData
-from thyroid_ultrasound_imaging_support.ImageFilter.FilterConstants import COLOR_GRAY
 from thyroid_ultrasound_imaging_support.UserInput.user_input_crop_coordinates import user_input_crop_coordinates
 from thyroid_ultrasound_imaging_support.UserInput.user_input_polygon_points import user_input_polygon_points
 from thyroid_ultrasound_imaging_support.UserInput.get_threshold_values_user_input import \
@@ -69,15 +64,11 @@ class ImageBasedUserInput(BasicNode):
         Service(IB_UI_CROP_IMAGE_FROM_TEMPLATE, BoolRequest, self.generate_crop_coordinates_from_template_handler)
         Service(IB_UI_IDENTIFY_THYROID_FROM_POINTS, BoolRequest, self.generate_grabcut_initialization_mask_handler)
 
-        # Define a subscriber to listen for the raw images
-        # Subscriber(IMAGE_SOURCE, Image, self.raw_image_callback)
+        # Save the current time as the last time an image was published
+        self.time_of_last_publishing = Time.now()
 
-        # Define a subscriber to listen for the cropped images
-        # Subscriber(IMAGE_CROPPED, image_data_message, self.cropped_image_callback)
-
-        # Note when
-        self.time_of_last_analysis = Time.now()
-        self.log_single_message('Node ready')
+        # Log that the node is ready
+        self.log_single_message('Node initialized')
 
     def main_loop(self, local_image_data: ImageData = None):
 
@@ -138,14 +129,30 @@ class ImageBasedUserInput(BasicNode):
                     self.log_single_message('Invalid path was selected')
                     return
 
-            # Get image data from the image filter node to complete the remaining actions
-            try:
-                local_image_data = ImageData(image_data_msg=self.retrieve_newest_image_data().image_data)
+            # Try to get the image data from the image filter node to complete the remaining actions
+            num_attempts = 0
+            max_num_attempts = 5
+            while True:
+                if num_attempts < max_num_attempts:
+                    try:
+                        local_image_data = ImageData(image_data_msg=self.retrieve_newest_image_data().image_data)
 
-            # If the service is not running and data was not passed into the function, simply do nothing
-            except ServiceException:
-                if local_image_data is None:
-                    self.log_single_message('Service for retrieving image is not running')
+                    # If the service is not running and data was not passed into the function, simply do nothing
+                    except ServiceException:
+                        if local_image_data is None:
+                            self.log_single_message('Service for retrieving image is not running')
+                            return
+
+                    # If an image has been returned, move on
+                    if local_image_data is not None:
+                        break
+
+                    # Otherwise wait a quarter of a second and then keep counting the number of attempts
+                    sleep(0.25)  # seconds
+                    num_attempts = num_attempts + 1
+
+                # If the attempt has failed too many times, quit and try again after the user requests the action again
+                else:
                     return
 
             # If the next action is to crop the image,
