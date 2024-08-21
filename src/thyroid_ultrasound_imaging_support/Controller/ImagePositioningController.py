@@ -49,100 +49,32 @@ class ImagePositioningController:
         z_angle_error = 0
 
         # Calculate position errors using centroid location in pixels and image size
-        """if len(image_data.contour_centroids) == 2:
+        if False and len(image_data.contour_centroids) > 1:
 
             # In X in the image frame, balance the centroids across the middle of the image
             centroid_one = image_data.contour_centroids[0]
             centroid_two = image_data.contour_centroids[1]
             x_error = centroid_one[0] - centroid_two[0]
 
-            # In Y in the image frame, average the centroids distance to the top of the image
-            y_error = (centroid_one[1] + centroid_two[1]) / 2"""
+        elif len(image_data.contour_centroids) == 1:
 
-        # elif len(image_data.contour_centroids) == 1:
+            # Rename the centroid for ease of use
+            centroid = image_data.contour_centroids[0]
 
-        # Rename the centroid for ease of use
-        centroid = image_data.contour_centroids[0]
+            # In X in the image frame, measure the distance to the middle of the image
+            center_offset = ceil(self.set_point_offset * image_data.ds_image_size_x)
+            center = (image_data.ds_image_size_x / 2) + center_offset
+            distance_from_center = centroid[0] - center
 
-        # In X in the image frame, measure the distance to the middle of the image
-        center_offset = ceil(self.set_point_offset * image_data.ds_image_size_x)
-        center = (image_data.ds_image_size_x / 2) + center_offset
-        distance_from_center = centroid[0] - center
+            x_error = centroid[0] - image_data.ds_image_size_x * (self.set_point_offset + 0.5)
 
-        x_error = centroid[0] - image_data.ds_image_size_x * (self.set_point_offset + 0.5)
+        else:
 
-
-        # In Y in the image frame, measure the distance to the top of the image
-        # y_error = centroid[1] * self.calculate_resolution(image_data.image_size_y)
-
-        """else:
-
-            raise Exception(str(len(image_data.contour_centroids)) + " centroids were found included in the image. ")"""
+            raise Exception(str(len(image_data.contour_centroids)) + " centroids were found included in the image. ")
 
         # Send the position errors relative to the camera frame
         exact_position_errors = [round(x_error, 5), round(y_error, 5), round(z_error, 5),
                                  round(x_angle_error, 1), round(y_angle_error, 1), round(z_angle_error, 1)]
 
-        # Define a temporary flag to determine if the image is centered
-        temp_is_image_centered = True
+        return exact_position_errors
 
-        # Define a temporary place to store the control inputs
-        # adjusted_position_errors = []
-
-        # Check if the error is within an acceptable amount
-        for single_dimension_error, single_dimension_acceptable_error in zip(exact_position_errors,
-                                                                             self.acceptable_errors):
-
-            # Determine if the error is acceptable in a single dimension
-            is_dimension_centered = single_dimension_acceptable_error >= abs(single_dimension_error)
-
-            """# Calculate the control input for the given dimension
-            if not is_dimension_centered:
-                adjusted_position_errors.append(single_dimension_error)
-            else:
-                adjusted_position_errors.append(0)"""
-
-            # Calculate if the image is centered in all dimensions
-            temp_is_image_centered = temp_is_image_centered * is_dimension_centered
-
-        return exact_position_errors, temp_is_image_centered
-
-    """def calculate_control_input(self, image_data: ImageData):
-
-        # Calculate position errors using centroid location in pixels and image size
-        position_errors = [(image_data.contour_centroids[0][0] - (image_data.image_size_x / 2)) * self.x_resolution,
-                           # 0
-                           0,
-                           # (image_data.contour_centroids[0][0] - (image_data.image_size_x / 2)) * self.x_resolution,
-                           0,
-                           # -(image_data.contour_centroids[0][1] - (image_data.image_size_y / 2)) * self.z_resolution,
-                           0, 0, 0]
-
-        if self.debug_mode:
-            print("X error - meters = ", position_errors[0])
-            print("X error - pixels = ", position_errors[0] / self.x_resolution)
-            print("X error - limit = ", self.acceptable_error[0])
-            print("X error - is acceptable? = ", self.acceptable_error[0] >= abs(position_errors[0]))
-            print("X control input = ", position_errors[0] * self.control_input_gains[0][0])
-
-        # Define array to store the new control inputs
-        control_inputs = []
-
-        # Define variable to store if the image is centered
-        is_error_acceptable = True
-
-        # Calculate control inputs from centroid positions and check if error is too large
-        for current_error, gains, error_limit in zip(position_errors, self.control_input_gains, self.acceptable_error):
-            control_inputs.append(current_error * gains[0])
-            is_error_acceptable = is_error_acceptable * (error_limit >= abs(current_error))
-
-        # Generate twist message to send control inputs
-        control_inputs_msg = TwistStamped()
-        control_inputs_msg.twist.linear.x = control_inputs[0]
-        control_inputs_msg.twist.linear.y = control_inputs[1]
-        control_inputs_msg.twist.linear.z = control_inputs[2]
-        control_inputs_msg.twist.angular.x = control_inputs[3]
-        control_inputs_msg.twist.angular.y = control_inputs[4]
-        control_inputs_msg.twist.angular.z = control_inputs[5]
-
-        return control_inputs_msg, position_errors, is_error_acceptable"""

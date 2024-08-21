@@ -4,12 +4,6 @@
 File containing ImagePositioningControllerNode class definition and ROS running code.
 """
 
-# TODO - Dream - Add proper try-cath error checking everywhere and incorporate logging into it
-# TODO - Dream - Add proper node status publishing
-# TODO - Dream - Add a check to make sure that any image processed by the controller is no less than half a second old
-# TODO - High - Add a publisher to publish the current setpoint
-# TODO - High - Chang error to be measured in pixels
-
 # Import standard ROS packages
 from geometry_msgs.msg import TwistStamped
 from std_msgs.msg import Int8
@@ -18,7 +12,6 @@ from std_msgs.msg import Int8
 from thyroid_ultrasound_messages.msg import image_data_message
 
 # Import custom packages
-from thyroid_ultrasound_imaging_support.Controller.ImagePositioningController import ImagePositioningController
 from thyroid_ultrasound_imaging_support.ImageData.ImageData import ImageData
 from thyroid_ultrasound_support.BasicNode import *
 from thyroid_ultrasound_imaging_support.Controller.ImagePositioningControlConstants import IMAGE_CENTERING_OFFSET
@@ -37,14 +30,14 @@ class ImagePositioningControllerNode(BasicNode):
         # Define the maximum number of images to save
         self.max_images_to_store = 25
 
-        # Define a variable to store the position error based on the newest image
-        self.position_error = None
+        # Define a variable to store the max allowed age of an image
+        self.max_age_of_image_in_seconds = 0.5
 
-        # Define a positioning controller object to use in the object
-        self.image_positioning_controller = ImagePositioningController()
+        # Define a variable to store the imaging depth
+        self.imaging_depth = 5.0
 
-        # Define a variable to save the imaging depth of the scanner
-        self.image_positioning_controller.imaging_depth = 5.0
+        # Define a variable to store the offset for the centering of the image
+        self.image_centering_offset = 0
 
         # Define a flag to note when the ROI is shown in the image
         self.image_roi_shown = False
@@ -63,33 +56,52 @@ class ImagePositioningControllerNode(BasicNode):
         Subscriber(RC_IMAGE_CENTERING_SIDE, Int8, self.image_centering_side_callback)
         Subscriber(IMAGE_ROI_SHOWN, Bool, self.image_roi_shown_callback)
 
-    def imaging_depth_callback(self, data: Float64):
+        self.time_of_last_publishing = Time.now()
+        self.log_single_message('Node initialized.')
 
+    def imaging_depth_callback(self, msg: Float64):
+        """Saves the newest imaging depth for later use."""
         # Save the newest imaging depth
-        self.image_positioning_controller.imaging_depth = data.data
+        self.imaging_depth = msg.data
+
+        self.log_single_message('New imaging depth of ' + str(self.imaging_depth) + ' cm saved')
 
     def filtered_image_callback(self, data: image_data_message):
         """
         Updates the list of received images and places the newest message at the end of the list.
         """
+        # If the image is younger than the maximum allowed age,
+        if abs((data.header.stamp - Time.now()).to_sec()) <= self.max_age_of_image_in_seconds:
 
-        # Create new image data based on received image and add it to the list
-        self.received_images.append(ImageData(image_data_msg=data))
+            # Create new image data based on received image and add it to the list
+            self.received_images.append(ImageData(image_data_msg=data))
 
-        # Remove the oldest image if the list is now too long
-        if len(self.received_images) > self.max_images_to_store:
-            self.received_images.pop(0)
+            # Remove the oldest image if the list is now too long
+            if len(self.received_images) > self.max_images_to_store:
+                self.received_images.pop(0)
+
+        else:
+            self.log_single_message('Newly received image message was too old to be used')
 
     def image_centering_side_callback(self, msg: Int8):
         """
         Updates the stored image centering side.
         """
-        self.image_positioning_controller.set_point_offset = msg.data * IMAGE_CENTERING_OFFSET
+        self.image_centering_offset = msg.data * IMAGE_CENTERING_OFFSET
+
+        self.log_single_message('Image centering offset set to ' + str(self.image_centering_offset))
 
     def image_roi_shown_callback(self, msg: Bool):
+        """Updates the local variable noting if the ROI is shown in the image"""
         self.image_roi_shown = msg.data
 
     def publish_position_error(self):
+        """Analyze the image to find the centroid position error."""
+        # Create a local variable to set the status of the node
+        current_status = None
+
+        # Declare an empty value for the position error in case there is no image available
+        position_error = None
 
         # Check that there is an image to use
         if len(self.received_images) > 0:
@@ -100,16 +112,30 @@ class ImagePositioningControllerNode(BasicNode):
             # Define a zero error value as default
             position_error = [0, 0, 0, 0, 0, 0]
 
-            # Define a default value for is_image_centered
-            is_image_centered = False
-
             # If the ROI is in the image,
             if self.image_roi_shown:
                 try:
-                    # Calculate the error in the image centroids
-                    position_error, is_image_centered = self.image_positioning_controller.calculate_position_error(
-                        image_data)
-                except Exception:
+                    # If more than one centroid exists, create a composited centroid location by
+                    # averaging the location of all centroids in the image
+                    if False and len(image_data.contour_centroids) > 1:
+                        composite_centroid_location = sum(
+                            [temp_centroid[0] for temp_centroid in image_data.contour_centroids]) / len(
+                            image_data.contour_centroids)
+
+                        current_status = CALCULATED_USING_COMPOSITE_CENTROID
+
+                    # Otherwise, use the centroid location from the one valid centroid
+                    else:
+                        composite_centroid_location = image_data.contour_centroids[0][0]
+
+                        current_status = CALCULATED_USING_SINGLE_CENTROID
+
+                    # Calculate the X position error using the composite location
+                    position_error[0] = composite_centroid_location - image_data.ds_image_size_x * (
+                                self.image_centering_offset + 0.5)
+
+                except IndexError:
+                    current_status = ERROR_ACCESSING_CENTROIDS
                     pass
 
             # Create a new TwistStamped message
@@ -120,13 +146,14 @@ class ImagePositioningControllerNode(BasicNode):
 
             # Fill in the message fields converting from the image axes to the robot end effector axes
             position_error_message.twist.linear.x = position_error[0]
-            position_error_message.twist.angular.y = position_error[5]
 
             # Publish positioning error
             self.image_based_position_error_publisher.publish(position_error_message)
 
-            # Return the results for validation
-            return position_error, is_image_centered
+        self.publish_node_status(new_status=current_status, delay_publishing=0.5, default_status=NO_IMAGES_AVAILABLE)
+
+        # Return the results for validation
+        return position_error
 
 
 if __name__ == '__main__':
@@ -135,7 +162,7 @@ if __name__ == '__main__':
     controller = ImagePositioningControllerNode()
 
     # Define publishing frequency
-    publishing_rate = Rate(45)  # hz
+    publishing_rate = Rate(55)  # hz
 
     print("Node initialized.")
     print("Press ctrl+c to terminate.")
