@@ -8,7 +8,7 @@ from os import mkdir
 from os.path import isdir
 from copy import copy, deepcopy
 from cv_bridge import CvBridge
-from numpy import array, median
+from numpy import array, median, ceil, reshape
 
 # Import standard ROS packages
 from geometry_msgs.msg import WrenchStamped
@@ -39,8 +39,6 @@ MSG: int = int(1)
 FOLDER_OF_REGISTERED_DATA_PREFIX: str = '/Exam'
 
 
-# TODO - Dream - Add proper try-catch error checking everywhere and incorporate logging into it
-# TODO - Dream - Add logging through the BasicNode class
 # TODO - Medium - Why does it register more than one data per waypoint?
 
 
@@ -53,8 +51,11 @@ class ImagePositionRegistrationNode(BasicNode):
         # Call the constructor of hte super class
         super().__init__()
 
-        # Define a variable to store data about the most recent filtered images
-        self.filtered_image = None
+        # Define a variable to store data about the most recent filtered image to use for registering data
+        self.filtered_image_for_registering_data = None
+
+        # Define a variable to store data about the most recent filtered image to use for saving valid positions
+        self.filtered_image_for_saving_valid_positions = None
 
         # Define a variable to store the most recent robot poses
         self.list_of_robot_poses = {}
@@ -116,7 +117,7 @@ class ImagePositionRegistrationNode(BasicNode):
         Service(IPR_REGISTERED_DATA_SAVE_LOCATION, StringRequest, self.registered_data_save_location_handler)
 
         # Define the service for starting to save valid data
-        Service(IPR_SAVE_VALID_POSITIONS, Float64Request, self.save_valid_positions_handler)
+        Service(IPR_SAVE_VALID_POSITIONS, SaveValidPositionsSettings, self.save_valid_positions_handler)
 
         # Define the service for retrieving valid data
         Service(IPR_RETRIEVE_VALID_DATA, ValidData, self.retrieve_valid_data_handler)
@@ -134,22 +135,27 @@ class ImagePositionRegistrationNode(BasicNode):
         # Listens to the force at the end effector
         Subscriber(ROBOT_DERIVED_FORCE, WrenchStamped, self.force_callback)
 
+        # Save the current time as the last time an image was published
+        self.time_of_last_publishing = Time.now()
+
     ###########################
     # Data collection callbacks
     # region
 
     def filtered_image_callback(self, msg: image_data_message):
         """
-        Given a new image data message, save it if data needs to be registered and an image has not already been saved..
+        Given a new image data message, save it if data needs to be registered and an image has not already been saved
+        or if valid positions are being saved.
 
         Parameters
         ----------
         msg :
             A message containing an image data object.
         """
-        if self.register_new_data_flag and self.filtered_image is None:
-            # Save the image data object equivalent
-            self.filtered_image = ImageData(image_data_msg=msg)
+        if self.register_new_data_flag and self.filtered_image_for_registering_data is None:
+            self.filtered_image_for_registering_data = ImageData(image_data_msg=msg)
+        if self.save_valid_positions and self.filtered_image_for_saving_valid_positions is None:
+            self.filtered_image_for_saving_valid_positions = ImageData(image_data_msg=msg)
 
     def robot_state_callback(self, msg: ManipulatorState):
         """
@@ -182,7 +188,6 @@ class ImagePositionRegistrationNode(BasicNode):
 
                     # If enough data has been recorded,
                     if len(self.measured_delays) >= self.number_of_messages_to_count:
-
                         # Calculate the median delay time as a duration
                         self.calculated_time_difference = Duration().from_sec(median(array(self.measured_delays)))
                         self.has_time_difference_been_calculated = True
@@ -265,19 +270,32 @@ class ImagePositionRegistrationNode(BasicNode):
             temp_location = req.value + FOLDER_OF_REGISTERED_DATA_PREFIX + date_stamp_str(prefix='_', suffix='')
             mkdir(temp_location)
             self.registered_data_save_location = temp_location
+            self.log_single_message('New save location for registered data set to: ' + str(temp_location))
             return StringRequestResponse(was_succesful=True, message=NO_ERROR)
         else:
             return StringRequestResponse(was_succesful=False, message='Invalid directory.')
 
-    def save_valid_positions_handler(self, req: Float64RequestRequest):
-        if req.value == 0:
+    def save_valid_positions_handler(self, req: SaveValidPositionsSettingsRequest):
+        if req.time_between_saved_poses_secs == 0 and req.length_of_history_secs == 0:
             self.save_valid_positions = False
-        else:
+            self.log_single_message('Valid positions no longer saved')
+        elif 0 < req.time_between_saved_poses_secs < req.length_of_history_secs:
             self.save_valid_positions = True
-            self.valid_position_time_interval = abs(req.value)
-        return Float64RequestResponse(True, NO_ERROR)
+            self.valid_position_time_interval = Duration(secs=req.time_between_saved_poses_secs)
+            self.max_num_valid_data_points = ceil(req.length_of_history_secs / req.time_between_saved_poses_secs)
+            self.log_single_message('Valid positions saved every ' + str(round(req.time_between_saved_poses_secs, 3)) +
+                                    ' seconds covering a history of ' +
+                                    str(self.max_num_valid_data_points * self.valid_position_time_interval.to_sec()) +
+                                    ' seconds')
+        else:
+            return SaveValidPositionsSettingsResponse(False, 'Invalid settings were given')
+        return SaveValidPositionsSettingsResponse(True, NO_ERROR)
 
     def register_new_data_handler(self, req: BoolRequestRequest):
+        if req.value:
+            self.log_single_message('Registration of new data requested')
+        else:
+            self.log_single_message('Registration of new data cancelled.')
         self.register_new_data_flag = req.value
         return BoolRequestResponse(True, NO_ERROR)
 
@@ -290,12 +308,28 @@ class ImagePositionRegistrationNode(BasicNode):
 
     def retrieve_valid_data_handler(self, req: ValidDataRequest):
 
+        # Log that data was requested
+        self.log_single_message('Valid data at index ' + str(req.data_point_index) + ' to be retrieved')
+
         # Make copies of the data that will be sent
-        pose_to_send = deepcopy(self.last_valid_positions[req.data_point_index])
-        mask_to_send = deepcopy(self.last_valid_masks[req.data_point_index])
+        try:
+            pose_to_send = deepcopy(self.last_valid_positions[req.data_point_index].robot_pose)
+        except IndexError:
+            return ValidDataResponse(valid_pose=None, valid_mask=None, was_succesful=False,
+                                     message='Requested index of ' + str(req.data_point_index) +
+                                             ' does not exist for robot pose')
+        try:
+            mask_to_send = deepcopy(self.last_valid_masks[req.data_point_index])
+        except IndexError:
+            return ValidDataResponse(valid_pose=None, valid_mask=None, was_succesful=False,
+                                     message='Requested index of ' + str(req.data_point_index) +
+                                             ' does not exist for saved masks')
 
         # Create the message that will contain the pose
         pose_message = Float64MultiArray()
+
+        # Add the data to the message
+        pose_message.data = reshape(pose_to_send, (pose_to_send.shape[0] * pose_to_send.shape[1]))
 
         # Define the data padding to be zero
         pose_message.layout.data_offset = 0
@@ -397,89 +431,128 @@ class ImagePositionRegistrationNode(BasicNode):
 
     def main_loop(self):
 
-        if self.register_new_data_flag or (self.save_valid_positions and
-                                           Time.now() - self.time_of_last_valid_position >
-                                           self.valid_position_time_interval):
+        # Set the default status
+        new_status = None
+        default_status = WAITING
 
-            # Wait until a new filtered image has been received
-            if self.filtered_image is None:
-                return
+        # Create a local variable to hold the filtered image that will be used for this iteration
+        filtered_image_to_use = None
+
+        # If registering data,
+        if self.register_new_data_flag:
+            filtered_image_to_use = self.filtered_image_for_registering_data
+
+            # Update the status
+            default_status = WAITING_FOR_FILTERED_IMAGE
+
+        # Otherwise, if saving a valid position
+        elif (self.save_valid_positions and
+              Time.now() - self.time_of_last_valid_position > self.valid_position_time_interval):
+            filtered_image_to_use = self.filtered_image_for_saving_valid_positions
+
+            # Update the status
+            default_status = WAITING_FOR_FILTERED_IMAGE_FOR_SAVING_VALID_POSITION
+
+        # Wait until a new filtered image has been received
+        if filtered_image_to_use is not None:
 
             # Create a local copy of the filtered image
-            local_filtered_image: ImageData = copy(self.filtered_image)
+            local_filtered_image: ImageData = copy(filtered_image_to_use)
 
             # Find the outer level key of the oldest image
             newest_image_seconds = local_filtered_image.image_capture_time.secs
 
+            # Update the status
+            new_status = WAITING_FOR_ROBOT_POSE
+
             # Wait until a robot pose was taken at the same time as the newest image
-            if newest_image_seconds not in self.list_of_robot_poses.keys():
-                return
+            if newest_image_seconds in self.list_of_robot_poses.keys():
 
-            # Wait until a robot force was taken at the same time as the newest image
-            if newest_image_seconds not in self.list_of_robot_forces.keys():
-                return
+                # Update the status
+                new_status = WAITING_FOR_FORCE_READING
 
-            # Copy all data locally to avoid weird threading things
-            local_list_of_robot_poses = copy(self.list_of_robot_poses[newest_image_seconds])
-            local_list_of_robot_forces = copy(self.list_of_robot_forces[newest_image_seconds])
+                # Wait until a robot force was taken at the same time as the newest image
+                if newest_image_seconds in self.list_of_robot_forces.keys():
 
-            # Pull out the nanoseconds stamp of the most recently filtered image
-            newest_image_nanoseconds = local_filtered_image.image_capture_time.nsecs
+                    # Update the status
+                    new_status = SEARCHING_FOR_MATCHING_DATA
 
-            # Find the closest nanoseconds keys of the pose and the force if they exist
-            closest_pose_nanoseconds = self.find_closest_key_value(newest_image_seconds,
-                                                                   newest_image_nanoseconds,
-                                                                   {newest_image_seconds: local_list_of_robot_poses})
+                    # Copy all data locally to avoid weird threading things
+                    local_list_of_robot_poses = copy(self.list_of_robot_poses[newest_image_seconds])
+                    local_list_of_robot_forces = copy(self.list_of_robot_forces[newest_image_seconds])
 
-            closest_force_nanoseconds = self.find_closest_key_value(newest_image_seconds,
-                                                                    newest_image_nanoseconds,
-                                                                    {newest_image_seconds: local_list_of_robot_forces})
+                    # Pull out the nanoseconds stamp of the most recently filtered image
+                    newest_image_nanoseconds = local_filtered_image.image_capture_time.nsecs
 
-            # If a pose and a force were found that match the image
-            if closest_pose_nanoseconds is not None and closest_force_nanoseconds is not None:
+                    # Find the closest nanoseconds keys of the pose and the force if they exist
+                    closest_pose_nanoseconds = self.find_closest_key_value(newest_image_seconds,
+                                                                           newest_image_nanoseconds,
+                                                                           {
+                                                                               newest_image_seconds: local_list_of_robot_poses})
 
-                if self.register_new_data_flag:
+                    closest_force_nanoseconds = self.find_closest_key_value(newest_image_seconds,
+                                                                            newest_image_nanoseconds,
+                                                                            {
+                                                                                newest_image_seconds: local_list_of_robot_forces})
 
-                    # Publish the pose and the image
-                    new_registered_data = RegisteredData(image_data_object=local_filtered_image,
-                                                         robot_pose=local_list_of_robot_poses[
-                                                             closest_pose_nanoseconds][
-                                                             OBJECT],
-                                                         robot_force=local_list_of_robot_forces[
-                                                             closest_force_nanoseconds][
-                                                             OBJECT],
-                                                         )
+                    # If a pose and a force were found that match the image
+                    if closest_pose_nanoseconds is not None and closest_force_nanoseconds is not None:
 
-                    # Save the new registered data object
-                    new_registered_data.save_load(action=SAVE_OBJECT,
-                                                  path_to_file_location=self.registered_data_save_location)
-                    # Publish the registered data
-                    # self.registered_data_publisher.publish(new_registered_data.convert_object_message(TO_MESSAGE))
+                        # Update the status
+                        new_status = MATCHING_DATA_FOUND
 
-                    # Remove both the pose and the force from the selection of stored data
-                    try:
-                        self.list_of_robot_poses[newest_image_seconds].pop(closest_pose_nanoseconds)
-                    except KeyError:
-                        pass
-                    try:
-                        self.list_of_robot_forces[newest_image_seconds].pop(closest_pose_nanoseconds)
-                    except KeyError:
-                        pass
+                        if self.register_new_data_flag:
 
-                    self.data_has_been_registered_service(True)
-                    self.filtered_image = None
-                    self.register_new_data_flag = False
+                            # Update the status
+                            new_status = REGISTERING_NEW_DATA
 
-                elif self.save_valid_positions:
+                            # Publish the pose and the image
+                            new_registered_data = RegisteredData(image_data_object=local_filtered_image,
+                                                                 robot_pose=local_list_of_robot_poses[
+                                                                     closest_pose_nanoseconds][
+                                                                     OBJECT],
+                                                                 robot_force=local_list_of_robot_forces[
+                                                                     closest_force_nanoseconds][
+                                                                     OBJECT],
+                                                                 )
 
-                    # Save the position and mask
-                    self.last_valid_positions.append(local_list_of_robot_poses[closest_pose_nanoseconds][OBJECT])
-                    self.last_valid_masks.append(local_filtered_image.image_mask)
+                            # Save the new registered data object
+                            new_registered_data.save_load(action=SAVE_OBJECT,
+                                                          path_to_file_location=self.registered_data_save_location)
 
-                    # Maintain the length of the lists
-                    for this_list in [self.last_valid_positions, self.last_valid_masks]:
-                        if len(this_list) > self.max_num_valid_data_points:
-                            this_list.pop(0)
+                            # Remove both the pose and the force from the selection of stored data
+                            try:
+                                self.list_of_robot_poses[newest_image_seconds].pop(closest_pose_nanoseconds)
+                            except KeyError:
+                                pass
+                            try:
+                                self.list_of_robot_forces[newest_image_seconds].pop(closest_pose_nanoseconds)
+                            except KeyError:
+                                pass
+
+                            self.data_has_been_registered_service(True)
+                            self.filtered_image_for_registering_data = None
+                            self.register_new_data_flag = False
+
+                        elif self.save_valid_positions:
+
+                            # Update the status
+                            new_status = SAVING_VALID_POSE
+
+                            # Save the position and mask
+                            self.last_valid_positions.append(
+                                local_list_of_robot_poses[closest_pose_nanoseconds][OBJECT])
+                            self.last_valid_masks.append(local_filtered_image.image_mask)
+
+                            # Maintain the length of the lists
+                            for this_list in [self.last_valid_positions, self.last_valid_masks]:
+                                if len(this_list) > self.max_num_valid_data_points:
+                                    this_list.pop(0)
+
+                            # Clear the saved filtered image
+                            self.filtered_image_for_saving_valid_positions = None
+
+        self.publish_node_status(new_status=new_status, delay_publishing=0.25, default_status=default_status)
 
 
 if __name__ == '__main__':

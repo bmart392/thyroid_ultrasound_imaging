@@ -154,6 +154,9 @@ class RealTimeImageFilterNode(BasicNode):
         # endregion
         #######################
 
+        # Save the current time as the last time an image was published
+        self.time_of_last_publishing = Time.now()
+
         self.log_single_message('Node ready')
 
     ######################
@@ -290,8 +293,6 @@ class RealTimeImageFilterNode(BasicNode):
 
         if len(self.received_images) > 0:
 
-            new_status = IMAGES_AVAILABLE
-
             # record the current time for timing of processes
             start_of_process_time = time()
 
@@ -320,13 +321,16 @@ class RealTimeImageFilterNode(BasicNode):
             # Colorize the newest image
             self.image_filter.colorize_image(self.newest_image_data)
 
-            # Publish this data so that it can be monitored before any filtering is completed
+            # Update the title of the image
             self.newest_image_data.image_title = self.image_title
-            # self.cropped_image_publisher.publish(self.newest_image_data.convert_to_message())
 
+            # Set a new status for the node
             new_status = NOT_READY_TO_FILTER
 
+            # If a new initialization mask exists for the image
             if self.new_initialization_mask is not None:
+
+                # Update the status
                 new_status = UPDATING_FILTER_INITIALIZATION_MASK
 
                 # Save the mask to the image filter
@@ -344,6 +348,7 @@ class RealTimeImageFilterNode(BasicNode):
                 # update the flag to allow image filtering to occur
                 self.image_filter.ready_to_filter = True
 
+            # If the filter is ready and the patient is in the image,
             if self.image_filter.ready_to_filter and self.image_filter.is_in_contact_with_patient:
                 # Create new image data based on received image
                 # self.image_data = copy(self.newest_image_data)
@@ -363,7 +368,33 @@ class RealTimeImageFilterNode(BasicNode):
                     # Filter the image
                     self.image_filter.filter_image(self.newest_image_data, override_existing_data=False)
 
+                    # Update the status
                     new_status = ANALYZING_IMAGE
+
+                    # find the contours in the mask
+                    self.newest_image_data.generate_contours_in_image()
+
+                    # find the centroids of each contour
+                    self.newest_image_data.calculate_image_centroids()
+
+                    # note the time required to fully filter the image
+                    start_of_process_time = self.display_process_timer(start_of_process_time, "Time to fully filter")
+
+                    # Publish if the region of interest is in the image
+                    self.is_roi_in_image_status_publisher.publish(
+                        Bool((len(self.newest_image_data.contours_in_image) > 0 and
+                              len(self.newest_image_data.contours_in_image) == len(
+                                    self.newest_image_data.contour_centroids))))
+
+                    # note the time required to determine and publish the status of the thyroid in the image
+                    start_of_process_time = self.display_process_timer(start_of_process_time,
+                                                                       "Thyroid status check time")
+
+                    # set that a new image has not been delivered yet
+                    self.is_new_image_available = False
+
+                    # note the amount of time required to analyze the image
+                    self.display_process_timer(start_of_analysis_time, "Image analysis time")
 
                 except SegmentationError as caught_exception:
                     # Note that the image filter can no longer filter images
@@ -376,32 +407,9 @@ class RealTimeImageFilterNode(BasicNode):
                     # Log that the error occurred
                     self.log_single_message(caught_exception.convert_history_to_string(), SHORT)
 
-                    # Break out of the function
-                    return
-
-                # find the contours in the mask
-                self.newest_image_data.generate_contours_in_image()
-
-                # find the centroids of each contour
-                self.newest_image_data.calculate_image_centroids()
-
-                # note the time required to fully filter the image
-                start_of_process_time = self.display_process_timer(start_of_process_time, "Time to fully filter")
-
-                # Publish if the region of interest is in the image
-                self.is_roi_in_image_status_publisher.publish(
-                    Bool((len(self.newest_image_data.contours_in_image) > 0 and
-                          len(self.newest_image_data.contours_in_image) == len(
-                                self.newest_image_data.contour_centroids))))
-
-                # note the time required to determine and publish the status of the thyroid in the image
-                start_of_process_time = self.display_process_timer(start_of_process_time, "Thyroid status check time")
-
-                # set that a new image has not been delivered yet
-                self.is_new_image_available = False
-
-                # note the amount of time required to analyze the image
-                self.display_process_timer(start_of_analysis_time, "Image analysis time")
+            # Otherwise, publish that the ROI is not in the image
+            else:
+                self.is_roi_in_image_status_publisher.publish(False)
 
             # publish the result of the image filtering
             self.filtered_image_publisher.publish(self.newest_image_data.convert_to_message())
