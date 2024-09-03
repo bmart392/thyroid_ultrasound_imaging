@@ -194,7 +194,7 @@ class VisualizationNode(BasicNode):
             dict_category = IMAGE_SKIN_APPROXIMATION
         else:
             self.log_single_message('Visualization requested was not recognized')
-            return StatusVisualizationResponse(was_succesful=False, message='Visualization not recognized')
+            return StatusVisualizationResponse(was_successful=False, message='Visualization not recognized')
 
         # Add the visualization if necessary
         if req.status:
@@ -209,7 +209,7 @@ class VisualizationNode(BasicNode):
                     self.images_to_visualize[dict_category][VISUALIZATIONS].index(req.visualization))
                 self.log_single_message('Existing visualization removed')
 
-        return StatusVisualizationResponse(was_succesful=True, message='')
+        return StatusVisualizationResponse(was_successful=True, message='')
 
     # endregion
     ###########################

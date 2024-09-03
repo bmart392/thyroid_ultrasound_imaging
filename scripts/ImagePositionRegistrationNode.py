@@ -271,9 +271,9 @@ class ImagePositionRegistrationNode(BasicNode):
             mkdir(temp_location)
             self.registered_data_save_location = temp_location
             self.log_single_message('New save location for registered data set to: ' + str(temp_location))
-            return StringRequestResponse(was_succesful=True, message=NO_ERROR)
+            return StringRequestResponse(was_successful=True, message=NO_ERROR)
         else:
-            return StringRequestResponse(was_succesful=False, message='Invalid directory.')
+            return StringRequestResponse(was_successful=False, message='Invalid directory.')
 
     def save_valid_positions_handler(self, req: SaveValidPositionsSettingsRequest):
         if req.time_between_saved_poses_secs == 0 and req.length_of_history_secs == 0:
@@ -315,13 +315,13 @@ class ImagePositionRegistrationNode(BasicNode):
         try:
             pose_to_send = deepcopy(self.last_valid_positions[req.data_point_index].robot_pose)
         except IndexError:
-            return ValidDataResponse(valid_pose=None, valid_mask=None, was_succesful=False,
+            return ValidDataResponse(valid_pose=None, valid_mask=None, was_successful=False,
                                      message='Requested index of ' + str(req.data_point_index) +
                                              ' does not exist for robot pose')
         try:
             mask_to_send = deepcopy(self.last_valid_masks[req.data_point_index])
         except IndexError:
-            return ValidDataResponse(valid_pose=None, valid_mask=None, was_succesful=False,
+            return ValidDataResponse(valid_pose=None, valid_mask=None, was_successful=False,
                                      message='Requested index of ' + str(req.data_point_index) +
                                              ' does not exist for saved masks')
 
@@ -353,7 +353,7 @@ class ImagePositionRegistrationNode(BasicNode):
 
         return ValidDataResponse(valid_pose=pose_message,
                                  valid_mask=mask_message,
-                                 was_succesful=True, message=NO_ERROR)
+                                 was_successful=True, message=NO_ERROR)
 
     # endregion
     ##################
