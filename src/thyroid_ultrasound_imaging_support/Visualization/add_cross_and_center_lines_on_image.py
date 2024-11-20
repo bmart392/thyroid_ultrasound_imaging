@@ -26,6 +26,9 @@ def add_cross_and_center_lines_on_image(image_to_show: array, image_data: ImageD
         a numpy array representing the image to show.
     image_data
         the ImageData object that contains the centroids to show.
+    goal_location
+    goal_location_error
+    goal_location_error_color
     """
     return add_center_lines_to_image(image_to_show=add_centroids_on_image(image_to_show, image_data, dot_radius=2),
                                      vertical_line_location=goal_location,

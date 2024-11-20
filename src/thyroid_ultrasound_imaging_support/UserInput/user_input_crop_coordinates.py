@@ -31,6 +31,10 @@ def user_input_crop_coordinates(image_data: ImageData,
     # Do nothing if the user chooses not to crop the image.
     if crop_coordinates is None:
 
+        # Define a variable to store the results of the user's clicks
+        first_corner = [int(0), int(0)]
+        second_corner = [int(image_data.image_size_x), int(image_data.image_size_y)]
+
         while True:
 
             # Define window name
@@ -44,9 +48,6 @@ def user_input_crop_coordinates(image_data: ImageData,
 
             # Create a copy of the original image to prevent damaging the original object
             temp_image_array = cvtColor(copy(image_data.original_image), COLOR_GRAY2BGR)
-
-            # Define a variable to store the result of the user's click
-            first_corner = [int(0), int(0)]
 
             # Display the image and get the users input
             first_corner, fig, axis = display_image_with_callback(temp_image_array,

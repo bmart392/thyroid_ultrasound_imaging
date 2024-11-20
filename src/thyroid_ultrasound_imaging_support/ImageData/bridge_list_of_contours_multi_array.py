@@ -3,8 +3,7 @@ Contains code for bridge_list_of_contours_multi_array function.
 """
 
 # Import standard libraries
-import cv2
-from numpy import sum, uint8, array, zeros, delete, append, ndarray
+from numpy import array
 from thyroid_ultrasound_imaging_support.ImageData.BridgeImageDataMessageConstants import *
 from thyroid_ultrasound_imaging_support.ImageData.bridge_list_of_points_multi_array import bridge_list_of_points_multi_array
 from std_msgs.msg import UInt16MultiArray
@@ -110,7 +109,6 @@ if __name__ == "__main__":
 
     # Create a list of points to test
     trial_list = [[(1, 2), (3, 4), (5, 6), (7, 8)], [(9, 10)], [(11, 12), (13, 14)]]
-    trial_list = []
 
     # Generate the corresponding message
     message_result = bridge_list_of_contours_multi_array(TO_MESSAGE, trial_list)

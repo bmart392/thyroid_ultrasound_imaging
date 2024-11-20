@@ -408,7 +408,11 @@ def rebuild_list_data(string_data: str):
         elif list_item_split[0] == TUPLE:
             _, list_item_object = rebuild_tuple_data(list_item_split[1:])
         elif list_item_split[0] == LIST:
+            # TODO - HIGH - This seems broken but I think I simply have never actually had this code try to run
             _, list_item_object = rebuild_list_data(list)
+        elif list_item_split[0] == "":
+            return_list = []
+            break
         else:
             raise Exception(list_item_split[0] + " is not a recognized data type.")
 

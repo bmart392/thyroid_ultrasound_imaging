@@ -21,6 +21,7 @@ def calculate_dice_score(array_one: ndarray, array_two: ndarray) -> float:
     -------
     float : The DICE score of the two arrays
     """
+
     # Ensure that the arrays match in shape before continuing
     if not array_one.shape == array_two.shape:
         raise Exception("Array shapes do not match.")
@@ -32,5 +33,13 @@ def calculate_dice_score(array_one: ndarray, array_two: ndarray) -> float:
     if sum(where(union > 2, 1, 0)) > 0:
         raise Exception("Arrays contain values other than 1 and 0.")
 
-    # Return the DICE score
-    return 2 * sum(where(union == 2, 1, 0)) / sum(union)
+    try:
+
+        # Calculate the DICE score
+        result = 2 * sum(where(union == 2, 1, 0)) / sum(union)
+
+    except RuntimeWarning:
+        raise ZeroDivisionError("No shared elements in arrays.")
+
+    # Return the result
+    return result

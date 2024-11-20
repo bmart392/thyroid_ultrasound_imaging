@@ -5,7 +5,7 @@ File containing the ImageSector class definition.
 """
 
 # Import standard python packages
-from numpy import sin, deg2rad, floor, median, array, append
+from numpy import sin, deg2rad, floor
 
 # Import custom python packages
 from thyroid_ultrasound_imaging_support.ImageBalancing.LinearSet import LinearSet

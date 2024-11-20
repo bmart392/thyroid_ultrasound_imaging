@@ -51,8 +51,8 @@ class NonRealTimeImageFilterNode(BasicNode):
         # Define the image filter to use to filter the images
         self.image_filter = ImageFilterGrabCut(down_sampling_rate=1.0,
                                                segmentation_iteration_count=40,
-                                               sure_background_creation_iterations=1,
-                                               sure_foreground_creation_iterations=1,
+                                               # sure_background_creation_iterations=1,
+                                               # sure_foreground_creation_iterations=1,
                                                )
 
         # Create the node
@@ -109,7 +109,7 @@ class NonRealTimeImageFilterNode(BasicNode):
                 num_images_segmented = 1
 
                 # Load the registered data
-                self.registered_data: list = load_folder_of_saved_registered_data(self.registered_data_load_location)
+                self.registered_data = list(load_folder_of_saved_registered_data(self.registered_data_load_location))
 
                 # Populate the filter with the appropriate information from the first registered image data object
                 first_image_data_object: ImageData = self.registered_data[0].image_data
@@ -153,8 +153,8 @@ class NonRealTimeImageFilterNode(BasicNode):
                                                      dsize=(registered_data.image_data.cropped_image.shape[1],
                                                             registered_data.image_data.cropped_image.shape[0]),
                                                      interpolation=INTER_CUBIC),
-                        desired_foreground_accuracy=0.85,
-                        desired_probable_background_expansion_factor=0.15))
+                            desired_foreground_accuracy=0.85,
+                            desired_probable_background_expansion_factor=0.15))
 
                     # Note the amount of time required to create an image data object
                     start_of_process_time = display_process_timer(start_of_process_time,

@@ -4,7 +4,7 @@ Defines the display_image_with_callback function.
 import _tkinter
 
 # Import from standard packages
-from matplotlib.pyplot import imshow, title, draw, figure, ginput, close
+from matplotlib.pyplot import imshow, title, figure, ginput, close
 from matplotlib.figure import Figure
 from matplotlib.image import AxesImage
 from numpy import array, asarray, ceil, floor
@@ -108,21 +108,21 @@ def display_image_with_callback(image_array: array, message_to_display: str,
 
 
 if __name__ == '__main__':
-    image = imread('/home/ben/thyroid_ultrasound/src/thyroid_ultrasound_imaging/scripts/'
-                   'Test/Images/2023-11-29_19-14/Slice_00002.png')
+    image = imread("/home/ben/thyroid_ultrasound/src/thyroid_ultrasound_imaging/scripts/"
+                   "Test/Experimentation/Experiment_2024-01-12/Images/Slice_00015.png")
 
-    result, fig_test, axis_test = display_image_with_callback(image, "help", [1, 2], "type", return_fig_and_axes=True,
-                                                              rounding=ROUND_UP)
+    temp_result, fig_test, axis_test = display_image_with_callback(image, "help", [1, 2], "type",
+                                                                   return_fig_and_axes=True, rounding=ROUND_UP)
 
-    print(result)
+    print(temp_result)
     print(type(fig_test))
     print(type(axis_test))
 
-    image = imread('/home/ben/thyroid_ultrasound/src/thyroid_ultrasound_imaging/scripts/'
-                   'Test/Images/2023-11-29_19-14/Slice_00100.png')
+    image = imread("/home/ben/thyroid_ultrasound/src/thyroid_ultrasound_imaging/scripts/"
+                   "Test/Experimentation/Experiment_2024-01-12/Images/Slice_00020.png")
 
-    result = display_image_with_callback(image, "help 2", [1, 2], "type 2",
-                                         fig_to_plot_on=fig_test,
-                                         axis_to_plot_on=axis_test)
+    temp_result = display_image_with_callback(image, "help 2", [1, 2], "type 2",
+                                              fig_to_plot_on=fig_test,
+                                              axis_to_plot_on=axis_test)
 
-    print(result)
+    print(temp_result)

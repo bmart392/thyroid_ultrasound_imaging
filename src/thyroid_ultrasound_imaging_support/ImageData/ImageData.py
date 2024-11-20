@@ -20,14 +20,16 @@ from sensor_msgs.msg import Image
 from thyroid_ultrasound_support.Functions.date_stamp_str import date_stamp_str
 
 # Import custom python packages
-from thyroid_ultrasound_messages.msg import image_data_message
+from thyroid_ultrasound_messages.msg import image_data_message, ImageWithTimeData
 from thyroid_ultrasound_imaging_support.ImageData.single_line_representations import \
     create_single_line_simple_data, create_single_line_list_data, \
     create_single_line_time_stamp, rebuild_data, NEW_LINE
 from thyroid_ultrasound_imaging_support.RegisteredData.validate_transformation_matrix import \
     validate_transformation_matrix
-from thyroid_ultrasound_support.MessageConversion.convert_image_message_to_array import \
-    convert_image_message_to_array
+from thyroid_ultrasound_support.MessageConversion.convert_image_message_to_image_array import \
+    convert_image_message_to_image_array
+from thyroid_ultrasound_support.MessageConversion.convert_image_with_time_data_message_to_image_array import \
+    convert_image_with_time_data_message_to_image_array
 from thyroid_ultrasound_imaging_support.ImageFilter.FilterConstants import COLOR_GRAY, COLOR_BGR
 
 # Import custom ROS packages
@@ -142,6 +144,7 @@ class ImageData:
                  image_data_msg: image_data_message = None,
                  image_data_location: str = None,
                  image_msg: Image = None,
+                 image_with_time_data_msg: ImageWithTimeData = None,
                  display_error_messages: bool = False,
                  imaging_depth: float = None):
         """
@@ -169,6 +172,8 @@ class ImageData:
             a string representing the filepath to a saved image data object.
         image_msg
             an Image message containing an image and a timestamp.
+        image_with_time_data_msg
+            an ImageWithTimeData message containing the image and the time the image was captured
         imaging_depth
             the imaging depth of the scanner when the image was taken
         """
@@ -203,8 +208,19 @@ class ImageData:
 
         # If an image message is given, pull out the image as an array and the timestamp. Then continue on as normal.
         if image_msg is not None:
-            image_data = convert_image_message_to_array(image_msg)
+            image_data = convert_image_message_to_image_array(image_msg)
             image_capture_time = image_msg.header.stamp
+            if len(image_data.shape) == 3:
+                image_color = COLOR_BGR
+            elif len(image_data.shape) == 2:
+                image_color = COLOR_GRAY
+            else:
+                raise Exception('Image has unrecognized dimensions of ' + str(image_data.shape))
+
+        # If an ImageWithTimeData message is given, pull out the image as an array and retrieve the timestamp.
+        elif image_with_time_data_msg is not None:
+            image_data, image_capture_time = convert_image_with_time_data_message_to_image_array(
+                image_with_time_data_msg)
             if len(image_data.shape) == 3:
                 image_color = COLOR_BGR
             elif len(image_data.shape) == 2:
@@ -503,7 +519,8 @@ class ImageData:
             message.image_title = self.image_title
             message.image_color = self.image_color
 
-            message.header.stamp = self.image_capture_time
+            message.header.stamp = Time.now()
+            message.image_capture_time = self.image_capture_time
 
             message.image_size_x = self.image_size_x
             message.image_size_y = self.image_size_y
@@ -533,7 +550,10 @@ class ImageData:
             self.image_title = message.image_title
             self.image_color = message.image_color
 
-            self.image_capture_time = message.header.stamp
+            try:
+                self.image_capture_time = message.image_capture_time
+            except :
+                self.image_capture_time = Time.now()
 
             self.image_size_x = message.image_size_x
             self.image_size_y = message.image_size_y
@@ -872,6 +892,7 @@ class ImageData:
 
         # Load the numpy arrays contained in the array data file
         arrays = load(array_data_file_path)
+        arrays.allow_pickle = True
 
         # Fill in each field from the corresponding array
         self.segmentation_initialization_mask = arrays[SEGMENTATION_INITIALIZATION_MASK]

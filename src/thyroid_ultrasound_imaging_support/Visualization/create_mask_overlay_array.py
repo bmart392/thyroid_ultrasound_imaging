@@ -5,7 +5,7 @@ Contains the code for the create_mask_overlay_array function.
 # Import standard python files
 from numpy import newaxis, array, uint8, where, ones
 from cv2 import GC_FGD, GC_BGD, GC_PR_FGD, cvtColor, \
-    COLOR_GRAY2RGB, COLOR_RGB2BGR, COLOR_BGR2RGB, imread, imshow, waitKey, COLOR_BGR2GRAY
+    COLOR_GRAY2RGB, COLOR_RGB2BGR, COLOR_BGR2RGB, imread, imshow, waitKey
 
 # Import custom python files
 from thyroid_ultrasound_imaging_support.ImageFilter.FilterConstants import COLOR_GRAY, COLOR_RGB, COLOR_BGR

@@ -2,10 +2,9 @@
 Contains the function definition for the down-sample function
 """
 
-from numpy import array, zeros, ceil, arange, product, ones, add, uint8
-from matplotlib.pyplot import matshow, show, figure, imread, imshow, subplots, draw, pause
+from numpy import array, zeros, ceil, arange, product, uint8
+from matplotlib.pyplot import matshow, imread, subplots, pause
 from cv2 import resize, INTER_AREA, INTER_CUBIC, INTER_LINEAR
-from os.path import isfile
 from thyroid_ultrasound_imaging_support.Visualization.display_process_timer import *
 
 
@@ -146,7 +145,7 @@ def up_sample_to_zero_array(down_sampled_array: array, destination_array_shape: 
 
 
 if __name__ == '__main__':
-    rate = 5
+    test_rate = 5
     """array_shape = (100, 100)
     a = arange(product(array_shape)).reshape(array_shape)
 
@@ -179,13 +178,14 @@ if __name__ == '__main__':
                         "Test/Images/2023-11-29_19-14/Slice_00001.png")
 
     start_time = time()
-    shrunk_image_inter_area = resize(test_image, (0, 0), fx=1 / rate, fy=1 / rate, interpolation=INTER_AREA)
+    shrunk_image_inter_area = resize(test_image, (0, 0), fx=1 / test_rate, fy=1 / test_rate, interpolation=INTER_AREA)
     start_time, image_elapsed_time_inter_area = display_process_timer(start_time, "Shrink - INTER_AREA",
                                                                       return_time=True)
-    shrunk_image_inter_cubic = resize(test_image, (0, 0), fx=1 / rate, fy=1 / rate, interpolation=INTER_CUBIC)
+    shrunk_image_inter_cubic = resize(test_image, (0, 0), fx=1 / test_rate, fy=1 / test_rate, interpolation=INTER_CUBIC)
     start_time, image_elapsed_time_inter_cubic = display_process_timer(start_time, "Shrink - INTER_CUBIC",
                                                                        return_time=True)
-    shrunk_image_inter_linear = resize(test_image, (0, 0), fx=1 / rate, fy=1 / rate, interpolation=INTER_LINEAR)
+    shrunk_image_inter_linear = resize(test_image, (0, 0), fx=1 / test_rate, fy=1 / test_rate,
+                                       interpolation=INTER_LINEAR)
     start_time, image_elapsed_time_inter_linear = display_process_timer(start_time, "Shrink - INTER_LINEAR",
                                                                         return_time=True)
 
@@ -199,18 +199,19 @@ if __name__ == '__main__':
                         [0, 0, 0, 0, 0, 0, 0, 0, 0],
                         [0, 0, 0, 0, 0, 0, 0, 0, 0]], dtype=uint8)
 
-    rate = 10
+    test_rate = 10
 
-    start_time = time()
-    enlarged_mask_inter_area = resize(small_mask, (0, 0), fx=rate, fy=rate, interpolation=INTER_AREA)
-    start_time, mask_elapsed_time_inter_area = display_process_timer(start_time, "Enlarge - INTER_AREA",
-                                                                     return_time=True)
-    enlarged_mask_inter_cubic = resize(small_mask, (0, 0), fx=rate, fy=rate, interpolation=INTER_CUBIC)
-    start_time, mask_elapsed_time_inter_cubic = display_process_timer(start_time, "Enlarge - INTER_CUBIC",
-                                                                      return_time=True)
-    enlarged_mask_inter_linear = resize(small_mask, (0, 0), fx=rate, fy=rate, interpolation=INTER_LINEAR)
-    start_time, mask_elapsed_time_inter_linear = display_process_timer(start_time, "Enlarge - INTER_LINEAR",
-                                                                       return_time=True)
+    second_start_time = time()
+    enlarged_mask_inter_area = resize(small_mask, (0, 0), fx=test_rate, fy=test_rate, interpolation=INTER_AREA)
+    second_start_time, mask_elapsed_time_inter_area = display_process_timer(second_start_time, "Enlarge - INTER_AREA",
+                                                                            return_time=True)
+    enlarged_mask_inter_cubic = resize(small_mask, (0, 0), fx=test_rate, fy=test_rate, interpolation=INTER_CUBIC)
+    second_start_time, mask_elapsed_time_inter_cubic = display_process_timer(second_start_time, "Enlarge - INTER_CUBIC",
+                                                                             return_time=True)
+    enlarged_mask_inter_linear = resize(small_mask, (0, 0), fx=test_rate, fy=test_rate, interpolation=INTER_LINEAR)
+    second_start_time, mask_elapsed_time_inter_linear = display_process_timer(second_start_time,
+                                                                              "Enlarge - INTER_LINEAR",
+                                                                              return_time=True)
 
     im = axes[0][0].imshow(test_image)
     axes[0][0].set_title('Original Image')
@@ -249,13 +250,13 @@ if __name__ == '__main__':
                "Test/Images/2023-11-29_19-14/Slice_00076.png")
     ]
 
-    ii = 0
+    kk = 0
 
-    while ii < 100:
-        im.set_data(movie_images[ii % 4])
+    while kk < 100:
+        im.set_data(movie_images[kk % 4])
         fig.canvas.draw_idle()
-        print(ii % 4)
-        ii = ii + 1
+        print(kk % 4)
+        kk = kk + 1
 
         pause(1)
 

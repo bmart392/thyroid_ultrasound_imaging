@@ -52,7 +52,7 @@ def import_images_as_image_data_objects(file_path: str, color_scheme_of_images: 
         # Create a new image data object and add it to the list.
         image_position = int(int(file_name[file_name.find("_") + 1: file_name.find(".")]) - image_number_offset)
         created_objects[image_position] = (
-            ImageData(image_filepath=file_name_with_path, image_color=color_scheme_of_images,
+            ImageData(image_data_location=file_name_with_path, image_color=color_scheme_of_images,
                       image_title=file_name))
 
     # Return the list of objects.

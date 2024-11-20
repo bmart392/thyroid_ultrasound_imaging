@@ -17,18 +17,17 @@ from std_msgs.msg import Float64MultiArray, MultiArrayDimension
 
 # Import custom python packages
 from thyroid_ultrasound_imaging_support.ImageData.ImageData import ImageData
-from thyroid_ultrasound_imaging_support.ImageData.BridgeImageDataMessageConstants import TO_MESSAGE
-from thyroid_ultrasound_imaging_support.ImageData.bridge_list_of_points_multi_array import \
-    bridge_list_of_points_multi_array, FOUR_D, FLOAT_ARRAY
+from thyroid_ultrasound_imaging_support.RegisteredData.update_dict_with_pose import update_dict_with_pose
+from thyroid_ultrasound_imaging_support.RegisteredData.update_dict_with_force import update_dict_with_force
 from thyroid_ultrasound_support.Functions.date_stamp_str import date_stamp_str
 from thyroid_ultrasound_robot_control_support.Helpers.convert_pose_to_transform_matrix import \
     convert_pose_to_transform_matrix
 from thyroid_ultrasound_support.BasicNode import *
+from thyroid_ultrasound_imaging_support.RegisteredData.find_closest_key_value import find_closest_key_value
 
 # Import custom ROS packages
 from thyroid_ultrasound_messages.msg import image_data_message, transformed_points
-from thyroid_ultrasound_imaging_support.RegisteredData.RegisteredData import RegisteredData, RobotForce, RobotPose, \
-    SAVE_OBJECT
+from thyroid_ultrasound_imaging_support.RegisteredData.RegisteredData import RegisteredData, SAVE_OBJECT
 from thyroid_ultrasound_services.srv import *
 
 # Define constants for the indices of the object and the message
@@ -196,32 +195,13 @@ class ImagePositionRegistrationNode(BasicNode):
                 elif current_time - self.time_of_first_pose_message > self.measurement_delay_time:
                     self.has_time_delay_been_reached = True
 
-        # Convert the pose from the message into an array
-        pose_as_matrix = convert_pose_to_transform_matrix(msg.ee_pose.pose)
-
-        # Convert the array to a message
-        pose_as_multi_array = bridge_list_of_points_multi_array(direction=TO_MESSAGE,
-                                                                list_of_points=pose_as_matrix,
-                                                                msg_type=FLOAT_ARRAY,
-                                                                point_dim=FOUR_D)
-
         # Capture the time of the message
         message_time = msg.ee_pose.header.stamp - self.calculated_time_difference
 
-        # Define the outer level key to store in the dictionary
-        outer_level_key = message_time.secs  # msg.ee_pose.header.stamp.secs
-
-        # Define the lower level key and the value to store in the dictionary
-        key_value_pair = {message_time.nsecs: (RobotPose(robot_pose=pose_as_matrix), pose_as_multi_array)}
-
-        try:
-            # Try to add the new data into the existing place in the dictionary
-            self.list_of_robot_poses[outer_level_key].update(key_value_pair)
-
-        except KeyError:
-
-            # If the correct place in the dictionary does not exist yet, create it and then add the value
-            self.list_of_robot_poses.update({outer_level_key: key_value_pair})
+        # Add the new data to the stored data
+        update_dict_with_pose(pose_as_matrix=convert_pose_to_transform_matrix(msg.ee_pose.pose),
+                              message_time_secs=message_time.secs, message_time_nsecs=message_time.nsecs,
+                              dict_to_update=self.list_of_robot_poses)
 
         # Remove any bad data
         self.list_of_robot_poses = self.remove_old_data(self.list_of_robot_poses)
@@ -236,20 +216,10 @@ class ImagePositionRegistrationNode(BasicNode):
             A message containing a stamped robot force.
         """
 
-        # Define the outer level key to store in the dictionary
-        outer_level_key = force_msg.header.stamp.secs
-
-        # Define the lower level key and the value to store in the dictionary
-        key_value_pair = {force_msg.header.stamp.nsecs: (RobotForce(source_message=force_msg), force_msg)}
-
-        try:
-            # Try to add the new data into the existing place in the dictionary
-            self.list_of_robot_forces[outer_level_key].update(key_value_pair)
-
-        except KeyError:
-
-            # If the correct place in the dictionary does not exist yet, create it and then add the value
-            self.list_of_robot_forces.update({outer_level_key: key_value_pair})
+        # Add the new data to the stored data
+        update_dict_with_force(force_msg=force_msg, message_time_secs=force_msg.header.stamp.secs,
+                               message_time_nsecs=force_msg.header.stamp.nsecs,
+                               dict_to_update=self.list_of_robot_forces)
 
         # Remove any bad data
         self.list_of_robot_forces = self.remove_old_data(self.list_of_robot_forces)
@@ -362,42 +332,42 @@ class ImagePositionRegistrationNode(BasicNode):
     # Helper functions
     # region
 
-    @staticmethod
-    def find_closest_key_value(seconds_key_to_search_for: int, nanoseconds_key_to_search_for: int,
-                               dict_to_search_in: dict) -> int:
-        """
-        Returns the data point contained in a {second_key : {nano_second_key : data, ...}, ...} if the given second
-        and nanosecond keys are contained in the given dictionary.
-
-        Parameters
-        ----------
-        seconds_key_to_search_for
-            The outer level key to search for in the dictionary.
-        nanoseconds_key_to_search_for
-            The inner level key to search for in the lower level dictionary.
-        dict_to_search_in
-            The two-tier dictionary in which to search.
-        """
-
-        # Create a variable to store the resulting nanosecond key of the inner dict
-        closest_result_nanoseconds = None
-
-        # If a lower level dictionary exists with the given second key,
-        if dict_to_search_in.get(seconds_key_to_search_for) is not None:
-
-            # Update the result to allow for comparison
-            closest_result_nanoseconds = 0
-
-            # For each nanosecond pose key in that lower level dictionary,
-            for nanoseconds_key in dict_to_search_in.get(seconds_key_to_search_for).keys():
-
-                # Check to see if it is the closest pose to the image
-                if abs(nanoseconds_key_to_search_for - nanoseconds_key) < \
-                        abs(nanoseconds_key_to_search_for - closest_result_nanoseconds):
-                    # If so, save the pose
-                    closest_result_nanoseconds = nanoseconds_key
-
-        return closest_result_nanoseconds
+    # @staticmethod
+    # def find_closest_key_value(seconds_key_to_search_for: int, nanoseconds_key_to_search_for: int,
+    #                            dict_to_search_in: dict) -> int:
+    #     """
+    #     Returns the data point contained in a {second_key : {nano_second_key : data, ...}, ...} if the given second
+    #     and nanosecond keys are contained in the given dictionary.
+    #
+    #     Parameters
+    #     ----------
+    #     seconds_key_to_search_for
+    #         The outer level key to search for in the dictionary.
+    #     nanoseconds_key_to_search_for
+    #         The inner level key to search for in the lower level dictionary.
+    #     dict_to_search_in
+    #         The two-tier dictionary in which to search.
+    #     """
+    #
+    #     # Create a variable to store the resulting nanosecond key of the inner dict
+    #     closest_result_nanoseconds = None
+    #
+    #     # If a lower level dictionary exists with the given second key,
+    #     if dict_to_search_in.get(seconds_key_to_search_for) is not None:
+    #
+    #         # Update the result to allow for comparison
+    #         closest_result_nanoseconds = 0
+    #
+    #         # For each nanosecond pose key in that lower level dictionary,
+    #         for nanoseconds_key in dict_to_search_in.get(seconds_key_to_search_for).keys():
+    #
+    #             # Check to see if it is the closest pose to the image
+    #             if abs(nanoseconds_key_to_search_for - nanoseconds_key) < \
+    #                     abs(nanoseconds_key_to_search_for - closest_result_nanoseconds):
+    #                 # If so, save the pose
+    #                 closest_result_nanoseconds = nanoseconds_key
+    #
+    #     return closest_result_nanoseconds
 
     def remove_old_data(self, dictionary_to_edit: dict) -> dict:
         """
@@ -485,15 +455,15 @@ class ImagePositionRegistrationNode(BasicNode):
                     newest_image_nanoseconds = local_filtered_image.image_capture_time.nsecs
 
                     # Find the closest nanoseconds keys of the pose and the force if they exist
-                    closest_pose_nanoseconds = self.find_closest_key_value(newest_image_seconds,
-                                                                           newest_image_nanoseconds,
-                                                                           {
-                                                                               newest_image_seconds: local_list_of_robot_poses})
+                    closest_pose_nanoseconds = find_closest_key_value(newest_image_seconds,
+                                                                      newest_image_nanoseconds,
+                                                                      {
+                                                                          newest_image_seconds: local_list_of_robot_poses})
 
-                    closest_force_nanoseconds = self.find_closest_key_value(newest_image_seconds,
-                                                                            newest_image_nanoseconds,
-                                                                            {
-                                                                                newest_image_seconds: local_list_of_robot_forces})
+                    closest_force_nanoseconds = find_closest_key_value(newest_image_seconds,
+                                                                       newest_image_nanoseconds,
+                                                                       {
+                                                                           newest_image_seconds: local_list_of_robot_forces})
 
                     # If a pose and a force were found that match the image
                     if closest_pose_nanoseconds is not None and closest_force_nanoseconds is not None:

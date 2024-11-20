@@ -1,4 +1,4 @@
-from numpy import arctan2, rad2deg, array, ceil
+from numpy import ceil
 
 from thyroid_ultrasound_imaging_support.ImageData.ImageData import ImageData
 

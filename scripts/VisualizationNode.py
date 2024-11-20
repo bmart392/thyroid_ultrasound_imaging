@@ -10,13 +10,12 @@ File containing VisualizationNode class definition and ROS running code.
 
 # Import standard ROS messages
 from std_msgs.msg import Int8
-from sensor_msgs.msg import Image
 
 # Import standard python packages
 from copy import deepcopy
 
 # Import custom ROS messages and services
-from thyroid_ultrasound_messages.msg import image_data_message, SkinContactLines
+from thyroid_ultrasound_messages.msg import image_data_message, SkinContactLines, ImageWithTimeData
 
 # Import custom functions, classes, and constants
 from thyroid_ultrasound_imaging_support.Visualization.VisualizationConstants import *
@@ -54,7 +53,7 @@ class VisualizationNode(BasicNode):
         Subscriber(RC_IMAGE_CENTERING_SIDE, Int8, self.image_centering_side_callback)
 
         # Define a subscriber to listen for raw images
-        Subscriber(IMAGE_SOURCE, Image, self.raw_image_data_message_callback)
+        Subscriber(IMAGE_SOURCE, ImageWithTimeData, self.raw_image_data_message_callback)
 
         # Define a subscriber to listen for fully filtered images
         Subscriber(IMAGE_FILTERED, image_data_message,
@@ -83,7 +82,7 @@ class VisualizationNode(BasicNode):
         """
         self.image_visualizer.image_centering_goal_offset = msg.data * IMAGE_CENTERING_OFFSET
 
-    def raw_image_data_message_callback(self, message: Image):
+    def raw_image_data_message_callback(self, message: ImageWithTimeData):
         """
         Converts the received raw image data message to an image data object and then visualizes it.
 
@@ -94,7 +93,7 @@ class VisualizationNode(BasicNode):
         """
 
         # Generate a temporary image data object
-        temp_image_to_visualize = ImageData(image_msg=message, image_title='Ultrasound Probe')
+        temp_image_to_visualize = ImageData(image_with_time_data_msg=message, image_title='Ultrasound Probe')
 
         # Copy the original image field into the data to visualize
         if self.images_to_visualize[IMAGE_RAW][IMAGE] is None:

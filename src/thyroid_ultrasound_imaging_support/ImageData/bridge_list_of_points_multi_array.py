@@ -3,10 +3,9 @@ Contains code for bridge_list_of_points_multi_array function.
 """
 
 # Import standard libraries
-import cv2
-from numpy import sum, uint8, array, zeros, delete, append, ndarray
+from numpy import array, ndarray
 from thyroid_ultrasound_imaging_support.ImageData.BridgeImageDataMessageConstants import *
-from std_msgs.msg import UInt16MultiArray, MultiArrayDimension, Float64MultiArray, MultiArrayLayout
+from std_msgs.msg import UInt16MultiArray, MultiArrayDimension, Float64MultiArray
 
 # Define constants for the type of message to create
 INT_ARRAY: str = 'INT'
@@ -158,7 +157,7 @@ if __name__ == "__main__":
 
     # Create a list of points to test
     trial_list = [(int(1), int(2)), (int(3), int(4)), (int(5), int(6)), (int(7), int(8))]
-    trial_list = [(1, 2), (3, 4), (5, 6), (7, 8)]
+    # trial_list = [(1, 2), (3, 4), (5, 6), (7, 8)]
     # trial_list = []
 
     # Generate the corresponding message

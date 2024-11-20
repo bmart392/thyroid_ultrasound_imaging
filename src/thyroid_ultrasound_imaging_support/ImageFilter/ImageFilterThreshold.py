@@ -5,7 +5,6 @@ Define object class for threshold-based image filters.
 # TODO - Dream - Complete this class and ensure it is fully operational with the current architecture
 # Import constants and image statements used in all filter objects
 from thyroid_ultrasound_imaging_support.ImageFilter.ImageFilter import *
-from thyroid_ultrasound_imaging_support.UserInput.get_threshold_values_user_input import get_threshold_values_from_user_input
 
 
 class ImageFilterThreshold(ImageFilter):

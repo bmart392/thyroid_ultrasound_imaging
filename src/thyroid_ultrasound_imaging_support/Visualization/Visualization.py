@@ -6,9 +6,8 @@ Contains Visualization object and associated function.
 from math import ceil
 from matplotlib.pyplot import axes, figure, show
 from numpy import array, zeros, ones, uint8, newaxis, where, repeat
-from cv2 import GC_BGD, GC_PR_FGD, imshow, waitKey, line, circle, \
+from cv2 import GC_BGD, GC_PR_FGD, imshow, waitKey, line, \
     namedWindow, startWindowThread, setMouseCallback, destroyWindow
-from cv2 import Error as cv2Error
 
 # Import custom python packages
 from thyroid_ultrasound_imaging_support.ImageFilter.FilterConstants import COLOR_RGB
@@ -82,6 +81,11 @@ class Visualization:
 
             Parameters
             ----------
+            skin_approximation_parameters :
+            callback_inputs :
+            callback_function :
+            image_title :
+            image_array :
             image_data: ImageData
                 object containing the data to be visualized
             specific_visualizations
@@ -181,7 +185,7 @@ class Visualization:
                                                                   image_data.sure_background_mask,
                                                                   base_image_color=COLOR_RGB,
                                                                   output_image_color=COLOR_BGR,
-                                                                  overlay_method=COLORIZED)
+                                                                  overlay_method=COLORIZED, overlay_color=(0, 0, 35))
 
                 elif visual == SHOW_PROBABLE_FOREGROUND:
                     if image_data.probable_foreground_mask is not None:
@@ -271,7 +275,7 @@ class Visualization:
                                               all_axes[current_axis_number])
 
                 # Increment the current axis number for the next loop
-                current_axis_number = current_axis_number + 1
+                # current_axis_number = current_axis_number + 1
 
             # If displaying a single image, adjust the layout of the figure and show it
             if self.image_mode == IMG_SINGLE and visualization_fig is not None:

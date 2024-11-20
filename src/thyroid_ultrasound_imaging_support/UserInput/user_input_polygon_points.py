@@ -1,14 +1,15 @@
 """
 Contains user_input_polygon_points function.
 """
-# Import standard packages
+# Import standard ROS packages
+from rospy import init_node
+
+# Import standard python packages
 from copy import copy
-from cv2 import line, circle, imread, cvtColor, COLOR_GRAY2BGR, COLOR_BGR2GRAY
+from cv2 import line, circle, imread, cvtColor, COLOR_BGR2GRAY
 
-# Import custom objects
+# Import custom python packages
 from thyroid_ultrasound_imaging_support.ImageData.ImageData import ImageData
-
-# Import custom functions
 from thyroid_ultrasound_imaging_support.UserInput.display_image_with_callback import display_image_with_callback
 
 
@@ -155,11 +156,15 @@ def user_input_polygon_points(image_data: ImageData, polygon_use: str,
 
 if __name__ == '__main__':
 
+    # Create ROS node so that the ImageData object can be properly timestamped
+    init_node("test")
+
     # Create a test image
-    image = ImageData(image_data=imread('/home/ben/thyroid_ultrasound/src/thyroid_ultrasound_imaging/' +
-                                        'scripts/Test/Images/Series2/Slice_30.png'))
+    image = ImageData(image_data=imread('/home/ben/thyroid_ultrasound/src/thyroid_ultrasound_imaging/scripts/'
+                                        'Test/Experimentation/Experiment_2024-01-12/Images/Slice_00015.png'))
 
     # Recolor the image to properly replicate the system
     image.colorized_image = cvtColor(image.original_image, COLOR_BGR2GRAY)
 
+    # Display the result of the selection
     print(user_input_polygon_points(image, "test"))

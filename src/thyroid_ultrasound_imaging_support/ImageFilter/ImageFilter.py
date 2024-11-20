@@ -18,9 +18,7 @@ from thyroid_ultrasound_imaging_support.ImageData.ImageData import ImageData
 from thyroid_ultrasound_imaging_support.ImageFilter.FilterConstants import *
 
 # Import custom functions
-from thyroid_ultrasound_imaging_support.Visualization.Visualization import Visualization
 from thyroid_ultrasound_imaging_support.Visualization.display_process_timer import display_process_timer
-from thyroid_ultrasound_imaging_support.UserInput.user_input_crop_coordinates import user_input_crop_coordinates
 from thyroid_ultrasound_imaging_support.ImageFilter.SegmentationError import *
 
 # Define constants for down-sampling related tasks
@@ -97,8 +95,8 @@ class ImageFilter:
 
                 # Note that everything other step must be completed now
                 override_existing_data = True
-            start_of_process_time = self.display_process_timer(start_of_process_time,
-                                                               "Crop image time")
+            # start_of_process_time = self.display_process_timer(start_of_process_time,
+            #                                                    "Crop image time")
         except Exception as caught_exception:
             raise SegmentationError(CROP_FAILURE + " in 'basic_image_filter' in ImageFilter.py",
                                     caught_exception.args[0])
@@ -110,8 +108,8 @@ class ImageFilter:
 
                 # Note that everything other step must be completed now
                 override_existing_data = True
-            start_of_process_time = self.display_process_timer(start_of_process_time,
-                                                               "Recolor image time")
+            # start_of_process_time = self.display_process_timer(start_of_process_time,
+            #                                                    "Recolor image time")
         except Exception as caught_exception:
             raise SegmentationError(COLORIZE_FAILURE + " in 'basic_image_filter' in ImageFilter.py",
                                     caught_exception.args[0])
@@ -123,8 +121,8 @@ class ImageFilter:
 
                 # Note that everything other step must be completed now
                 override_existing_data = True
-            start_of_process_time = self.display_process_timer(start_of_process_time,
-                                                               "Down-sample time")
+            # start_of_process_time = self.display_process_timer(start_of_process_time,
+            #                                                    "Down-sample time")
         except Exception as caught_exception:
             raise SegmentationError(DOWN_SAMPLE_FAILURE + " in 'basic_image_filter' in ImageFilter.py",
                                     caught_exception.args[0])
@@ -136,8 +134,8 @@ class ImageFilter:
 
                 # Note that everything other step must be completed now
                 override_existing_data = True
-            start_of_process_time = self.display_process_timer(start_of_process_time,
-                                                               "Pre-process image time")
+            # start_of_process_time = self.display_process_timer(start_of_process_time,
+            #                                                    "Pre-process image time")
         except Exception as caught_exception:
             raise SegmentationError(PRE_PROCESS_FAILURE + " in 'basic_image_filter' in ImageFilter.py",
                                     caught_exception.args[0])
@@ -149,8 +147,8 @@ class ImageFilter:
 
                 # Note that everything other step must be completed now
                 override_existing_data = True
-            start_of_process_time = self.display_process_timer(start_of_process_time,
-                                                               "Mask creation time")
+            # start_of_process_time = self.display_process_timer(start_of_process_time,
+            #                                                    "Mask creation time")
         except Exception as caught_exception:
             raise SegmentationError(CREATE_MASK_FAILURE + " in 'basic_image_filter' in ImageFilter.py",
                                     caught_exception.args[0])
@@ -162,8 +160,8 @@ class ImageFilter:
 
                 # Note that everything other step must be completed now
                 override_existing_data = True
-            start_of_process_time = self.display_process_timer(start_of_process_time,
-                                                               "Post-process image mask time")
+            # start_of_process_time = self.display_process_timer(start_of_process_time,
+            #                                                    "Post-process image mask time")
         except Exception as caught_exception:
             raise SegmentationError(POST_PROCESS_FAILURE + " in 'basic_image_filter' in ImageFilter.py",
                                     caught_exception.args[0])
@@ -175,8 +173,8 @@ class ImageFilter:
 
                 # Note that everything other step must be completed now
                 override_existing_data = True
-            start_of_process_time = self.display_process_timer(start_of_process_time,
-                                                               "Sure foreground mask creation time")
+            # start_of_process_time = self.display_process_timer(start_of_process_time,
+            #                                                    "Sure foreground mask creation time")
         except Exception as caught_exception:
             raise SegmentationError(CREATE_SURE_FOREGROUND_FAILURE + " in 'basic_image_filter' in ImageFilter.py",
                                     caught_exception.args[0])
@@ -188,8 +186,8 @@ class ImageFilter:
 
                 # Note that everything other step must be completed now
                 override_existing_data = True
-            start_of_process_time = self.display_process_timer(start_of_process_time,
-                                                               "Sure background mask creation time")
+            # start_of_process_time = self.display_process_timer(start_of_process_time,
+            #                                                    "Sure background mask creation time")
         except Exception as caught_exception:
             raise SegmentationError(CREATE_SURE_BACKGROUND_FAILURE + " in 'basic_image_filter' in ImageFilter.py",
                                     caught_exception.args[0])
@@ -201,8 +199,8 @@ class ImageFilter:
 
                 # Note that everything other step must be completed now
                 override_existing_data = True
-            start_of_process_time = self.display_process_timer(start_of_process_time,
-                                                               "Probable foreground mask creation time")
+            # start_of_process_time = self.display_process_timer(start_of_process_time,
+            #                                                    "Probable foreground mask creation time")
         except Exception as caught_exception:
             raise SegmentationError(CREATE_PROBABLE_FOREGROUND_FAILURE + " in 'basic_image_filter' in ImageFilter.py",
                                     caught_exception.args[0])

@@ -3,14 +3,24 @@ Define object class for GrabCut based image filters.
 """
 
 # Import standard python packages
-from numpy import uint8, where, median, std, ones, zeros, array
-from cv2 import GC_FGD, GC_PR_BGD, GC_BGD, GC_PR_FGD, convertScaleAbs, morphologyEx, MORPH_ERODE, MORPH_DILATE
-from copy import deepcopy
+from numpy import uint8, where, median, std, ones, zeros
+from cv2 import GC_FGD, GC_BGD, GC_PR_FGD, morphologyEx, MORPH_ERODE
 
 # Import the super-class for all image filters
 from thyroid_ultrasound_imaging_support.ImageFilter.ImageFilter import *
 from thyroid_ultrasound_imaging_support.Validation.create_dice_score_mask import create_dice_score_mask
 from thyroid_ultrasound_support.Constants.SharedConstants import GROWTH_PHASE, REST_PHASE
+
+
+# Define constants for the DICE score for creating the SURE_BACKGROUND
+LOW_GROWTH: float = 1.25
+MEDIUM_GROWTH: float = 1.50
+HIGH_GROWTH: float = 2.5
+
+# Define constants for the DICE score for creating the SURE_FOREGROUND
+HIGH_SHRINKAGE: float = 0.8
+MEDIUM_SHRINKAGE: float = 0.88
+LOW_SHRINKAGE: float = 0.95
 
 
 class ImageFilterGrabCut(ImageFilter):
@@ -24,10 +34,10 @@ class ImageFilterGrabCut(ImageFilter):
                  segmentation_iteration_count: int = 1,  # 1
                  sure_foreground_creation_iterations: int = None,  # 3
                  sure_background_creation_iterations: int = None,  # 8
-                 sure_foreground_creation_dice_score: float = 0.8,
-                 sure_background_creation_dice_score: float = 1.25,
-                 sure_foreground_creation_kernel_size: float = (3, 3),
-                 sure_background_creation_kernel_size: float = (5, 5),
+                 sure_foreground_creation_dice_score: float = HIGH_SHRINKAGE,  # 0.8,
+                 sure_background_creation_dice_score: float = LOW_GROWTH,  # 1.25
+                 sure_foreground_creation_kernel_size: tuple = (3, 3),
+                 sure_background_creation_kernel_size: tuple = (5, 5),
                  segmentation_phase: str = GROWTH_PHASE,
                  bright_threshold_upper_bound: float = 2.0,
                  bap_cutoff_percentage: float = 1.25, map_cutoff_percentage: float = 9.,
@@ -121,8 +131,14 @@ class ImageFilterGrabCut(ImageFilter):
         self.composite_mask_cutoff_value = composite_mask_cutoff_value
         self.previous_image_masks = []
 
+        # Define limits for
+
         # Define the allowed level of variation for the segmentation to be considered stable
         self.allowed_variation_in_stability = allowed_variation_in_stability / 100
+
+        # Define temporary attributes to store data for debugging
+        self.current_mask_area_percentage = 0.0
+        self.bright_area_removal_active = False
 
     def filter_image(self, image_data: ImageData, override_existing_data: bool = False):
         """
@@ -147,7 +163,7 @@ class ImageFilterGrabCut(ImageFilter):
                                     caught_exception.history)
 
         # Note the current time
-        start_of_process_time = time()
+        # start_of_process_time = time()
 
         # Create mask for segmentation of next image
         try:
@@ -158,7 +174,7 @@ class ImageFilterGrabCut(ImageFilter):
             raise SegmentationError(CREATE_PREVIOUS_IMAGE_MASK_FAILURE + " in 'filter_image' in ImageFilter.py",
                                     caught_exception.args[0])
 
-        self.display_process_timer(start_of_process_time, "Previous Image Mask Creation")
+        # self.display_process_timer(start_of_process_time, "Previous Image Mask Creation")
 
     def pre_process_image(self, image_data: ImageData):
         """
@@ -272,13 +288,20 @@ class ImageFilterGrabCut(ImageFilter):
 
             # diagnostic_data.append(bright_area_percentage)
 
+            # Set the temporary diagnostic variable
+            self.current_mask_area_percentage = mask_area_percentage
+
             # If the bright area is too large, exclude it from the mask
             if bright_area_percentage > self.bap_cutoff_percentage and mask_area_percentage < self.map_cutoff_percentage:
 
+                # Set the status variable
+                self.bright_area_removal_active = True
+
                 # Modify the mask to remove small areas and increase effectiveness
                 bright_area_mask = morphologyEx(bright_area_mask, MORPH_ERODE, kernel=ones((2, 2)), iterations=1)
-                bright_area_mask = morphologyEx(bright_area_mask, MORPH_DILATE, kernel=ones((3, 3)), anchor=(1, 1),
-                                                iterations=3)
+                # bright_area_mask = morphologyEx(bright_area_mask, MORPH_DILATE, kernel=ones((3, 3)), anchor=(1, 1),
+                #                                 iterations=3)
+                bright_area_mask = create_dice_score_mask(bright_area_mask, dice_score_to_achieve=5.0)
 
                 # Combine the two masks
                 mask_for_object = ((image_data.image_mask - bright_area_mask) == 1).astype(uint8)
@@ -286,6 +309,32 @@ class ImageFilterGrabCut(ImageFilter):
             else:
                 mask_for_object = image_data.image_mask
                 # diagnostic_data.append('BA Included')
+                self.bright_area_removal_active = False
+
+            # Set the SURE_BACKGROUND growth rate
+            if self.sure_background_creation_dice_score is not None and \
+                    self.sure_foreground_creation_dice_score is not None:
+
+                # Option 1
+                # if mask_area_percentage < 0.5 * self.map_cutoff_percentage:
+                #     self.sure_background_creation_dice_score = HIGH_GROWTH
+                #     self.sure_foreground_creation_dice_score = LOW_SHRINKAGE
+                # elif mask_area_percentage < self.map_cutoff_percentage:
+                #     self.sure_background_creation_dice_score = MEDIUM_GROWTH
+                #     self.sure_foreground_creation_dice_score = MEDIUM_SHRINKAGE
+                # else:
+                #     self.sure_background_creation_dice_score = LOW_GROWTH
+                #     self.sure_foreground_creation_dice_score = HIGH_SHRINKAGE
+
+                # Option 2
+                # self.sure_foreground_creation_dice_score = (1 / (2 * (mask_area_percentage + 2.25))) + 0.75  # (1 / (2 * (mask_area_percentage + 2.5))) + 0.8
+                # self.sure_background_creation_dice_score = (2 / (mask_area_percentage + 0.5)) + 0.95  # (3 / (mask_area_percentage + 1)) + 1.25
+
+                # Option 3
+                self.sure_foreground_creation_dice_score = (1 / (2 * (mask_area_percentage + 2.5))) + 0.8
+                self.sure_background_creation_dice_score = max((3 / (mask_area_percentage + 1)) + 0.85, 1)  # 1.25
+
+                pass
 
             # Create a blank mask for the first two images
             if len(self.previous_image_masks) == 0:

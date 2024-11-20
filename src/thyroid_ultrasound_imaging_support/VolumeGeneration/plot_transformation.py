@@ -1,6 +1,6 @@
 from matplotlib.pyplot import draw
 from mpl_toolkits.mplot3d import Axes3D
-from numpy import ndarray, array, dot
+from numpy import ndarray, array
 
 
 def plot_transformation(transformation: ndarray, axis: Axes3D):

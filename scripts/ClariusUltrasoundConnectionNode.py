@@ -10,18 +10,20 @@ from numpy import zeros, uint8, array
 import ctypes
 from os.path import exists, expanduser, isdir
 from os import makedirs
-from PIL import Image
 from PySide2 import QtGui
 from cv2 import imshow, cvtColor, waitKey, destroyAllWindows, COLOR_BGR2GRAY, COLOR_GRAY2BGR
 from datetime import date, datetime
 from matplotlib.image import imsave
 
 # Import standard ROS packages
-from cv_bridge import CvBridge
-from sensor_msgs.msg import Image
 
 # Import custom ROS packages
 from thyroid_ultrasound_support.BasicNode import *
+from thyroid_ultrasound_messages.msg import ImageWithTimeData
+
+# Import custom python packages
+from thyroid_ultrasound_support.MessageConversion.convert_image_array_to_image_with_time_data_message import \
+    convert_image_array_to_image_with_time_data_message
 
 # Define the image width and height
 IMAGE_WIDTH: int = 640
@@ -29,7 +31,7 @@ IMAGE_HEIGHT: int = 480
 PORT: int = 5828
 
 # Define node behavior
-IP: str = "192.168.0.101"
+IP: str = "192.168.0.104"
 VISUALIZATION_INCLUDED: bool = False
 
 # Define indexes for image frozen list
@@ -118,7 +120,7 @@ class ClariusUltrasoundConnectionNode(BasicNode):
         else:
 
             # Define the image publisher
-            self.image_publisher = Publisher(IMAGE_SOURCE, Image, queue_size=100)
+            self.image_publisher = Publisher(IMAGE_SOURCE, ImageWithTimeData, queue_size=100)
 
             # Define a publisher for when the image has been frozen and unfrozen
             self.image_frozen_status_publisher = Publisher(IMAGE_FROZEN_STATUS, Bool, queue_size=1)
@@ -138,6 +140,13 @@ class ClariusUltrasoundConnectionNode(BasicNode):
     def new_processed_image(image, width, height, sz, microns_per_pixel, timestamp, angle, imu):
         """Updates the new processed image variable."""
         global processed_image
+        
+        # bpp = sz / (width * height)
+        #
+        # if bpp == 4:
+        #     img = Image.frombytes("RGBA", (width, height), image)
+        # else:
+        #     img = Image.frombytes("L", (width, height), image)
 
         # Process the image received
         img = QtGui.QImage(image, width, height, QtGui.QImage.Format_ARGB32)
@@ -239,14 +248,8 @@ class ClariusUltrasoundConnectionNode(BasicNode):
             # Convert the image to a properly dimensioned gray scale image
             bscan = cvtColor(processed_image[:, :, 0:3], COLOR_BGR2GRAY)
 
-            # Create an image message from the ultrasound image
-            img_msg = CvBridge().cv2_to_imgmsg(bscan, encoding='passthrough')
-
-            # Add the time that the message was received
-            img_msg.header.stamp = Time.now()
-
-            # Publish the image
-            self.image_publisher.publish(img_msg)
+            # Publish the image as an ImageWithTimeData message
+            self.image_publisher.publish(convert_image_array_to_image_with_time_data_message(image_array=bscan))
 
             # Display the image if requested
             if VISUALIZATION_INCLUDED:

@@ -27,6 +27,6 @@
     <node name="NonRealTimeImageFilter" pkg="thyroid_ultrasound_imaging" type="NonRealTimeImageFilterNode.py" />
     
     <!-- start the volume generation node -->
-    <node name="VolumeGeneration" pkg="thyroid_ultrasound_imaging" type="VolumeGenerationNode.py" />
+    <!-- <node name="VolumeGeneration" pkg="thyroid_ultrasound_imaging" type="VolumeGenerationNode.py" /> -->
 
 </launch>

@@ -56,7 +56,7 @@ if __name__ == '__main__':
         for x in range(3, 9):
             test_mask[y][x] = uint8(1)
 
-    second_test_mask = deepcopy(test_mask)
+    # second_test_mask = deepcopy(test_mask)
 
     imshow(test_mask * uint8(255))
 

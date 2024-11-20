@@ -4,10 +4,9 @@
 File containing code to stream recorded data as ROS Topic.
 """
 
+# TODO - HIGH - Add toggle to stream data with current time stamp or old time stamp
 
 # Import ROS specific packages
-from cv_bridge import CvBridge
-from sensor_msgs.msg import Image
 
 # Import standard packages
 from cv2 import cvtColor, COLOR_BGR2GRAY, imread
@@ -16,10 +15,13 @@ from os.path import isdir
 
 # Import custom ROS packages
 from thyroid_ultrasound_support.BasicNode import *
+from thyroid_ultrasound_messages.msg import ImageWithTimeData
 
 # Import custom python packages
 from thyroid_ultrasound_support.Functions.generate_ordered_list_of_directory_contents import \
     generate_ordered_list_of_directory_contents
+from thyroid_ultrasound_support.MessageConversion.convert_image_array_to_image_with_time_data_message import \
+    convert_image_array_to_image_with_time_data_message
 
 
 class ExperimentStreamRecordedData(BasicNode):
@@ -34,6 +36,7 @@ class ExperimentStreamRecordedData(BasicNode):
         self.restart_image_stream = False
         self.playback_images_in_reverse = False
         self.path_to_images_changed = False
+        self.apply_new_timestamps = True
 
         # Define a variable to store the image streaming_frequency
         self.streaming_frequency = 20.
@@ -44,14 +47,20 @@ class ExperimentStreamRecordedData(BasicNode):
         # Define global iterator variable
         self.ii = 0
 
+        # Define a variable to control single image iterations
+        self.single_image_iteration_count = 0
+        self.single_image_iterations = 0
+
         # Define list where images are stored
         self.created_objects = None
+        self.created_objects_sec = None
+        self.created_objects_n_sec = None
 
         # Create a ROS node
         init_node(CLARIUS_US_SPOOF)
 
         # Create a publisher for the images
-        self.us_pub = Publisher(IMAGE_SOURCE, Image, queue_size=100)
+        self.us_pub = Publisher(IMAGE_SOURCE, ImageWithTimeData, queue_size=100)
 
         # Create image streaming services
         Service(CS_IMAGE_LOCATION, StringRequest, self.image_location_handler)
@@ -59,6 +68,7 @@ class ExperimentStreamRecordedData(BasicNode):
         Service(CS_IMAGE_STREAMING_RESTART, BoolRequest, self.restart_streaming_command_handler)
         Service(CS_IMAGE_STREAMING_REVERSE_PLAYBACK_DIRECTION, BoolRequest, self.reverse_playback_direction_handler)
         Service(CS_IMAGE_STREAMING_SET_FREQUENCY, Float64Request, self.set_frequency_handler)
+        Service(CS_APPLY_NEW_TIMESTAMP, BoolRequest, self.apply_new_timestamps_command_handler)
 
     def image_location_handler(self, req: StringRequestRequest):
         """Updates the directory from which to stream images."""
@@ -111,6 +121,11 @@ class ExperimentStreamRecordedData(BasicNode):
         self.streaming_frequency = req.value
         return Float64RequestResponse(True, NO_ERROR)
 
+    def apply_new_timestamps_command_handler(self, req: BoolRequestRequest):
+        """Updates the local variable based on the value included in the request."""
+        self.apply_new_timestamps = req.value
+        return BoolRequestResponse(True, NO_ERROR)
+
     def main(self):
         # Define the publishing rate for these images
         pub_rate = Rate(self.streaming_frequency)  # Hz
@@ -131,11 +146,21 @@ class ExperimentStreamRecordedData(BasicNode):
                         # Recolor the image to grayscale
                         bscan = cvtColor(self.created_objects[self.ii], COLOR_BGR2GRAY)
 
-                        # Generate an image message to publish
-                        resulting_image_message: Image = CvBridge().cv2_to_imgmsg(bscan, encoding="passthrough")
+                        # Pull out the appropriate saved timestamp
+                        try:
+                            created_object_timestamp_sec = self.created_objects_sec[self.ii]
+                            created_object_timestamp_nsec = self.created_objects_n_sec[self.ii]
+                        except TypeError or IndexError:
+                            created_object_timestamp_sec = None
+                            created_object_timestamp_nsec = None
 
-                        # Register when the image was taken
-                        resulting_image_message.header.stamp = Time.now()
+                        # Create the image message to publish
+                        resulting_image_message = \
+                            convert_image_array_to_image_with_time_data_message(
+                                image_array=bscan,
+                                apply_new_timestamp=self.apply_new_timestamps,
+                                alternative_timestamp_sec=created_object_timestamp_sec,
+                                alternative_timestamp_nsec=created_object_timestamp_nsec)
 
                         # Publish the image
                         self.us_pub.publish(resulting_image_message)
@@ -145,17 +170,24 @@ class ExperimentStreamRecordedData(BasicNode):
                         stdout.flush()
 
                         # Increment the iterator
-                        if self.playback_images_in_reverse:
-                            change = -1
+                        if self.single_image_iterations < self.single_image_iteration_count:
+                            self.single_image_iterations = self.single_image_iterations + 1
                         else:
-                            change = 1
-                        self.ii = self.ii + change
+                            self.single_image_iterations = 0
+
+                            if self.playback_images_in_reverse:
+                                change = -1
+                            else:
+                                change = 1
+                            self.ii = self.ii + change
 
                         self.publish_node_status(STREAMING_ACTIVE)
 
-                    except Exception:
+                    except TypeError:
                         self.log_single_message('Could not convert image')
                         self.created_objects = None
+                        self.created_objects_sec = None
+                        self.created_objects_n_sec = None
                         self.path_to_images = None
                         self.log_single_message('Images and filepaths cleared')
 
@@ -177,16 +209,32 @@ class ExperimentStreamRecordedData(BasicNode):
 
                 self.log_single_message('Reading in new images at ' + self.path_to_images)
 
-                # Pull out the images from the given folder location
-                try:
-                    self.created_objects = [imread(path) for path in generate_ordered_list_of_directory_contents(
-                        self.path_to_images, sort_indices=(0, 1))]
-                except Exception:
-                    try:
-                        self.created_objects = [imread(path) for path in generate_ordered_list_of_directory_contents(
-                            self.path_to_images, sort_indices=tuple([0]))]
-                    except Exception:
-                        raise Exception('Image files not named as expected.')
+                try:  # to pull out the images from the given folder location using the standard sort indices
+                    self.created_objects_sec, self.created_objects_n_sec, \
+                    ordered_file_paths = generate_ordered_list_of_directory_contents(
+                        self.path_to_images, sort_indices=(1, 2), return_index_values=True)
+
+                except IndexError:  # If the images cannot be parsed with the standard sort indices,
+                    try:  # attempt to use the alternate sort indices
+                        self.created_objects_sec, self.created_objects_n_sec, \
+                        ordered_file_paths = generate_ordered_list_of_directory_contents(
+                            self.path_to_images, sort_indices=(0, 1), return_index_values=True)
+
+                    except ValueError:  # If the images still cannot be parsed,
+
+                        # Allow sorting by strings and do not collect the timestamp of each image from the file name.
+                        ordered_file_paths = list(
+                            generate_ordered_list_of_directory_contents(self.path_to_images,
+                                                                        sort_indices=(0, 1),
+                                                                        sort_by_string_allowed=True))[
+                            0]
+
+                        # Reset the data stored here
+                        self.created_objects_sec = None
+                        self.created_objects_n_sec = None
+
+                # Create images from each file path
+                self.created_objects = [imread(path) for path in ordered_file_paths]
 
                 # Reset the flag
                 self.path_to_images_changed = False
@@ -216,7 +264,6 @@ class ExperimentStreamRecordedData(BasicNode):
 
 
 if __name__ == '__main__':
-
     node = ExperimentStreamRecordedData()
 
     node.log_single_message('Node initialized')

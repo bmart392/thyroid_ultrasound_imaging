@@ -13,12 +13,11 @@ File containing code to ensure even patient contact.
 #  then also only look at the same window to find the skin layer.
 
 # Import standard python packages
-from numpy import zeros, linspace, polyfit
-from sensor_msgs.msg import Image
+from numpy import zeros, linspace, polyfit, array
 
 # Import custom ROS packages
 from thyroid_ultrasound_support.BasicNode import *
-from thyroid_ultrasound_messages.msg import Float64Stamped, SkinContactLines
+from thyroid_ultrasound_messages.msg import Float64Stamped, SkinContactLines, ImageWithTimeData
 
 # Import custom python packages
 from thyroid_ultrasound_imaging_support.ImageData.ImageData import ImageData
@@ -163,7 +162,7 @@ class ImageContactBalanceNode(BasicNode):
         self.skin_approximation_publisher = Publisher(IMAGE_SKIN_APPROXIMATION, SkinContactLines, queue_size=1)
 
         # Define a subscriber to listen for the raw image
-        Subscriber(IMAGE_SOURCE, Image, self.new_raw_image_callback)
+        Subscriber(IMAGE_SOURCE, ImageWithTimeData, self.new_raw_image_callback)
 
         # Define a subscriber to listen for the imaging depth
         Subscriber(IMAGE_DEPTH, Float64, self.image_depth_callback)
@@ -177,7 +176,7 @@ class ImageContactBalanceNode(BasicNode):
     ###############
     # ROS Callbacks
     # region
-    def new_raw_image_callback(self, data: Image):
+    def new_raw_image_callback(self, data: ImageWithTimeData):
         """
         Receives a new ultrasound image and saves it. If too many ultrasound images have been saved,
         the oldest image is purged.
@@ -189,7 +188,7 @@ class ImageContactBalanceNode(BasicNode):
         """
 
         # Create a temporary ImageData object from the message
-        temp_image_data_object = ImageData(image_msg=data)
+        temp_image_data_object = ImageData(image_with_time_data_msg=data)
 
         # Save the original ultrasound image
         self.new_ultrasound_images.append(temp_image_data_object.original_image)

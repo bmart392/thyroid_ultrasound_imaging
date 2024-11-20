@@ -7,6 +7,7 @@ File containing the MessageCompatibleObject class definition.
 # Import standard python packages
 from rospy import Time
 from os.path import exists
+from numpy import array
 
 # Import standard ROS packages
 

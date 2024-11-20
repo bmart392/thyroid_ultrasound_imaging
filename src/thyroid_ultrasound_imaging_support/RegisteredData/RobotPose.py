@@ -5,7 +5,7 @@ File containing the RegisteredData class definition.
 """
 
 # Import standard python packages
-from numpy import array, ndarray
+from numpy import ndarray
 
 # Import standard ROS packages
 from std_msgs.msg import MultiArrayDimension

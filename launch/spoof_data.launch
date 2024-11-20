@@ -2,7 +2,7 @@
 
 <launch>
     <!-- start the spoof data sending node -->
-    <node name="ClariusSpoof" pkg="thyroid_ultrasound_imaging" type="ExperimentStreamRecordedData.py" />
+    <node name="ClariusSpoof" pkg="thyroid_ultrasound_imaging" type="ExperimentStreamRecordedData.py"/>
     
     <!--- use the core_nodes launch file to launch the standard nodes -->
     <include file="$(find thyroid_ultrasound_imaging)/launch/core_nodes.launch"/>

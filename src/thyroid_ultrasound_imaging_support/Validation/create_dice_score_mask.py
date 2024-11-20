@@ -84,12 +84,15 @@ def create_dice_score_mask(original_mask: ndarray,
     # Define an iteration counter
     iteration_counter = 0
 
+    # Define a flag to define when to exit the iteration loop due to DICE score calculation errors
+    exit_due_to_calculation_error = False
+
+    # Save the current mask and its score
+    previous_result_mask = current_mask
+    previous_result_mask_score = current_mask_score
+
     # While the mask has not reached the desired DICE score,
     while continue_iterating_flag:
-
-        # Save the current mask and its score
-        previous_result_mask = current_mask
-        previous_result_mask_score = current_mask_score
 
         if shrink_mask:
             # Shrink the current mask
@@ -99,8 +102,10 @@ def create_dice_score_mask(original_mask: ndarray,
                                         iterations=1,
                                         anchor=anchor_point)
 
-            # Recalculate the score of the updated mask
-            current_mask_score = calculate_dice_score(original_mask, current_mask)
+            # Define the order of the masks for the calculation of the DICE score
+            mask_1 = original_mask
+            mask_2 = current_mask
+
         else:
             # Expand the current mask
             current_mask = morphologyEx(current_mask,
@@ -109,8 +114,16 @@ def create_dice_score_mask(original_mask: ndarray,
                                         iterations=1,
                                         anchor=anchor_point)
 
-            # Recalculate the score of the updated mask
-            current_mask_score = calculate_dice_score(current_mask, original_mask)
+            # Define the order of the masks for the calculation of the DICE score
+            mask_1 = current_mask
+            mask_2 = original_mask
+
+        # Recalculate the score of the updated mask
+        try:
+            current_mask_score = calculate_dice_score(mask_1, mask_2)
+        except ZeroDivisionError:
+            exit_due_to_calculation_error = True
+            break
 
         # Update the flag
         if shrink_mask:
@@ -129,7 +142,8 @@ def create_dice_score_mask(original_mask: ndarray,
 
     if mandate_minimum_one_iteration and iteration_counter == 1:
         result_mask = current_mask
-    elif abs(previous_result_mask_score - comparison_score) < abs(current_mask_score - comparison_score):
+    elif abs(previous_result_mask_score - comparison_score) < abs(current_mask_score - comparison_score) or \
+            exit_due_to_calculation_error:
         result_mask = previous_result_mask
     else:
         result_mask = current_mask
@@ -140,8 +154,8 @@ def create_dice_score_mask(original_mask: ndarray,
 if __name__ == '__main__':
 
     # Load the mask to test
-    mask = load('/home/ben/thyroid_ultrasound/src/thyroid_ultrasound_imaging/scripts/'
-                'Test/Experimentation/ground_truth.npy')
+    mask = load('/home/ben/thyroid_ultrasound/src/thyroid_ultrasound_imaging/scripts/Test'
+                '/InitializationInformation/ground_truth.npy')
 
     # Show the result
     imshow('result', mask * uint8(125) + create_dice_score_mask(mask, 1.5) * uint8(50))
