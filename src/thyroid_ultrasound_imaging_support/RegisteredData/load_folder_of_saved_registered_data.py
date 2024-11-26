@@ -36,12 +36,12 @@ def load_folder_of_saved_registered_data(directory_path: str) -> list:
     # For each item in the directory
     for registered_data_item in list(generate_ordered_list_of_directory_contents(
             directory_path=directory_path,
-            sort_indices=(1, 2)))[-1]:
+            sort_indices=(1, 2),
+            sort_by_string_allowed=True))[-1]:
 
         # Ensure that registered data is stored in the item
         if REGISTERED_DATA_FOLDER_NAME in registered_data_item and \
                 len(listdir(registered_data_item)) == NUM_CONTENTS_IN_REGISTERED_DATA_FOLDER:
-
             # Add a new RegisteredData object to the list of found objects
             loaded_registered_data.append(RegisteredData(source_file_path=registered_data_item))
 

@@ -30,8 +30,9 @@ def load_folder_of_saved_image_data(source_folder_path: str) -> list:
     list_of_image_data_objects = []
 
     # Capture the contents of the given folder
-    folders_in_folder = generate_ordered_list_of_directory_contents(directory_path=source_folder_path,
-                                                                    sort_indices=(0, 1))
+    folders_in_folder = list(generate_ordered_list_of_directory_contents(directory_path=source_folder_path,
+                                                                    sort_indices=(0, 1),
+                                                                    sort_by_string_allowed=True))[0]
 
     # For each folder,
     for full_path_to_sub_folder in folders_in_folder:

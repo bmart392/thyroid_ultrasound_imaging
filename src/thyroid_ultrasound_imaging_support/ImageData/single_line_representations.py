@@ -383,8 +383,10 @@ def rebuild_array_data(split_data: list):
 def rebuild_time(split_data: list):
 
     # Return the field name and a timestamp using the number of seconds and nanoseconds
-    return split_data[0], Time(int(split_data[1]), int(split_data[2]))
-
+    try:
+        return split_data[0], Time(int(split_data[1]), int(split_data[2]))
+    except ValueError:
+        return split_data[0], Time(int(float(split_data[1])), int(float(split_data[2])))
 
 def rebuild_list_data(string_data: str):
 
