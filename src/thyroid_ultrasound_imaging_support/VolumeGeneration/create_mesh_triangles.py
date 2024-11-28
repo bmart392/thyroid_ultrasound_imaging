@@ -1,6 +1,7 @@
 # Import standard packages
 from numpy import array
 from mpl_toolkits.mplot3d import Axes3D
+from statistics import median
 
 # Import custom packages
 from thyroid_ultrasound_imaging_support.VolumeGeneration.calc_index_distance import calc_index_distance
@@ -11,7 +12,7 @@ from thyroid_ultrasound_imaging_support.VolumeGeneration.plot_triangles import p
 from thyroid_ultrasound_imaging_support.VolumeGeneration.wrapping_range import wrapping_range
 
 
-def create_mesh_triangles(point_cloud: list, progress_plot: Axes3D = None):
+def create_mesh_triangles(point_cloud: list, progress_plot: Axes3D = None, centroids = None):
     """
     Calculates a closed
 
@@ -26,6 +27,10 @@ def create_mesh_triangles(point_cloud: list, progress_plot: Axes3D = None):
     -------
 
     """
+
+    contour_adjustments = [tuple([a - b for a, b in zip(centroids[i + 1], centroids[i])]) for i in range(len(centroids) - 1)]
+    contour_adjustments_magnitude = [(c[0]**2 + c[1]**2 + c[2]**2)**0.5 for c in contour_adjustments]
+    median_contour_adjustment = median(contour_adjustments_magnitude)
 
     # Define a list to store the triangles generated from the algorithm
     list_of_triangles = []
@@ -75,10 +80,16 @@ def create_mesh_triangles(point_cloud: list, progress_plot: Axes3D = None):
             previous_point_index = current_point_cloud_indices[j - 1]
             current_point_index = current_point_cloud_indices[j]
 
+            if abs(contour_adjustments_magnitude[i] - median_contour_adjustment) > abs(median_contour_adjustment) * 0.25:
+                this_adjustment = (0, 0, 0)
+            else:
+                this_adjustment = contour_adjustments[i]
+
             # Find the closest point in the next contour
             paired_point, paired_point_index = find_closest_point(point_cloud[i][current_point_index],
                                                                   point_cloud[i + 1],
-                                                                  list_of_paired_points)
+                                                                  list_of_paired_points,
+                                                                  centroid_adjustment=this_adjustment)
 
             # If this is the first point in the contour, add the closest point to the list of paired points
             if current_point_index == 0 and previous_point_index == 0:

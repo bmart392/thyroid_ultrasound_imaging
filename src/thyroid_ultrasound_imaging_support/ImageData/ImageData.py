@@ -295,11 +295,11 @@ class ImageData:
         # Only create the contours if the expanded image mask has been created
         # AND
         # the expanded image mask contains any contours.
-        if self.image_mask is not None and not sum(self.image_mask) == 0:
+        if self.post_processed_mask is not None and not sum(self.post_processed_mask) == 0:
 
             # Use a built-in function to generate the contours
             contours_in_image, hierarchy = findContours(
-                self.image_mask.astype(uint8),
+                self.post_processed_mask.astype(uint8),
                 RETR_EXTERNAL,
                 CHAIN_APPROX_NONE
             )
@@ -323,6 +323,8 @@ class ImageData:
         Calculate the centroids of each contour in the list of contours. Returns the result as a
         list of (x, y) coordinates.
         """
+        self.contour_centroids = []
+
         if len(self.contours_in_image) > 0:
             # create empty array to return when no centroids are found
             result = []

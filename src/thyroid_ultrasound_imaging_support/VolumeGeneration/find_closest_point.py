@@ -6,7 +6,8 @@ from thyroid_ultrasound_imaging_support.VolumeGeneration.calc_index_distance imp
 from thyroid_ultrasound_imaging_support.VolumeGeneration.calc_norm import calc_norm
 
 
-def find_closest_point(reference_point: tuple, contour: list, previously_found_points: list) -> (tuple, int):
+def find_closest_point(reference_point: tuple, contour: list, previously_found_points: list,
+                       centroid_adjustment: tuple = None) -> (tuple, int):
     """
     Finds the closest point to a reference point within a given contour of points.
 
@@ -27,6 +28,8 @@ def find_closest_point(reference_point: tuple, contour: list, previously_found_p
     """
 
     # Declare a variable to store the reference point as an array for math later
+    if centroid_adjustment is not None:
+        reference_point = tuple([a + b for a, b in zip(reference_point, centroid_adjustment)])
     reference_point_array = array(reference_point)
 
     # If a list of previously found points was given

@@ -23,6 +23,8 @@ if not hasattr(Axis, "_get_coord_info_old"):
     Axis._get_coord_info = _get_coord_info_new
 ###patch end###
 
+# TODO - HIGH - Some points are being left out, need to ensure all points are connected. ALso need to compare closest paired points for multiple points at once
+
 # Import custom packages
 from thyroid_ultrasound_imaging_support.RegisteredData.RegisteredData import RegisteredData, ImageData
 from thyroid_ultrasound_imaging_support.RegisteredData.load_folder_of_saved_registered_data import \
@@ -31,21 +33,7 @@ from thyroid_ultrasound_imaging_support.VolumeGeneration.create_mesh_triangles i
 from thyroid_ultrasound_imaging_support.VolumeGeneration.plot_transformation import plot_transformation
 from thyroid_ultrasound_imaging_support.VolumeGeneration.display_mesh_information import display_mesh_information
 from thyroid_ultrasound_imaging_support.VolumeGeneration.combine_meshes import combine_meshes
-
-# ============================================================================
-# Correct method to combine meshes - Tested with Basic Shapes
-# rod_cube_mesh = combine_meshes(mesh_1='/home/ben/Desktop/test_rod.stl',
-#                                mesh_2='/home/ben/Desktop/test_square.stl',
-#                                save_result_mesh='/home/ben/Desktop/test_rod_cube_combined_repaired.stl',
-#                                display_mesh_data='Rod + Cube')
-# rod_weird_mesh = combine_meshes(mesh_1='/home/ben/Desktop/test_rod.stl',
-#                                 mesh_2='/home/ben/Desktop/test_weird.stl',
-#                                 save_result_mesh='/home/ben/Desktop/test_rod_weird_combined_repaired.stl',
-#                                 display_mesh_data='Rod + Weird')
-# cube_weird_mesh = combine_meshes(mesh_1='/home/ben/Desktop/test_square.stl',
-#                                  mesh_2='/home/ben/Desktop/test_weird.stl',
-#                                  save_result_mesh='/home/ben/Desktop/test_cube_weird_combined_repaired.stl',
-#                                  display_mesh_data='Cube + Weird')
+from thyroid_ultrasound_imaging_support.ImageFilter.remove_isolated_pixes import remove_isolated_pixes
 
 # ============================================================================
 # Correct method to combine meshes - Tested with Rebuilt Lobes
@@ -101,6 +89,8 @@ for list_of_registered_data in [left_list_of_registered_data]:
     first_pose_position = zeros((4, 4))
     first_pose_position[0:3, 3] = first_pose[0:3, 3]
 
+    all_centroids = []
+
     # For each registered data, pull out the contour and save it to the point cloud
     for registered_data in list_of_registered_data[1:3]:
         registered_data: RegisteredData
@@ -118,6 +108,11 @@ for list_of_registered_data in [left_list_of_registered_data]:
                                   [0, 0, 1, 0],
                                   [0, 0, 0, 1]])
 
+        # Remove any isolated pixels in the image data
+        remove_isolated_pixes(image_data.post_processed_mask)
+        image_data.generate_contours_in_image()
+        image_data.calculate_image_centroids()
+
         # Generate a transformed list of points for the largest contour
         transformed_contours, transformed_vectors, transformed_centroids = image_data.generate_transformed_contours(
             transformation=(robot_pose_at_image_capture_time @ rotation_about_z) + first_pose_position,
@@ -127,6 +122,8 @@ for list_of_registered_data in [left_list_of_registered_data]:
             transformed_contours = [transformed_contours[0]]
         if len(transformed_centroids) > 1:
             transformed_centroids = [transformed_centroids[0]]
+
+        all_centroids.append(tuple(transformed_centroids[0][0]))
 
         if len(transformed_contours) == 0 or len(transformed_centroids) == 0:
             break
@@ -150,7 +147,7 @@ for list_of_registered_data in [left_list_of_registered_data]:
         placement_index = placement_index + 25"""
 
 # Calculate the triangles in the point cloud
-point_cloud_triangles = create_mesh_triangles(this_point_cloud, visualization_plot)
+point_cloud_triangles = create_mesh_triangles(this_point_cloud, visualization_plot, all_centroids)
 
 print("Number of faces: " + str(len(point_cloud_triangles)))
 
