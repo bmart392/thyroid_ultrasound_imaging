@@ -8,7 +8,7 @@ from thyroid_ultrasound_imaging_support.VolumeGeneration.calc_index_distance imp
 from thyroid_ultrasound_imaging_support.VolumeGeneration.create_convex_triangles_from_3d_points import \
     create_convex_triangles_from_3d_points
 from thyroid_ultrasound_imaging_support.VolumeGeneration.find_closest_point import find_closest_point
-from thyroid_ultrasound_imaging_support.VolumeGeneration.plot_triangles import plot_triangles
+from thyroid_ultrasound_imaging_support.VolumeGeneration.plot_shapes import plot_shapes
 from thyroid_ultrasound_imaging_support.VolumeGeneration.wrapping_range import wrapping_range
 
 
@@ -50,7 +50,12 @@ def create_mesh_triangles(point_cloud: list, progress_plot: Axes3D = None, centr
     new_triangles = create_convex_triangles_from_3d_points(point_cloud[0])
     list_of_triangles = list_of_triangles + new_triangles
     if progress_plot is not None:
-        plot_triangles(new_triangles, progress_plot, point_colors[0])
+        plot_shapes(new_triangles, progress_plot, point_colors[0])
+
+    # Define lists to store the found pairs of points
+    list_of_forward_pairs = []
+    list_of_backward_pairs = []
+    list_of_common_pairs = []
 
     # For each contour in point_cloud
     for i in range(len(point_cloud) - 1):
@@ -73,6 +78,12 @@ def create_mesh_triangles(point_cloud: list, progress_plot: Axes3D = None, centr
         # Define the list of indices to use to create the triangles
         current_point_cloud_indices = list(range(len(point_cloud[i]))) + [0]
 
+        # Calculate the contour adjustment factor
+        if abs(contour_adjustments_magnitude[i] - median_contour_adjustment) > abs(median_contour_adjustment) * 0.25:
+            this_adjustment = (0, 0, 0)
+        else:
+            this_adjustment = contour_adjustments[i]
+
         # For each index in the current point cloud
         for j in range(len(current_point_cloud_indices)):
 
@@ -80,103 +91,138 @@ def create_mesh_triangles(point_cloud: list, progress_plot: Axes3D = None, centr
             previous_point_index = current_point_cloud_indices[j - 1]
             current_point_index = current_point_cloud_indices[j]
 
-            if abs(contour_adjustments_magnitude[i] - median_contour_adjustment) > abs(median_contour_adjustment) * 0.25:
-                this_adjustment = (0, 0, 0)
-            else:
-                this_adjustment = contour_adjustments[i]
-
             # Find the closest point in the next contour
             paired_point, paired_point_index = find_closest_point(point_cloud[i][current_point_index],
                                                                   point_cloud[i + 1],
                                                                   list_of_paired_points,
                                                                   centroid_adjustment=this_adjustment)
 
-            # If this is the first point in the contour, add the closest point to the list of paired points
-            if current_point_index == 0 and previous_point_index == 0:
-                list_of_paired_points.append(paired_point)
+            # Add the pair to the appropriate list
+            list_of_forward_pairs.append((current_point_index, paired_point_index))
 
-            # Otherwise
-            else:
+            # # Plot the forwards line
+            # plot_shapes([(point_cloud[i][current_point_index], point_cloud[i+1][paired_point_index])],
+            #             progress_plot, 'black')
 
-                # If the paired point is one over from the previous paired point
-                if abs(calc_index_distance(paired_point_index, previous_paired_point_index, point_cloud[i + 1])) == 1:
-                    # Form two triangles to close the quadrilateral
-                    new_triangles = [(point_cloud[i][previous_point_index],
-                                      point_cloud[i + 1][previous_paired_point_index],
-                                      paired_point),
-                                     (point_cloud[i][current_point_index],
-                                      point_cloud[i][previous_point_index],
-                                      paired_point)]
-
-                    # Set the color to use when plotting the triangles
-                    plot_color = 'orange'
-
-                    # Update the list of paired points
-                    list_of_paired_points.append(paired_point)
-
-                # Otherwise,
-                else:
-                    # If the last loop is in progress AND
-                    # the closest point on this iteration is the same as the closest point on the last iteration,
-                    if j == len(current_point_cloud_indices) - 1 and previous_paired_point_index == paired_point_index:
-
-                        # Set the temporary previous paired point index as the index of the current paired point index
-                        temp_previous_paired_point_index = paired_point_index
-
-                        # Set the temporary next paired point index as the index of the first paired point index
-                        temp_next_paired_point_index = point_cloud[i + 1].index(list_of_paired_points[0])
-
-                    # Otherwise,
-                    else:
-
-                        # Set the temporary previous paired point index as the previous paired point index
-                        temp_previous_paired_point_index = previous_paired_point_index
-
-                        # Set the temporary next paired point index as the current paired point index
-                        temp_next_paired_point_index = paired_point_index
-
-                    # For each index between the temporary previous paired point index and the temporary next paired
-                    # point index (accounting for wrapping around the end of the list),
-                    for k in wrapping_range(temp_previous_paired_point_index, temp_next_paired_point_index,
-                                            point_cloud[i + 1]):
-
-                        # Create a new triangle
-                        new_triangle = (point_cloud[i][previous_point_index],
-                                        point_cloud[i + 1][k],
-                                        point_cloud[i + 1][k + 1])
-
-                        # Update the list of triangles
-                        list_of_triangles.append(new_triangle)
-
-                        # Plot the new triangle, if required
-                        if progress_plot is not None:
-                            plot_triangles([new_triangle], progress_plot, 'green')
-
-                        # Update the list of paired points when necessary
-                        if k != previous_paired_point_index:
-                            list_of_paired_points.append(point_cloud[i + 1][k])
-
-                    # Create a triangle between the
-                    new_triangles = [(point_cloud[i][current_point_index],
-                                      point_cloud[i][previous_point_index],
-                                      paired_point)]
-                    plot_color = 'purple'
-
-                # Add the new triangles to the list of triangles
-                list_of_triangles = list_of_triangles + new_triangles
-
-                # Plot the new triangles if necessary
-                if progress_plot is not None:
-                    plot_triangles(new_triangles, progress_plot, plot_color)
+            # # If this is the first point in the contour, add the closest point to the list of paired points
+            # if current_point_index == 0 and previous_point_index == 0:
+            #     list_of_paired_points.append(paired_point)
+            #
+            # # Otherwise
+            # else:
+            #
+            #     # If the paired point is one over from the previous paired point
+            #     if abs(calc_index_distance(paired_point_index, previous_paired_point_index, point_cloud[i + 1])) == 1:
+            #         # Form two triangles to close the quadrilateral
+            #         new_triangles = [(point_cloud[i][previous_point_index],
+            #                           point_cloud[i + 1][previous_paired_point_index],
+            #                           paired_point),
+            #                          (point_cloud[i][current_point_index],
+            #                           point_cloud[i][previous_point_index],
+            #                           paired_point)]
+            #
+            #         # Set the color to use when plotting the triangles
+            #         plot_color = 'orange'
+            #
+            #         # Update the list of paired points
+            #         list_of_paired_points.append(paired_point)
+            #
+            #     # Otherwise,
+            #     else:
+            #         # If the last loop is in progress AND
+            #         # the closest point on this iteration is the same as the closest point on the last iteration,
+            #         if j == len(current_point_cloud_indices) - 1 and previous_paired_point_index == paired_point_index:
+            #
+            #             # Set the temporary previous paired point index as the index of the current paired point index
+            #             temp_previous_paired_point_index = paired_point_index
+            #
+            #             # Set the temporary next paired point index as the index of the first paired point index
+            #             temp_next_paired_point_index = point_cloud[i + 1].index(list_of_paired_points[0])
+            #
+            #         # Otherwise,
+            #         else:
+            #
+            #             # Set the temporary previous paired point index as the previous paired point index
+            #             temp_previous_paired_point_index = previous_paired_point_index
+            #
+            #             # Set the temporary next paired point index as the current paired point index
+            #             temp_next_paired_point_index = paired_point_index
+            #
+            #         # For each index between the temporary previous paired point index and the temporary next paired
+            #         # point index (accounting for wrapping around the end of the list),
+            #         for k in wrapping_range(temp_previous_paired_point_index, temp_next_paired_point_index,
+            #                                 point_cloud[i + 1]):
+            #
+            #             # Create a new triangle
+            #             new_triangle = (point_cloud[i][previous_point_index],
+            #                             point_cloud[i + 1][k],
+            #                             point_cloud[i + 1][k + 1])
+            #
+            #             # Update the list of triangles
+            #             list_of_triangles.append(new_triangle)
+            #
+            #             # Plot the new triangle, if required
+            #             if progress_plot is not None:
+            #                 plot_shapes([new_triangle], progress_plot, 'green')
+            #
+            #             # Update the list of paired points when necessary
+            #             if k != previous_paired_point_index:
+            #                 list_of_paired_points.append(point_cloud[i + 1][k])
+            #
+            #         # Create a triangle between the
+            #         new_triangles = [(point_cloud[i][current_point_index],
+            #                           point_cloud[i][previous_point_index],
+            #                           paired_point)]
+            #         plot_color = 'purple'
+            #
+            #     # Add the new triangles to the list of triangles
+            #     list_of_triangles = list_of_triangles + new_triangles
+            #
+            #     # Plot the new triangles if necessary
+            #     if progress_plot is not None:
+            #         plot_shapes(new_triangles, progress_plot, plot_color)
 
             # Save the index of this paired point
             previous_paired_point_index = paired_point_index
+
+        # Define the list of indices in the next point cloud
+        next_point_cloud_indices = list(range(len(point_cloud[i + 1]))) + [0]
+
+        # For each index in the next point cloud
+        for k in range(len(next_point_cloud_indices)):
+
+            current_point_index = next_point_cloud_indices[k]
+
+            paired_point_backwards, paired_point_index_backwards = find_closest_point(
+                point_cloud[i+1][current_point_index],
+                point_cloud[i],
+                list_of_paired_points,
+                centroid_adjustment=tuple([-1 * x for x in this_adjustment])
+            )
+
+            # Add the paired point to the list
+            list_of_backward_pairs.append((paired_point_index_backwards, current_point_index))
+
+            # # Plot the backwards line
+            # plot_shapes([(point_cloud[i+1][paired_point_index], point_cloud[i][paired_point_index_backwards])],
+            #             progress_plot, 'blue')
+
+        for point_pair in list_of_forward_pairs:
+            if point_pair in list_of_backward_pairs:
+                list_of_common_pairs.append(point_pair)
+                list_of_forward_pairs.pop(list_of_forward_pairs.index(point_pair))
+                list_of_backward_pairs.pop(list_of_backward_pairs.index(point_pair))
+
+        for list_of_points, color in zip([list_of_common_pairs, list_of_forward_pairs, list_of_backward_pairs],
+                                         ['green', 'orange', 'blue']):
+            for point_pair in list_of_points:
+                plot_shapes([(point_cloud[i][point_pair[0]], point_cloud[i+1][point_pair[1]])], progress_plot, color)
 
     # Create the triangles for the face of the last slice
     new_triangles = create_convex_triangles_from_3d_points(point_cloud[i + 1])
     list_of_triangles = list_of_triangles + new_triangles
     if progress_plot is not None:
-        plot_triangles(new_triangles, progress_plot, point_colors[(i + 1) % len(point_colors)])
+        plot_shapes(new_triangles, progress_plot, point_colors[(i + 1) % len(point_colors)])
 
     # Return the list of triangles
     return list_of_triangles

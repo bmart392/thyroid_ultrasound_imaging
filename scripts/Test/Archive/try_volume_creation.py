@@ -30,6 +30,7 @@ from thyroid_ultrasound_imaging_support.RegisteredData.RegisteredData import Reg
 from thyroid_ultrasound_imaging_support.RegisteredData.load_folder_of_saved_registered_data import \
     load_folder_of_saved_registered_data
 from thyroid_ultrasound_imaging_support.VolumeGeneration.create_mesh_triangles import create_mesh_triangles
+from thyroid_ultrasound_imaging_support.VolumeGeneration.create_mesh_triangles_v2 import create_mesh_triangles_v2
 from thyroid_ultrasound_imaging_support.VolumeGeneration.plot_transformation import plot_transformation
 from thyroid_ultrasound_imaging_support.VolumeGeneration.display_mesh_information import display_mesh_information
 from thyroid_ultrasound_imaging_support.VolumeGeneration.combine_meshes import combine_meshes
@@ -128,9 +129,9 @@ for list_of_registered_data in [left_list_of_registered_data]:
         if len(transformed_contours) == 0 or len(transformed_centroids) == 0:
             break
 
-        visualization_plot.scatter3D(array(transformed_contours)[0, :, 0],
-                                     array(transformed_contours)[0, :, 1],
-                                     array(transformed_contours)[0, :, 2])
+        # visualization_plot.scatter3D(array(transformed_contours)[0, :, 0],
+        #                              array(transformed_contours)[0, :, 1],
+        #                              array(transformed_contours)[0, :, 2])
 
         visualization_plot.scatter3D(array(transformed_centroids)[0, :, 0],
                                      array(transformed_centroids)[0, :, 1],
@@ -147,7 +148,7 @@ for list_of_registered_data in [left_list_of_registered_data]:
         placement_index = placement_index + 25"""
 
 # Calculate the triangles in the point cloud
-point_cloud_triangles = create_mesh_triangles(this_point_cloud, visualization_plot, all_centroids)
+point_cloud_triangles = create_mesh_triangles_v2(this_point_cloud, visualization_plot, all_centroids)
 
 print("Number of faces: " + str(len(point_cloud_triangles)))
 
