@@ -23,4 +23,5 @@ def plot_transformation(transformation: ndarray, axis: Axes3D):
                   axis_vector[:, 1],
                   axis_vector[:, 2],
                   color=color)
+
         draw()

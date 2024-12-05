@@ -93,7 +93,7 @@ for list_of_registered_data in [left_list_of_registered_data]:
     all_centroids = []
 
     # For each registered data, pull out the contour and save it to the point cloud
-    for registered_data in list_of_registered_data[1:3]:
+    for registered_data in list_of_registered_data[1:6]:
         registered_data: RegisteredData
 
         # Pull out the corresponding data
@@ -102,6 +102,7 @@ for list_of_registered_data in [left_list_of_registered_data]:
         # robot_pose_at_image_capture_time = registered_data.robot_pose.robot_pose - first_pose
 
         # Plot the transformation
+        # plot_transformation(robot_pose_at_image_capture_time + first_pose_position, visualization_plot)
         plot_transformation(robot_pose_at_image_capture_time + first_pose_position, visualization_plot)
 
         rotation_about_z = array([[0, 1, 0, 0],
@@ -111,6 +112,7 @@ for list_of_registered_data in [left_list_of_registered_data]:
 
         # Remove any isolated pixels in the image data
         remove_isolated_pixes(image_data.post_processed_mask)
+        # plt.matshow(image_data.post_processed_mask, 70)
         image_data.generate_contours_in_image()
         image_data.calculate_image_centroids()
 

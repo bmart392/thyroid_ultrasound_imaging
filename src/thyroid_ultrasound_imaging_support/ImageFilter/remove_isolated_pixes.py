@@ -34,12 +34,13 @@ def remove_isolated_pixes(mask: ndarray) -> None:
                 # Calculate the sum of the cells adjacent to the current cell
                 try:
                     this_slice_sum = sum(sum(mask[row - 1:row + 2, column - 1:column + 2]))
+
                 except TypeError:
                     this_slice_sum = sum(sum(mask[max(row - 1, 0):min(row + 2, mask.shape[0]),
                                  max(column - 1, 0):min(column + 2, mask.shape[1])]))
 
                 # If 2 or more neighbor cells are not included in the mask, remove the current cell from the mask
-                if this_slice_sum <= 2:
+                if this_slice_sum < 3:
                     mask[row, column] = 0
 
 
