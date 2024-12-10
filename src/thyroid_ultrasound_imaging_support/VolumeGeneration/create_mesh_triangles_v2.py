@@ -1,5 +1,5 @@
 # Import standard packages
-from numpy import array
+from numpy import array, sign
 from mpl_toolkits.mplot3d import Axes3D
 from statistics import median
 from copy import copy, deepcopy
@@ -41,8 +41,11 @@ CONNECTED_POSITIVE: int = 4
 CONNECTED_NEGATIVE: int = -3
 FULLY_CONNECTED: int = CONNECTED_POSITIVE + CONNECTED_NEGATIVE
 
+# TODO - HIGH - Implement some form of external point prioritization
 
-def create_mesh_triangles_v2(point_cloud: list, progress_plot: Axes3D = None, centroids=None):
+
+def create_mesh_triangles_v2(point_cloud: list, progress_plot: Axes3D = None, centroids=None,
+                             external_points=None):
     """
     Calculates a closed
 
@@ -54,6 +57,8 @@ def create_mesh_triangles_v2(point_cloud: list, progress_plot: Axes3D = None, ce
         A 3D axes object to plot the progress of the function.
     centroids :
         A list of each centroid for each contour.
+    external_points :
+        A list of indices of the external points on each contour.
 
     Returns
     -------
@@ -446,6 +451,8 @@ def create_mesh_triangles_v2(point_cloud: list, progress_plot: Axes3D = None, ce
                                                         either_common_line_used)
 
             loop_counter = loop_counter + 1
+
+        print('All points found')
 
     # Create the triangles for the face of the last slice
     list_of_triangles = list_of_triangles + create_triangles_on_slice_face(point_cloud[-1], progress_plot=progress_plot)

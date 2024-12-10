@@ -19,6 +19,20 @@ def wrapping_range(index_1: int, index_2: int, source_list: list) -> list:
         A range of indices.
     """
 
+    # When given an index 2 that is out of the range of top of the list,
+    if index_2 >= len(source_list):
+
+        # Subtract the length of the list to get the equivalent index
+        index_2 = index_2 - len(source_list)
+
+        # As long as the first index is still greater than the second index,
+        if index_1 > index_2:
+
+            # Subtract the length of the list to get the equivalent index,
+            index_1 = index_1 - len(source_list)
+        else:
+            raise Exception('The index 2 (' + str(index_2) + ' loops past index 1 (' + str(index_1) + '.')
+
     # Create the default best option
     best_option = [int(x) for x in linspace(index_1, index_2, abs(index_1 - index_2), endpoint=False)]
 

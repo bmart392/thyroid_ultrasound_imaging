@@ -62,15 +62,21 @@ class BoundingSet:
         # For each edge in the bounding set
         for primitive in self.primitives:
 
-            # Calculate the result of evaluating the boundary line equation at the point
-            result = primitive.a_constant * point[0] + primitive.b_constant * point[1] + primitive.c_constant
-
-            # Compare the sign of the result above with the sign of the boundary directionality.
-            # If the result is zero, check the inclusivity of the set.
-            if (sign(result) != primitive.directionality and result != 0 and self.interior_inclusive) or (
-                    result == 0 and not self.edge_inclusive):
-                # Return false if it is not in the set of a single primitive
+            # If the point is not within any singular boundary primitive,
+            if not primitive.point_within_boundary(point=point, interior_inclusive=self.interior_inclusive,
+                                            edge_inclusive=self.edge_inclusive):
+                # Return that the point is not within the set
                 return False
+
+            # # Calculate the result of evaluating the boundary line equation at the point
+            # result = primitive.a_constant * point[0] + primitive.b_constant * point[1] + primitive.c_constant
+            #
+            # # Compare the sign of the result above with the sign of the boundary directionality.
+            # # If the result is zero, check the inclusivity of the set.
+            # if (sign(result) != primitive.directionality and result != 0 and self.interior_inclusive) or (
+            #         result == 0 and not self.edge_inclusive):
+            #     # Return false if it is not in the set of a single primitive
+            #     return False
 
         # Return true only if the point is in each primitive's set
         return True

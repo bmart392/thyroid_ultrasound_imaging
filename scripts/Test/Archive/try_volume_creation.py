@@ -35,6 +35,7 @@ from thyroid_ultrasound_imaging_support.VolumeGeneration.plot_transformation imp
 from thyroid_ultrasound_imaging_support.VolumeGeneration.display_mesh_information import display_mesh_information
 from thyroid_ultrasound_imaging_support.VolumeGeneration.combine_meshes import combine_meshes
 from thyroid_ultrasound_imaging_support.ImageFilter.remove_isolated_pixes import remove_isolated_pixes
+from thyroid_ultrasound_imaging_support.VolumeGeneration.find_external_points import find_external_points
 
 # ============================================================================
 # Correct method to combine meshes - Tested with Rebuilt Lobes
@@ -92,6 +93,8 @@ for list_of_registered_data in [left_list_of_registered_data]:
 
     all_centroids = []
 
+    all_external_contour_points = []
+
     # For each registered data, pull out the contour and save it to the point cloud
     for registered_data in list_of_registered_data[1:6]:
         registered_data: RegisteredData
@@ -116,6 +119,11 @@ for list_of_registered_data in [left_list_of_registered_data]:
         image_data.generate_contours_in_image()
         image_data.calculate_image_centroids()
 
+        indices_of_external_points_on_contour = find_external_points(image_data.contours_in_image[0])
+        temp = ceil(len(image_data.contours_in_image[0]) / 100)
+        all_external_contour_points.append(indices_of_external_points_on_contour[::ceil(
+            len(image_data.contours_in_image[0]) / 100)])
+
         # Generate a transformed list of points for the largest contour
         transformed_contours, transformed_vectors, transformed_centroids = image_data.generate_transformed_contours(
             transformation=(robot_pose_at_image_capture_time @ rotation_about_z) + first_pose_position,
@@ -131,9 +139,19 @@ for list_of_registered_data in [left_list_of_registered_data]:
         if len(transformed_contours) == 0 or len(transformed_centroids) == 0:
             break
 
-        # visualization_plot.scatter3D(array(transformed_contours)[0, :, 0],
-        #                              array(transformed_contours)[0, :, 1],
-        #                              array(transformed_contours)[0, :, 2])
+        visualization_plot.scatter3D(array(transformed_contours)[0, :, 0],
+                                     array(transformed_contours)[0, :, 1],
+                                     array(transformed_contours)[0, :, 2])
+
+        external_points_array = []
+        for index in indices_of_external_points_on_contour:
+            external_points_array.append(transformed_contours[0][index])
+        external_points_array = array(external_points_array)
+
+        visualization_plot.scatter3D(array(external_points_array)[:, 0],
+                                     array(external_points_array)[:, 1],
+                                     array(external_points_array)[:, 2],
+                                     s=55)
 
         visualization_plot.scatter3D(array(transformed_centroids)[0, :, 0],
                                      array(transformed_centroids)[0, :, 1],
@@ -150,7 +168,8 @@ for list_of_registered_data in [left_list_of_registered_data]:
         placement_index = placement_index + 25"""
 
 # Calculate the triangles in the point cloud
-point_cloud_triangles = create_mesh_triangles_v2(this_point_cloud, visualization_plot, all_centroids)
+point_cloud_triangles = create_mesh_triangles_v2(this_point_cloud, visualization_plot, all_centroids,
+                                                 all_external_contour_points)
 
 print("Number of faces: " + str(len(point_cloud_triangles)))
 
