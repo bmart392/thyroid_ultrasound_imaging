@@ -5,8 +5,11 @@ File containing the remove_isolated_pixes function definition.
 # Import standard python packages
 from numpy import array, ndarray
 
-
 # Import custom python packages
+
+# Mask constants
+HORIZONTAL: tuple = ((0, 0, 0), (1, 1, 1), (0, 0, 0))
+VERTICAL: tuple = ((0, 1, 0), (0, 1, 0), (0, 1, 0))
 
 
 def remove_isolated_pixes(mask: ndarray) -> None:
@@ -33,19 +36,27 @@ def remove_isolated_pixes(mask: ndarray) -> None:
 
                 # Calculate the sum of the cells adjacent to the current cell
                 try:
-                    this_slice_sum = sum(sum(mask[row - 1:row + 2, column - 1:column + 2]))
+                    sub_matrix = mask[row - 1:row + 2, column - 1:column + 2]
+                    this_slice_sum = sum(sum(sub_matrix))
 
                 except TypeError:
+                    sub_matrix = None
                     this_slice_sum = sum(sum(mask[max(row - 1, 0):min(row + 2, mask.shape[0]),
-                                 max(column - 1, 0):min(column + 2, mask.shape[1])]))
+                                             max(column - 1, 0):min(column + 2, mask.shape[1])]))
 
                 # If 2 or more neighbor cells are not included in the mask, remove the current cell from the mask
                 if this_slice_sum < 3:
                     mask[row, column] = 0
 
+                elif sub_matrix is not None:
+                    try:
+                        if (sum(sum(sub_matrix * array(HORIZONTAL))) == 1 or sum(sum(sub_matrix * array(VERTICAL)))) == 1:
+                            mask[row, column] = 0
+                    except ValueError:
+                        pass
+
 
 if __name__ == '__main__':
-
     # Create two arrays
     original_array = array([[1, 0, 0, 0, 0],
                             [0, 1, 1, 1, 1],

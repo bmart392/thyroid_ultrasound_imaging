@@ -15,14 +15,21 @@ from thyroid_ultrasound_imaging_support.VolumeGeneration.CrossContourLine import
     INDEX_DATA, Point, THIS_CONTOUR, NEXT_CONTOUR
 from thyroid_ultrasound_imaging_support.VolumeGeneration.SingleContourLine import SingleContourLine
 from thyroid_ultrasound_imaging_support.VolumeGeneration.Triangle import Triangle
+from thyroid_ultrasound_imaging_support.VolumeGeneration.find_convex_hull_points import MaximumIterationsExceeded
 
 # Define color constants
 POINT_COLOR: str = 'black'  # Point colors used to color the points on each contour
+EXTERNAL_POINT_COLOR: str = 'red'  # Point color used to color the external points on each contour
 CONTOUR_LINE: str = 'black'  # Line color used to color the lines that exist on contours
 END_FACE_LINE_COLOR: str = 'purple'
 COMMON_CLOSEST_POINT_COLOR: str = 'green'
 QUADRILATERAL_CLOSING_LINE_COLOR: str = 'orange'
 GAP_FILLING_LINE_COLOR: str = 'blue'
+
+# Define point size constants
+POINT_SIZE: int = 10
+EXTERNAL_POINT_SIZE: int = 35
+
 
 # Define constants for indexing stored data
 PREVIOUS_COMMON: int = 0
@@ -45,7 +52,7 @@ FULLY_CONNECTED: int = CONNECTED_POSITIVE + CONNECTED_NEGATIVE
 
 
 def create_mesh_triangles_v2(point_cloud: list, progress_plot: Axes3D = None, centroids=None,
-                             external_points=None):
+                             external_point_indices=None):
     """
     Calculates a closed
 
@@ -57,7 +64,7 @@ def create_mesh_triangles_v2(point_cloud: list, progress_plot: Axes3D = None, ce
         A 3D axes object to plot the progress of the function.
     centroids :
         A list of each centroid for each contour.
-    external_points :
+    external_point_indices :
         A list of indices of the external points on each contour.
 
     Returns
@@ -83,7 +90,8 @@ def create_mesh_triangles_v2(point_cloud: list, progress_plot: Axes3D = None, ce
 
     # Create the triangles for the face of the first slice
     list_of_triangles = list_of_triangles + create_triangles_on_slice_face(point_cloud[0], progress_plot=progress_plot,
-                                                                           plot_points=True)
+                                                                           plot_points=True,
+                                                                           external_point_indices=external_point_indices[0])
 
     # For each contour in point_cloud
     for i in range(len(point_cloud) - 1):
@@ -93,26 +101,85 @@ def create_mesh_triangles_v2(point_cloud: list, progress_plot: Axes3D = None, ce
         if abs((contour_adjustment_magnitudes[i] / median_contour_adjustment_magnitude) - 1) <= 1.0:
             contour_adjustment = (contour_adjustment_vectors[i][0], 0, contour_adjustment_vectors[i][2])
 
+        # Calculate the total number of points in the point cloud
+        total_points_in_both_contours = 0
+        for contour in point_cloud:
+            total_points_in_both_contours = total_points_in_both_contours + len(contour)
+
         # Create lists of the unpaired points on this and the next contour
         unpaired_points_on_this_contour: list = deepcopy(point_cloud[i])
         unpaired_points_on_next_contour: list = deepcopy(point_cloud[i + 1])
 
+        # Create a list of unpaired external points on this and the next contour
+        unpaired_external_points_on_this_contour = []
+        for index in external_point_indices[i]:
+            unpaired_external_points_on_this_contour.append(point_cloud[i][index])
+        unpaired_external_points_on_next_contour = []
+        for index in external_point_indices[i + 1]:
+            unpaired_external_points_on_next_contour.append(point_cloud[i + 1][index])
+
         # If plotting the progress, plot the next contour
-        plot_contour_points(point_cloud[i + 1], progress_plot, POINT_COLOR)
+        plot_contour_points(point_cloud[i + 1], progress_plot, POINT_COLOR,
+                            external_point_indices=external_point_indices[i + 1])
 
-        # Find the first common pair of points
-        previous_common_pair = find_common_pair_of_closest_points(unpaired_points_on_this_contour,
-                                                                  unpaired_points_on_next_contour,
-                                                                  point_cloud[i], point_cloud[i + 1],
-                                                                  contour_adjustment)
-
-        # Update the corresponding lists and plot it if necessary
-        clean_up_line(previous_common_pair, unpaired_points_on_this_contour, unpaired_points_on_next_contour,
-                      shapes_that_have_been_plotted, progress_plot)
+        # # Find the first common pair of points
+        # previous_common_pair = find_common_pair_of_closest_points(unpaired_points_on_this_contour,
+        #                                                           unpaired_points_on_next_contour,
+        #                                                           point_cloud[i], point_cloud[i + 1],
+        #                                                           contour_adjustment)
+        #
+        # # Update the corresponding lists and plot it if necessary
+        # clean_up_line(previous_common_pair, unpaired_points_on_this_contour, unpaired_points_on_next_contour,
+        #               shapes_that_have_been_plotted, progress_plot)
 
         # Define a list of common lines that have not been used to create two triangles
         partially_available_common_lines = []
-        add_new_partially_available_common_pair(partially_available_common_lines, previous_common_pair, 0)
+        # add_new_partially_availabl   e_common_pair(partially_available_common_lines, previous_common_pair, 0)
+
+
+        # Replace above code with a while loop that finds a common that includes every external point
+
+        # Define a loop counter to ensure that the code will eventually exit the while loop,
+        loop_counter = 0
+
+        # Calculate the maximum number of iterations theoretically required to find a common pair
+        # for every external point
+        expected_max_iterations = len(external_point_indices[i]) + len(external_point_indices[i + 1])
+
+        # TODO - High - lines are crossing and incorrectly pairing, try allowing them to find the the same point as closest maybe?
+
+        # while (there are unpaired external points on this contour OR the next contour) AND
+        # the loop counter is less than sum of the lengths of the lists of external points,
+        while (len(unpaired_external_points_on_this_contour) > 0 or
+               len(unpaired_external_points_on_next_contour) > 0) and loop_counter < expected_max_iterations:
+
+            # If there are unpaired external points on this contour,
+            if len(unpaired_external_points_on_this_contour) > 0:
+
+                # Find a common pair between the external points on this contour and all points on the next contour
+                external_point_common_pair = find_common_pair_of_closest_points(unpaired_external_points_on_this_contour,
+                                                                                unpaired_points_on_next_contour,
+                                                                                point_cloud[i], point_cloud[i + 1],
+                                                                                contour_adjustment)
+            # Otherwise,
+            else:
+
+                # find a common pair using the first unpaired point on the next contour and all points on this contour
+                external_point_common_pair = find_common_pair_of_closest_points(unpaired_points_on_this_contour,
+                                                                                unpaired_external_points_on_next_contour,
+                                                                                point_cloud[i], point_cloud[i + 1],
+                                                                                contour_adjustment)
+
+            # Add the new common line to the list of lines that can be used since they are partially full
+            add_new_partially_available_common_pair(partially_available_common_lines, external_point_common_pair, 0)
+
+            # Clean up the common line
+            clean_up_external_point_line(external_point_common_pair, unpaired_external_points_on_this_contour,
+                                         unpaired_external_points_on_next_contour, unpaired_points_on_this_contour,
+                                         unpaired_points_on_next_contour, shapes_that_have_been_plotted, progress_plot)
+
+            # Update the loop counter
+            loop_counter = loop_counter + 1
 
         common_pairs_previously_paired: list = []
 
@@ -120,8 +187,8 @@ def create_mesh_triangles_v2(point_cloud: list, progress_plot: Axes3D = None, ce
         loop_counter = 0
 
         # While points have not been paired,
-        while len(unpaired_points_on_this_contour) + len(unpaired_points_on_next_contour) > 0 or \
-                len(partially_available_common_lines) > 0:
+        while (len(unpaired_points_on_this_contour) > 0 or len(unpaired_points_on_next_contour) > 0 or
+                len(partially_available_common_lines) > 0) and loop_counter < total_points_in_both_contours:
 
             if i == 3 and (loop_counter == 60):
                 print('BREAK!')
@@ -136,7 +203,7 @@ def create_mesh_triangles_v2(point_cloud: list, progress_plot: Axes3D = None, ce
             action_to_complete = None
 
             # If there is more than one partially available common pair
-            if len(partially_available_common_lines) > 1 and loop_counter > 5:
+            if len(partially_available_common_lines) > 1:  # and loop_counter > 5:
 
                 # Find the pair of common pairs with the smallest index distance
                 all_pair_combinations_with_index_distance = \
@@ -452,6 +519,10 @@ def create_mesh_triangles_v2(point_cloud: list, progress_plot: Axes3D = None, ce
 
             loop_counter = loop_counter + 1
 
+        if loop_counter > total_points_in_both_contours:
+            raise MaximumIterationsExceeded('Number of iterations exceeded the total number of '
+                                            'points in the two contours')
+
         print('All points found')
 
     # Create the triangles for the face of the last slice
@@ -461,22 +532,35 @@ def create_mesh_triangles_v2(point_cloud: list, progress_plot: Axes3D = None, ce
     return list_of_triangles
 
 
-def plot_contour_points(contour_points: list, progress_plot: Axes3D = None, point_color: str = POINT_COLOR):
+def plot_contour_points(contour_points: list, progress_plot: Axes3D = None, point_color: str = POINT_COLOR,
+                        external_point_indices: list = None):
     # Plot the first slice if necessary
     if progress_plot is not None:
+        if external_point_indices is not None:
+            color_to_use = [POINT_COLOR] * len(contour_points)
+            size_to_use = [POINT_SIZE] * len(contour_points)
+            for index in external_point_indices:
+                color_to_use[index] = EXTERNAL_POINT_COLOR
+                size_to_use[index] = EXTERNAL_POINT_SIZE
+        else:
+            color_to_use = point_color
+            size_to_use = POINT_SIZE
         array_contour = array(contour_points)
         progress_plot.scatter(array_contour[:, 0],
                               array_contour[:, 1],
                               array_contour[:, 2],
-                              color=point_color)
+                              color=color_to_use,
+                              s=size_to_use)
 
 
 def create_triangles_on_slice_face(contour_points: list, line_color: str = END_FACE_LINE_COLOR,
                                    progress_plot: Axes3D = None, plot_points: bool = False,
-                                   point_color: str = POINT_COLOR) -> list:
+                                   point_color: str = POINT_COLOR, point_size: int = POINT_SIZE,
+                                   external_point_indices: list = None) -> list:
     # Plot the first slice if necessary
     if plot_points:
-        plot_contour_points(contour_points, progress_plot, point_color)
+        plot_contour_points(contour_points, progress_plot, point_color,
+                            external_point_indices)
 
     # Create the triangles for the face of the first slice
     new_triangles = create_convex_triangles_from_3d_points(contour_points)
@@ -532,6 +616,25 @@ def create_triangles_from_quadrilateral(line_1: CrossContourLine, line_2: CrossC
 def inverse_contour_selection(contour: int):
     return (contour + 1) % 2
 
+
+def clean_up_external_point_line(line: CrossContourLine, unpaired_external_points_on_this_contour: list,
+                                 unpaired_external_points_on_next_contour: list, unpaired_points_on_this_contour: list,
+                  unpaired_points_on_next_contour: list, lines_that_have_been_plotted: list,
+                  progress_plot: Axes3D):
+    # Pop out the common points
+    try:
+        unpaired_external_points_on_this_contour.pop(
+            unpaired_external_points_on_this_contour.index(line.point_1.value))
+    except ValueError:
+        pass
+    try:
+        unpaired_external_points_on_next_contour.pop(
+            unpaired_external_points_on_next_contour.index(line.point_2.value))
+    except ValueError:
+        pass
+
+    clean_up_line(line, unpaired_points_on_this_contour, unpaired_points_on_next_contour,
+                  lines_that_have_been_plotted, progress_plot)
 
 def clean_up_line(line: CrossContourLine, unpaired_points_on_this_contour: list,
                   unpaired_points_on_next_contour: list, lines_that_have_been_plotted: list,

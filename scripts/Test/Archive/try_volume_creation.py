@@ -1,12 +1,13 @@
 # Import standard packages
-from math import ceil
-from numpy import array, zeros, identity
+from math import ceil, floor
+from numpy import array, zeros, identity, mean, eye
 from pymeshfix import clean_from_file
 from stl import mesh
 from matplotlib import pyplot as plt
 from mpl_toolkits import mplot3d
 from mpl_toolkits.mplot3d import Axes3D
 from os.path import abspath
+from copy import deepcopy
 
 ###patch start###
 from mpl_toolkits.mplot3d.axis3d import Axis
@@ -27,6 +28,7 @@ if not hasattr(Axis, "_get_coord_info_old"):
 
 # Import custom packages
 from thyroid_ultrasound_imaging_support.RegisteredData.RegisteredData import RegisteredData, ImageData
+from thyroid_ultrasound_imaging_support.ImageData.ImageData import ZX_ALIGNED
 from thyroid_ultrasound_imaging_support.RegisteredData.load_folder_of_saved_registered_data import \
     load_folder_of_saved_registered_data
 from thyroid_ultrasound_imaging_support.VolumeGeneration.create_mesh_triangles import create_mesh_triangles
@@ -35,7 +37,8 @@ from thyroid_ultrasound_imaging_support.VolumeGeneration.plot_transformation imp
 from thyroid_ultrasound_imaging_support.VolumeGeneration.display_mesh_information import display_mesh_information
 from thyroid_ultrasound_imaging_support.VolumeGeneration.combine_meshes import combine_meshes
 from thyroid_ultrasound_imaging_support.ImageFilter.remove_isolated_pixes import remove_isolated_pixes
-from thyroid_ultrasound_imaging_support.VolumeGeneration.find_external_points import find_external_points
+from thyroid_ultrasound_imaging_support.VolumeGeneration.find_external_points_v2 import find_external_points_v2
+from thyroid_ultrasound_imaging_support.VolumeGeneration.set_axes_equal import set_axes_equal
 
 # ============================================================================
 # Correct method to combine meshes - Tested with Rebuilt Lobes
@@ -52,10 +55,10 @@ mesh_name = 'RightLobe'
 # list_of_registered_data = \
 #     load_folder_of_saved_registered_data('/home/ben/thyroid_ultrasound_data/testing_and_validation'
 #                                          '/BagFileVolumeEstimation/RightLobe/RegisteredData_RightLobe')
-right_list_of_registered_data = \
+right_list_of_registered_data: list = \
     load_folder_of_saved_registered_data('/home/ben/thyroid_ultrasound_data/testing_and_validation'
                                          '/BagFileVolumeEstimation/RightLobe/RegisteredData_RightLobe_Updated')
-left_list_of_registered_data = \
+left_list_of_registered_data: list = \
     load_folder_of_saved_registered_data('/home/ben/thyroid_ultrasound_data/testing_and_validation'
                                          '/BagFileVolumeEstimation/LeftLobe/RegisteredData_LeftLobe_Updated')
 # load_folder_of_saved_registered_data('/home/ben/thyroid_ultrasound_data/testing_and_validation'
@@ -79,93 +82,126 @@ plt.ion()
 # Create a new plot
 fig = plt.figure()
 visualization_plot = fig.add_subplot(projection='3d')
-visualization_plot.set_xlabel('X Label')
-visualization_plot.set_ylabel('Y Label')
-visualization_plot.set_zlabel('Z Label')
+visualization_plot.set_xlabel('X (m)')
+visualization_plot.set_ylabel('Y (m)')
+visualization_plot.set_zlabel('Z (m)')
 visualization_plot.set_proj_type('ortho')
 
-for list_of_registered_data in [left_list_of_registered_data]:
+# Calculate
+robot_position_zeroing_transformation = zeros((4, 4))
+robot_position_zeroing_transformation[0:3, 3] = (left_list_of_registered_data[0].robot_pose.robot_pose[0:3, 3] +
+                                                 right_list_of_registered_data[0].robot_pose.robot_pose[0:3, 3]) / 2
 
-    first_pose = list_of_registered_data[1].robot_pose.robot_pose
+# Pop out the first registered data object from each set
+left_list_of_registered_data.pop(0)
+right_list_of_registered_data.pop(0)
 
-    first_pose_position = zeros((4, 4))
-    first_pose_position[0:3, 3] = first_pose[0:3, 3]
+# For the data for each lobe,
+for list_of_registered_data in [left_list_of_registered_data]:  # , right_list_of_registered_data]:
 
+    # Define lists to hold data about each contour
     all_centroids = []
-
     all_external_contour_points = []
+    all_contour_points = []
 
-    # For each registered data, pull out the contour and save it to the point cloud
-    for registered_data in list_of_registered_data[1:6]:
-        registered_data: RegisteredData
+    # For each registered data,
+    for contour_count in range(len(list_of_registered_data)):
 
-        # Pull out the corresponding data
-        image_data = registered_data.image_data
-        robot_pose_at_image_capture_time = identity(4) + (registered_data.robot_pose.robot_pose - first_pose)
-        # robot_pose_at_image_capture_time = registered_data.robot_pose.robot_pose - first_pose
+        # Pull out the image data for convenience
+        image_data = list_of_registered_data[contour_count].image_data
 
-        # Plot the transformation
-        # plot_transformation(robot_pose_at_image_capture_time + first_pose_position, visualization_plot)
-        plot_transformation(robot_pose_at_image_capture_time + first_pose_position, visualization_plot)
+        # Pull out the robot pose and zero it out for convenience
+        robot_pose_at_image_capture_time = list_of_registered_data[contour_count].robot_pose.robot_pose - \
+                                           robot_position_zeroing_transformation
 
-        rotation_about_z = array([[0, 1, 0, 0],
-                                  [-1, 0, 0, 0],
-                                  [0, 0, 1, 0],
-                                  [0, 0, 0, 1]])
+        # Plot the robot pose
+        plot_transformation(robot_pose_at_image_capture_time, visualization_plot)
 
         # Remove any isolated pixels in the image data
         remove_isolated_pixes(image_data.post_processed_mask)
-        # plt.matshow(image_data.post_processed_mask, 70)
+
+        # Generate the contours from the image mask and find the centroid of each contour
         image_data.generate_contours_in_image()
         image_data.calculate_image_centroids()
 
-        indices_of_external_points_on_contour = find_external_points(image_data.contours_in_image[0])
-        temp = ceil(len(image_data.contours_in_image[0]) / 100)
-        all_external_contour_points.append(indices_of_external_points_on_contour[::ceil(
-            len(image_data.contours_in_image[0]) / 100)])
+        # Calculate the slicing step for the contour
+        slice_step = image_data.contours_in_image[0].shape[0] / 100
+        if slice_step > 1:
+            slice_step = floor(slice_step)
+        else:
+            slice_step = ceil(slice_step)
+
+        # Plot the contour for debugging purposes
+        if contour_count == -1:
+            temp_plt = plt.figure()
+            temp_x = image_data.contours_in_image[0][::slice_step][:, 0].tolist()
+            temp_y = image_data.contours_in_image[0][::slice_step][:, 1].tolist()
+            temp_axes = temp_plt.add_subplot()
+            temp_axes.scatter(temp_x, temp_y)
+            plt.show()
+        else:
+            temp_axes = None
+
+        # Calculate the external points on the contour
+        indices_of_external_points_on_contour = find_external_points_v2(image_data.contours_in_image[0][::slice_step].tolist())
 
         # Generate a transformed list of points for the largest contour
         transformed_contours, transformed_vectors, transformed_centroids = image_data.generate_transformed_contours(
-            transformation=(robot_pose_at_image_capture_time @ rotation_about_z) + first_pose_position,
-            imaging_depth=image_data.imaging_depth / 100)
+            transformation=robot_pose_at_image_capture_time,
+            imaging_depth=image_data.imaging_depth / 100,
+        )
 
+        # Select only the first contour and centroid
         if len(transformed_contours) > 1:
             transformed_contours = [transformed_contours[0]]
         if len(transformed_centroids) > 1:
             transformed_centroids = [transformed_centroids[0]]
 
-        all_centroids.append(tuple(transformed_centroids[0][0]))
+        # If the contour and centroid has length,
+        if len(transformed_contours) > 0 or len(transformed_centroids) > 0:
 
-        if len(transformed_contours) == 0 or len(transformed_centroids) == 0:
-            break
+            # Select only a portion of the full contour
+            abridged_transformed_contours = transformed_contours[0][::slice_step]
 
-        visualization_plot.scatter3D(array(transformed_contours)[0, :, 0],
-                                     array(transformed_contours)[0, :, 1],
-                                     array(transformed_contours)[0, :, 2])
+            # # Generate lists of the internal and external points of the contour
+            # internal_points_array = []
+            # external_points_array = []
+            # for ii in range(abridged_transformed_contours.shape[0]):
+            #     if ii in indices_of_external_points_on_contour:
+            #         external_points_array.append(abridged_transformed_contours[ii])
+            #     else:
+            #         internal_points_array.append(abridged_transformed_contours[ii])
+            #
+            # # If there are internal points, plot them
+            # if len(internal_points_array) > 0:
+            #     internal_points_array = array(internal_points_array)
+            #     visualization_plot.scatter3D(array(internal_points_array)[:, 0],
+            #                                  array(internal_points_array)[:, 1],
+            #                                  array(internal_points_array)[:, 2],
+            #                                  c='black', s=10)
+            #
+            # # If there are external points, plot them
+            # if len(external_points_array) > 0:
+            #     external_points_array = array(external_points_array)
+            #     visualization_plot.scatter3D(array(external_points_array)[:, 0],
+            #                                  array(external_points_array)[:, 1],
+            #                                  array(external_points_array)[:, 2],
+            #                                  c='red', s=25)
 
-        external_points_array = []
-        for index in indices_of_external_points_on_contour:
-            external_points_array.append(transformed_contours[0][index])
-        external_points_array = array(external_points_array)
+            # Always plot the centroid
+            visualization_plot.scatter3D(array(transformed_centroids)[0, :, 0],
+                                         array(transformed_centroids)[0, :, 1],
+                                         array(transformed_centroids)[0, :, 2],
+                                         c='black', s=75
+                                         )
 
-        visualization_plot.scatter3D(array(external_points_array)[:, 0],
-                                     array(external_points_array)[:, 1],
-                                     array(external_points_array)[:, 2],
-                                     s=55)
+            # Adjust the axes of the plot so they are equal
+            set_axes_equal(visualization_plot)
 
-        visualization_plot.scatter3D(array(transformed_centroids)[0, :, 0],
-                                     array(transformed_centroids)[0, :, 1],
-                                     array(transformed_centroids)[0, :, 2],
-                                     c='black', s=75
-                                     )
-
-        this_point_cloud.append([tuple(point) for point in transformed_contours[0][::ceil(
-            len(registered_data.image_data.contours_in_image[0]) / 100)]])
-
-        """this_point_cloud.append(
-            [(point[0], point[1], placement_index) for point in registered_data.image_data.contours_in_image[0][::ceil(
-                len(registered_data.image_data.contours_in_image[0]) / 150)]])
-        placement_index = placement_index + 25"""
+            # Save the points of the contour, the centroid, and the list of external points
+            this_point_cloud.append([tuple(point) for point in abridged_transformed_contours])
+            all_centroids.append(tuple(transformed_centroids[0][0]))
+            all_external_contour_points.append(indices_of_external_points_on_contour)
 
 # Calculate the triangles in the point cloud
 point_cloud_triangles = create_mesh_triangles_v2(this_point_cloud, visualization_plot, all_centroids,

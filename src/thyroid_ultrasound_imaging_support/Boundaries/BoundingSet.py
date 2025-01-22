@@ -69,7 +69,7 @@ class BoundingSet:
                 return False
 
             # # Calculate the result of evaluating the boundary line equation at the point
-            # result = primitive.a_constant * point[0] + primitive.b_constant * point[1] + primitive.c_constant
+            # result = primitive.a * point[0] + primitive.b * point[1] + primitive.c
             #
             # # Compare the sign of the result above with the sign of the boundary directionality.
             # # If the result is zero, check the inclusivity of the set.
