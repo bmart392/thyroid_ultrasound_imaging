@@ -67,7 +67,13 @@ plot_2D_progress: bool = False
 slices_to_monitor: list = [0, 5, 15, 20]
 
 # Select which lobe data will be used
-LOBE_OPTION: str = RIGHT_LOBE_ONLY
+LOBE_OPTION: str = LEFT_LOBE_ONLY
+
+# Select if only a subsection of each lobe should be shown
+display_lobe_subsection: bool = True
+subsection_start: int = 1
+num_slices_to_display: int = 2
+
 mesh_name = 'RightLobe'
 
 # endregion
@@ -85,7 +91,13 @@ if LOBE_OPTION == RIGHT_LOBE_ONLY or LOBE_OPTION == BOTH_LOBES:
     # Pop out the required number of data points
     for i in [0] * num_data_points_to_remove:
         right_lobe_data.pop(0)
+
+    # Pop out the last data point
     right_lobe_data.pop(-1)
+
+    # Select only a subsection of the data, if required
+    if display_lobe_subsection:
+        right_lobe_data = right_lobe_data[subsection_start:subsection_start + num_slices_to_display]
 
     # Pop out the first robot pose for later
     right_lobe_first_pose = right_lobe_data[0].robot_pose.robot_pose[0:3, 3]
@@ -104,7 +116,13 @@ if LOBE_OPTION == LEFT_LOBE_ONLY or LOBE_OPTION == BOTH_LOBES:
     # Pop out the required number of data points
     for i in [0] * num_data_points_to_remove:
         left_lobe_data.pop(0)
+
+    # Pop out the last data point
     left_lobe_data.pop(-1)
+
+    # Select only a subsection of the data, if required
+    if display_lobe_subsection:
+        left_lobe_data = left_lobe_data[subsection_start:subsection_start + num_slices_to_display]
 
     # Pop out the first robot pose for later
     left_lobe_first_pose = left_lobe_data[0].robot_pose.robot_pose[0:3, 3]
@@ -167,8 +185,8 @@ for current_lobe_data, current_lobe_name in [(left_lobe_data, 'Left Lobe'), (rig
         robot_pose_at_image_capture_time = current_lobe_data[contour_count].robot_pose.robot_pose - \
                                            robot_position_zeroing_transformation
 
-        # Plot the robot pose
-        plot_transformation(robot_pose_at_image_capture_time, visualization_plot_3d)
+        # # Plot the robot pose
+        # plot_transformation(robot_pose_at_image_capture_time, visualization_plot_3d)
 
         # Create the plot to display the progress of the
         if plot_2D_progress and contour_count in slices_to_monitor:
@@ -286,30 +304,30 @@ for current_lobe_data, current_lobe_name in [(left_lobe_data, 'Left Lobe'), (rig
             # Select only a portion of the full contour
             abridged_transformed_contours = transformed_contours[0][::slice_step]
 
-            # Generate lists of the internal and external points of the contour
-            internal_points_array = []
-            external_points_array = []
-            for ii in range(abridged_transformed_contours.shape[0]):
-                if ii in indices_of_external_points_on_contour:
-                    external_points_array.append(abridged_transformed_contours[ii])
-                else:
-                    internal_points_array.append(abridged_transformed_contours[ii])
-
-            # If there are internal points, plot them
-            if len(internal_points_array) > 0:
-                internal_points_array = array(internal_points_array)
-                visualization_plot_3d.scatter3D(array(internal_points_array)[:, 0],
-                                                array(internal_points_array)[:, 1],
-                                                array(internal_points_array)[:, 2],
-                                                c='black', s=10)
-
-            # If there are external points, plot them
-            if len(external_points_array) > 0:
-                external_points_array = array(external_points_array)
-                visualization_plot_3d.scatter3D(array(external_points_array)[:, 0],
-                                                array(external_points_array)[:, 1],
-                                                array(external_points_array)[:, 2],
-                                                c='red', s=25)
+            # # Generate lists of the internal and external points of the contour
+            # internal_points_array = []
+            # external_points_array = []
+            # for ii in range(abridged_transformed_contours.shape[0]):
+            #     if ii in indices_of_external_points_on_contour:
+            #         external_points_array.append(abridged_transformed_contours[ii])
+            #     else:
+            #         internal_points_array.append(abridged_transformed_contours[ii])
+            #
+            # # If there are internal points, plot them
+            # if len(internal_points_array) > 0:
+            #     internal_points_array = array(internal_points_array)
+            #     visualization_plot_3d.scatter3D(array(internal_points_array)[:, 0],
+            #                                     array(internal_points_array)[:, 1],
+            #                                     array(internal_points_array)[:, 2],
+            #                                     c='black', s=10)
+            #
+            # # If there are external points, plot them
+            # if len(external_points_array) > 0:
+            #     external_points_array = array(external_points_array)
+            #     visualization_plot_3d.scatter3D(array(external_points_array)[:, 0],
+            #                                     array(external_points_array)[:, 1],
+            #                                     array(external_points_array)[:, 2],
+            #                                     c='red', s=25)
 
             # Always plot the centroid
             visualization_plot_3d.scatter3D(array(transformed_centroids)[0, :, 0],

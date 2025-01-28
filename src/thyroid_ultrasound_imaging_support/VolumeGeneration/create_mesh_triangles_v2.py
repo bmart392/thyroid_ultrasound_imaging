@@ -30,7 +30,6 @@ GAP_FILLING_LINE_COLOR: str = 'blue'
 POINT_SIZE: int = 10
 EXTERNAL_POINT_SIZE: int = 35
 
-
 # Define constants for indexing stored data
 PREVIOUS_COMMON: int = 0
 NEXT_COMMON: int = 1
@@ -47,6 +46,7 @@ UNCONNECTED: int = 0
 CONNECTED_POSITIVE: int = 4
 CONNECTED_NEGATIVE: int = -3
 FULLY_CONNECTED: int = CONNECTED_POSITIVE + CONNECTED_NEGATIVE
+
 
 # TODO - HIGH - Implement some form of external point prioritization
 
@@ -91,7 +91,8 @@ def create_mesh_triangles_v2(point_cloud: list, progress_plot: Axes3D = None, ce
     # Create the triangles for the face of the first slice
     list_of_triangles = list_of_triangles + create_triangles_on_slice_face(point_cloud[0], progress_plot=progress_plot,
                                                                            plot_points=True,
-                                                                           external_point_indices=external_point_indices[0])
+                                                                           external_point_indices=
+                                                                           external_point_indices[0])
 
     # For each contour in point_cloud
     for i in range(len(point_cloud) - 1):
@@ -122,22 +123,19 @@ def create_mesh_triangles_v2(point_cloud: list, progress_plot: Axes3D = None, ce
         plot_contour_points(point_cloud[i + 1], progress_plot, POINT_COLOR,
                             external_point_indices=external_point_indices[i + 1])
 
-        # # Find the first common pair of points
-        # previous_common_pair = find_common_pair_of_closest_points(unpaired_points_on_this_contour,
-        #                                                           unpaired_points_on_next_contour,
-        #                                                           point_cloud[i], point_cloud[i + 1],
-        #                                                           contour_adjustment)
-        #
-        # # Update the corresponding lists and plot it if necessary
-        # clean_up_line(previous_common_pair, unpaired_points_on_this_contour, unpaired_points_on_next_contour,
-        #               shapes_that_have_been_plotted, progress_plot)
+        # Find the first common pair of points
+        previous_common_pair = find_common_pair_of_closest_points(unpaired_points_on_this_contour,
+                                                                  unpaired_points_on_next_contour,
+                                                                  point_cloud[i], point_cloud[i + 1],
+                                                                  contour_adjustment)
+
+        # Update the corresponding lists and plot it if necessary
+        clean_up_line(previous_common_pair, unpaired_points_on_this_contour, unpaired_points_on_next_contour,
+                      shapes_that_have_been_plotted, progress_plot)
 
         # Define a list of common lines that have not been used to create two triangles
         partially_available_common_lines = []
-        # add_new_partially_availabl   e_common_pair(partially_available_common_lines, previous_common_pair, 0)
-
-
-        # Replace above code with a while loop that finds a common that includes every external point
+        add_new_partially_available_common_pair(partially_available_common_lines, previous_common_pair, 0)
 
         # Define a loop counter to ensure that the code will eventually exit the while loop,
         loop_counter = 0
@@ -146,40 +144,38 @@ def create_mesh_triangles_v2(point_cloud: list, progress_plot: Axes3D = None, ce
         # for every external point
         expected_max_iterations = len(external_point_indices[i]) + len(external_point_indices[i + 1])
 
-        # TODO - High - lines are crossing and incorrectly pairing, try allowing them to find the the same point as closest maybe?
-
-        # while (there are unpaired external points on this contour OR the next contour) AND
-        # the loop counter is less than sum of the lengths of the lists of external points,
-        while (len(unpaired_external_points_on_this_contour) > 0 or
-               len(unpaired_external_points_on_next_contour) > 0) and loop_counter < expected_max_iterations:
-
-            # If there are unpaired external points on this contour,
-            if len(unpaired_external_points_on_this_contour) > 0:
-
-                # Find a common pair between the external points on this contour and all points on the next contour
-                external_point_common_pair = find_common_pair_of_closest_points(unpaired_external_points_on_this_contour,
-                                                                                unpaired_points_on_next_contour,
-                                                                                point_cloud[i], point_cloud[i + 1],
-                                                                                contour_adjustment)
-            # Otherwise,
-            else:
-
-                # find a common pair using the first unpaired point on the next contour and all points on this contour
-                external_point_common_pair = find_common_pair_of_closest_points(unpaired_points_on_this_contour,
-                                                                                unpaired_external_points_on_next_contour,
-                                                                                point_cloud[i], point_cloud[i + 1],
-                                                                                contour_adjustment)
-
-            # Add the new common line to the list of lines that can be used since they are partially full
-            add_new_partially_available_common_pair(partially_available_common_lines, external_point_common_pair, 0)
-
-            # Clean up the common line
-            clean_up_external_point_line(external_point_common_pair, unpaired_external_points_on_this_contour,
-                                         unpaired_external_points_on_next_contour, unpaired_points_on_this_contour,
-                                         unpaired_points_on_next_contour, shapes_that_have_been_plotted, progress_plot)
-
-            # Update the loop counter
-            loop_counter = loop_counter + 1
+        # # while (there are unpaired external points on this contour OR the next contour) AND
+        # # the loop counter is less than sum of the lengths of the lists of external points,
+        # while (len(unpaired_points_on_this_contour) > 0 or
+        #        len(unpaired_points_on_next_contour) > 0) and loop_counter < expected_max_iterations:
+        #
+        #     # If there are unpaired external points on this contour,
+        #     if len(unpaired_external_points_on_this_contour) > 0:
+        #
+        #         # Find a common pair between the external points on this contour and all points on the next contour
+        #         external_point_common_pair = find_common_pair_of_closest_points(unpaired_external_points_on_this_contour,
+        #                                                                         unpaired_points_on_next_contour,
+        #                                                                         point_cloud[i], point_cloud[i + 1],
+        #                                                                         contour_adjustment)
+        #     # Otherwise,
+        #     else:
+        #
+        #         # find a common pair using the first unpaired point on the next contour and all points on this contour
+        #         external_point_common_pair = find_common_pair_of_closest_points(unpaired_points_on_this_contour,
+        #                                                                         unpaired_external_points_on_next_contour,
+        #                                                                         point_cloud[i], point_cloud[i + 1],
+        #                                                                         contour_adjustment)
+        #
+        #     # Add the new common line to the list of lines that can be used since they are partially full
+        #     add_new_partially_available_common_pair(partially_available_common_lines, external_point_common_pair, 0)
+        #
+        #     # Clean up the common line
+        #     clean_up_external_point_line(external_point_common_pair, unpaired_external_points_on_this_contour,
+        #                                  unpaired_external_points_on_next_contour, unpaired_points_on_this_contour,
+        #                                  unpaired_points_on_next_contour, shapes_that_have_been_plotted, progress_plot)
+        #
+        #     # Update the loop counter
+        #     loop_counter = loop_counter + 1
 
         common_pairs_previously_paired: list = []
 
@@ -188,9 +184,9 @@ def create_mesh_triangles_v2(point_cloud: list, progress_plot: Axes3D = None, ce
 
         # While points have not been paired,
         while (len(unpaired_points_on_this_contour) > 0 or len(unpaired_points_on_next_contour) > 0 or
-                len(partially_available_common_lines) > 0) and loop_counter < total_points_in_both_contours:
+               len(partially_available_common_lines) > 0) and loop_counter < total_points_in_both_contours:
 
-            if i == 3 and (loop_counter == 60):
+            if i == 0 and (loop_counter == 111):
                 print('BREAK!')
 
             # Reset the flag indicating if either line was used
@@ -203,7 +199,7 @@ def create_mesh_triangles_v2(point_cloud: list, progress_plot: Axes3D = None, ce
             action_to_complete = None
 
             # If there is more than one partially available common pair
-            if len(partially_available_common_lines) > 1:  # and loop_counter > 5:
+            if len(partially_available_common_lines) > 1: # and loop_counter > 5:
 
                 # Find the pair of common pairs with the smallest index distance
                 all_pair_combinations_with_index_distance = \
@@ -212,6 +208,46 @@ def create_mesh_triangles_v2(point_cloud: list, progress_plot: Axes3D = None, ce
 
                 # Attempt to use every unique combination of partially available common lines,
                 for index_distances, previous_common_pair, new_common_pair in all_pair_combinations_with_index_distance:
+                    previous_common_pair: CrossContourLine
+                    new_common_pair: CrossContourLine
+
+                    if index_distances == (-2, -2):
+                        print('Break!')
+
+                    this_pair_is_not_valid = False
+
+                    for previous_common_pair_point, \
+                        new_common_pair_point, \
+                        points_on_contour, \
+                        unpaired_points_on_contour in zip((previous_common_pair.point_1.index,
+                                                           previous_common_pair.point_2.index),
+                                                          (new_common_pair.point_1.index,
+                                                           new_common_pair.point_2.index),
+                                                          (point_cloud[i], point_cloud[i + 1]),
+                                                          (unpaired_points_on_this_contour,
+                                                           unpaired_points_on_next_contour)):
+
+                        if abs(new_common_pair_point - previous_common_pair_point) == 1:
+                            continue
+
+                        indices_between_commons_on_this_contour = wrapping_range(previous_common_pair_point,
+                                                                                 new_common_pair_point,
+                                                                                 points_on_contour)
+                        if indices_between_commons_on_this_contour[0] >= 0:
+                            indices_between_commons_on_this_contour.pop(0)
+                        else:
+                            indices_between_commons_on_this_contour.pop(-1)
+
+                        for jj in indices_between_commons_on_this_contour:
+                            if points_on_contour[jj] not in unpaired_points_on_contour:
+                                this_pair_is_not_valid = True
+                                break
+
+                        if this_pair_is_not_valid:
+                            break
+
+                    if this_pair_is_not_valid:
+                        continue
 
                     # Define a flag to determine if the pair of common pairs has been not used before
                     this_pair_has_not_been_used_before = True
@@ -231,7 +267,6 @@ def create_mesh_triangles_v2(point_cloud: list, progress_plot: Axes3D = None, ce
                         action_to_complete, comparison_index_distances = determine_line_action(index_distances)
 
                         if action_to_complete is not None:
-
                             # Break out of this loop and use the current data going forward
                             break
 
@@ -244,38 +279,60 @@ def create_mesh_triangles_v2(point_cloud: list, progress_plot: Axes3D = None, ce
                 new_common_pair = find_common_pair_of_closest_points(unpaired_points_on_this_contour,
                                                                      unpaired_points_on_next_contour,
                                                                      point_cloud[i], point_cloud[i + 1],
-                                                                     contour_adjustment)
+                                                                     contour_adjustment,
+                                                                     partially_available_common_lines)
+                if new_common_pair is not None:
 
-                # Flag that a new previous common pair has not been found yet
-                new_previous_common_pair_not_found: bool = True
+                    # Flag that a new previous common pair has not been found yet
+                    new_previous_common_pair_not_found: bool = True
 
-                # Make a temporary copy of the next contours
-                temp_next_contour: list = copy(point_cloud[i + 1])
+                    # Make a temporary copy of the next contours
+                    temp_next_contour: list = copy(point_cloud[i + 1])
 
-                # While a previous contour has not been found,
-                while new_previous_common_pair_not_found:
+                    # While a previous contour has not been found,
+                    while new_previous_common_pair_not_found:
 
-                    # Try to find the closest common pair to the new common pair,
-                    try:
-                        previous_common_pair, index_distances = find_closest_common_pair(
-                            partially_available_common_lines,
-                            new_common_pair,
-                            point_cloud[i],
-                            temp_next_contour)
-                        new_previous_common_pair_not_found = False
+                        # Try to find the closest common pair to the new common pair,
+                        try:
+                            previous_common_pair, index_distances = find_closest_common_pair(
+                                partially_available_common_lines,
+                                new_common_pair,
+                                point_cloud[i],
+                                temp_next_contour)
+                            new_previous_common_pair_not_found = False
 
-                    # If one does not exist, remove the point from the next contour that was found to be the closest
-                    except:
-                        temp_next_contour.pop(new_common_pair.point_2.index)
+                        # If one does not exist, remove the point from the next contour that was found to be the closest
+                        except:
+                            temp_next_contour.pop(new_common_pair.point_2.index)
 
-                # Update the flag
-                new_common_pair_created = True
+                    # Update the flag
+                    new_common_pair_created = True
 
-                # Plot the new line for clarity
-                plot_single_line(new_common_pair, shapes_that_have_been_plotted, progress_plot)
+                    # Plot the new line for clarity
+                    plot_single_line(new_common_pair, shapes_that_have_been_plotted, progress_plot)
 
-                # Determine which action fits the distance between pairs
-                action_to_complete, comparison_index_distances = determine_line_action(index_distances)
+                    # Determine which action fits the distance between pairs
+                    action_to_complete, comparison_index_distances = determine_line_action(index_distances)
+
+                else:
+                    # Find the pair of common pairs with the smallest index distance
+                    all_pair_combinations_with_index_distance = \
+                        find_closest_pair_of_common_pairs(partially_available_common_lines, point_cloud[i],
+                                                          point_cloud[i + 1])
+
+                    smallest_index_distance = int(10**10)
+
+                    # Attempt to use every unique combination of partially available common lines,
+                    for temp_index_distances, temp_previous_common_pair, temp_new_common_pair in all_pair_combinations_with_index_distance:
+
+                        if abs(temp_index_distances[0]) + abs(temp_index_distances[1]) < smallest_index_distance:
+                            previous_common_pair = temp_previous_common_pair
+                            new_common_pair = temp_new_common_pair
+                            index_distances = temp_index_distances
+                            smallest_index_distance = abs(temp_index_distances[0]) + abs(temp_index_distances[1])
+
+                    action_to_complete = SINGLE_POINT_GAP_AND_GAP
+                    comparison_index_distances = tuple([abs(x) for x in index_distances])
 
             # If the common pairs are parallel and next to one another,
             if action_to_complete == LINES_FORM_QUADRILATERAL:
@@ -575,7 +632,7 @@ def create_triangles_on_slice_face(contour_points: list, line_color: str = END_F
 
 def find_common_pair_of_closest_points(unpaired_points_on_this_contour, unpaired_points_on_next_contour,
                                        all_points_on_this_contour, all_points_on_next_contour,
-                                       centroid_adjustment_vector):
+                                       centroid_adjustment_vector, partially_available_common_pairs: list = None):
     for point_index, point in enumerate(unpaired_points_on_this_contour):
         # Find the closest point in the next contour
         forward_paired_point, forward_paired_point_index = find_closest_point(
@@ -586,11 +643,37 @@ def find_common_pair_of_closest_points(unpaired_points_on_this_contour, unpaired
             forward_paired_point, unpaired_points_on_this_contour, [],
             centroid_adjustment=tuple([-1 * x for x in centroid_adjustment_vector])
         )
+
+        # If the closest point found in the backwards step is the same as the starting point,
         if point_index == backward_paired_point_index:
-            return CrossContourLine(
-                Point(all_points_on_this_contour.index(backward_paired_point), backward_paired_point),
-                Point(all_points_on_next_contour.index(forward_paired_point), forward_paired_point),
-                COMMON_CLOSEST_POINT_COLOR)
+
+            new_pair_is_valid = True
+
+            # If the list of partially available common pairs was given
+            if partially_available_common_pairs is not None and len(partially_available_common_pairs) > 0:
+
+                # For each partially available common pair
+                for partially_available_common_pair in partially_available_common_pairs:
+                    partially_available_common_pair: CrossContourLine = partially_available_common_pair[0]
+
+                    # Calculate the index distance between both points on the new possible common pair and the
+                    # previously found common pair
+                    index_distance_this_contour = calc_index_distance(all_points_on_this_contour.index(unpaired_points_on_this_contour[point_index]),
+                                                                      partially_available_common_pair.point_1.index,
+                                                                      all_points_on_this_contour)
+                    index_distance_next_contour = calc_index_distance(all_points_on_next_contour.index(unpaired_points_on_next_contour[forward_paired_point_index]),
+                                                                      partially_available_common_pair.point_2.index,
+                                                                      all_points_on_next_contour)
+
+                    # If sign of the distances does not match, then the common is not actually valid
+                    if sign(index_distance_this_contour) != sign(index_distance_next_contour):
+                        new_pair_is_valid = False
+                        break
+            if new_pair_is_valid:
+                return CrossContourLine(
+                    Point(all_points_on_this_contour.index(backward_paired_point), backward_paired_point),
+                    Point(all_points_on_next_contour.index(forward_paired_point), forward_paired_point),
+                    COMMON_CLOSEST_POINT_COLOR)
 
     return None
 
@@ -619,8 +702,8 @@ def inverse_contour_selection(contour: int):
 
 def clean_up_external_point_line(line: CrossContourLine, unpaired_external_points_on_this_contour: list,
                                  unpaired_external_points_on_next_contour: list, unpaired_points_on_this_contour: list,
-                  unpaired_points_on_next_contour: list, lines_that_have_been_plotted: list,
-                  progress_plot: Axes3D):
+                                 unpaired_points_on_next_contour: list, lines_that_have_been_plotted: list,
+                                 progress_plot: Axes3D):
     # Pop out the common points
     try:
         unpaired_external_points_on_this_contour.pop(
@@ -635,6 +718,7 @@ def clean_up_external_point_line(line: CrossContourLine, unpaired_external_point
 
     clean_up_line(line, unpaired_points_on_this_contour, unpaired_points_on_next_contour,
                   lines_that_have_been_plotted, progress_plot)
+
 
 def clean_up_line(line: CrossContourLine, unpaired_points_on_this_contour: list,
                   unpaired_points_on_next_contour: list, lines_that_have_been_plotted: list,
