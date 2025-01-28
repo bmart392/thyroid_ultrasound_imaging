@@ -4,7 +4,7 @@ File containing the find_external_points function definition.
 
 # Import standard python packages
 from typing import List
-from numpy import ndarray
+from numpy import ndarray, array
 from matplotlib.pyplot import axes
 
 # Import custom python packages
@@ -39,6 +39,14 @@ def find_external_points_v2(list_of_points_on_contour,
     if num_points < 3:
         raise Exception('Contour is too short')
 
+    # Plot the contour if a visualization plot is given
+    if visualization_plot is not None:
+        if type(list_of_points_on_contour) != ndarray:
+            temp_list_of_points = array(list_of_points_on_contour)
+        else:
+            temp_list_of_points = list_of_points_on_contour
+        visualization_plot.scatter(temp_list_of_points[:, 0], temp_list_of_points[:, 1], c='black', s=10)
+
     # Calculate the upper limit of how many boundaries to try making before giving up
     external_boundary_failure_limit = int(num_points / 2)
 
@@ -56,6 +64,13 @@ def find_external_points_v2(list_of_points_on_contour,
     for i in contour_point_loop_range:
         all_boundaries.append(LineSegment(list_of_points_on_contour[contour_point_loop_indexes[i]],
                                           list_of_points_on_contour[contour_point_loop_indexes[i + 1]]))
+
+    # Plot all the known boundaries
+    if visualization_plot is not None:
+        for temp_boundary in all_boundaries:
+            temp_x, temp_y = temp_boundary.get_vertices_as_x_and_y()
+            visualization_plot.plot(temp_x, temp_y, c='blue', alpha=0.5)
+            visualization_plot.set_aspect('equal', adjustable='datalim')
 
     # For each point in the contour,
     for search_start_index in contour_point_loop_range:
@@ -123,12 +138,18 @@ def find_external_points_v2(list_of_points_on_contour,
                 # Set the color of the boundary line
                 boundary_line_color = 'green'
 
+                # Set the transparency of the boundary line
+                boundary_line_transparency = 1.0
+
             # Otherwise, increment the failure counter
             else:
                 num_failed_external_boundaries = num_failed_external_boundaries + 1
 
                 # Set the color of the boundary line
                 boundary_line_color = 'red'
+
+                # Set the transparency of the boundary line
+                boundary_line_transparency = 0.25
 
             # If the current first boundary point is not valid,
             if num_failed_external_boundaries > external_boundary_failure_limit:
@@ -164,7 +185,7 @@ def find_external_points_v2(list_of_points_on_contour,
             # If a plot was given, plot the new boundary with the appropriate color
             if visualization_plot is not None:
                 temp_x, temp_y = new_boundary.get_vertices_as_x_and_y()
-                visualization_plot.plot(temp_x, temp_y, c=boundary_line_color)
+                visualization_plot.plot(temp_x, temp_y, c=boundary_line_color, alpha=boundary_line_transparency)
 
             # Update the loop counter
             loop_counter = loop_counter + 1

@@ -73,21 +73,29 @@ class LineSegment(Line):
 
         # Otherwise,
         else:
-            perpendicular_bisector_a = -1/self.a
+            perpendicular_bisector_a = -1 / self.a
             perpendicular_bisector_b = 1
             perpendicular_bisector_c = -(point_on_line[1] + perpendicular_bisector_a * point_on_line[0])
 
         return Line(a_constant=perpendicular_bisector_a, b_constant=perpendicular_bisector_b,
                     c_constant=perpendicular_bisector_c)
 
-    def is_point_on_line_segment(self, point: tuple):
+    def is_point_on_line_segment(self, point: tuple, edge_inclusive: bool = True):
         """Determines if the given point is on the line."""
-        return (float(self.vertices[0][0]) <= point[0] <= float(self.vertices[1][0]) or
-                float(self.vertices[0][0]) >= point[0] >= float(self.vertices[1][0])) and \
-               (float(self.vertices[0][1]) <= point[1] <= float(self.vertices[1][1]) or
-                float(self.vertices[0][1]) >= point[1] >= float(self.vertices[1][1]))
 
-    def check_if_boundary_is_external(self, all_boundaries, bisector_locations: tuple = (0.001, 0.999)):
+        # Define some temporary variables for readability
+        x1, x2, y1, y2 = map(float, [min(self.vertices[0][0], self.vertices[1][0]),
+                                     max(self.vertices[0][0], self.vertices[1][0]),
+                                     min(self.vertices[0][1], self.vertices[1][1]),
+                                     max(self.vertices[0][1], self.vertices[1][1])])
+        if edge_inclusive:
+            return x1 <= point[0] <= x2 and y1 <= point[1] <= y2
+        else:
+            return (x1 < point[0] < x2 and y1 < point[1] < y2) or \
+                   (x1 == point[0] and y1 < point[1] < y2) or \
+                   (x1 < point[0] < x2 and y1 == point[1])
+
+    def check_if_boundary_is_external(self, all_boundaries, bisector_locations: tuple = (0.001, 0.5, 0.999)):
 
         # Create a copy of the complete list of boundaries
         all_other_boundaries = copy(all_boundaries)
@@ -112,6 +120,19 @@ class LineSegment(Line):
 
         # For every other existing_boundary,
         for boundary in all_other_boundaries:
+
+            # First check if the other boundary is parallel to this boundary itself
+            if self.is_not_parallel(boundary):
+
+                # Find the intersection point between the two boundaries
+                boundary_intersection_point = self.calculate_intersection_point(boundary)
+
+                # If the intersection point between the two boundaries is on both boundaries,
+                if (self.is_point_on_line_segment(boundary_intersection_point, edge_inclusive=False) and
+                        boundary.is_point_on_line_segment(boundary_intersection_point, edge_inclusive=False)):
+
+                    # Then the boundary cannot be external because it intersects with another boundary
+                    return False
 
             # If the two lines are not parallel,
             if bisectors[0].is_not_parallel(boundary):
