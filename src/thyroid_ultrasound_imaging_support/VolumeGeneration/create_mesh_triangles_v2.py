@@ -124,10 +124,13 @@ def create_mesh_triangles_v2(point_cloud: list, progress_plot: Axes3D = None, ce
                             external_point_indices=external_point_indices[i + 1])
 
         # Find the first common pair of points
-        previous_common_pair = find_common_pair_of_closest_points(unpaired_points_on_this_contour,
-                                                                  unpaired_points_on_next_contour,
+        previous_common_pair = find_common_pair_of_closest_points(unpaired_external_points_on_this_contour,
+                                                                  unpaired_external_points_on_next_contour,
                                                                   point_cloud[i], point_cloud[i + 1],
                                                                   contour_adjustment)
+
+        if previous_common_pair is None:
+            raise Exception('Could not find a common pair among the external points.')
 
         # Update the corresponding lists and plot it if necessary
         clean_up_line(previous_common_pair, unpaired_points_on_this_contour, unpaired_points_on_next_contour,
@@ -717,7 +720,7 @@ def clean_up_external_point_line(line: CrossContourLine, unpaired_external_point
         pass
 
     clean_up_line(line, unpaired_points_on_this_contour, unpaired_points_on_next_contour,
-                  lines_that_have_been_plotted, progress_plot)
+                  lines_that_have_been_plotted=lines_that_have_been_plotted, progress_plot=progress_plot)
 
 
 def clean_up_line(line: CrossContourLine, unpaired_points_on_this_contour: list,

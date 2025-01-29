@@ -67,10 +67,10 @@ plot_2D_progress: bool = False
 slices_to_monitor: list = [0, 5, 15, 20]
 
 # Select which lobe data will be used
-LOBE_OPTION: str = LEFT_LOBE_ONLY
+LOBE_OPTION: str = BOTH_LOBES
 
 # Select if only a subsection of each lobe should be shown
-display_lobe_subsection: bool = True
+display_lobe_subsection: bool = False
 subsection_start: int = 1
 num_slices_to_display: int = 2
 
@@ -167,7 +167,9 @@ this_point_cloud = []
 
 
 # For the data for each lobe,
-for current_lobe_data, current_lobe_name in [(left_lobe_data, 'Left Lobe'), (right_lobe_data, 'Right Lobe')]:
+for current_lobe_data, current_lobe_name,\
+        horizontal_image_offset, vertical_image_offset in [(left_lobe_data, 'Left Lobe', 288, 0),
+                                                           (right_lobe_data, 'Right Lobe', -288, 0)]:
 
     # Define lists to hold the data about the current lobe
     current_lobe_centroids = []
@@ -291,6 +293,8 @@ for current_lobe_data, current_lobe_name in [(left_lobe_data, 'Left Lobe'), (rig
         transformed_contours, transformed_vectors, transformed_centroids = image_data.generate_transformed_contours(
             transformation=robot_pose_at_image_capture_time,
             imaging_depth=image_data.imaging_depth / 100,
+            horizontal_pixel_offset=horizontal_image_offset,
+            vertical_pixel_offset=vertical_image_offset
         )
 
         # Select only the first contour and centroid
@@ -304,30 +308,30 @@ for current_lobe_data, current_lobe_name in [(left_lobe_data, 'Left Lobe'), (rig
             # Select only a portion of the full contour
             abridged_transformed_contours = transformed_contours[0][::slice_step]
 
-            # # Generate lists of the internal and external points of the contour
-            # internal_points_array = []
-            # external_points_array = []
-            # for ii in range(abridged_transformed_contours.shape[0]):
-            #     if ii in indices_of_external_points_on_contour:
-            #         external_points_array.append(abridged_transformed_contours[ii])
-            #     else:
-            #         internal_points_array.append(abridged_transformed_contours[ii])
-            #
-            # # If there are internal points, plot them
-            # if len(internal_points_array) > 0:
-            #     internal_points_array = array(internal_points_array)
-            #     visualization_plot_3d.scatter3D(array(internal_points_array)[:, 0],
-            #                                     array(internal_points_array)[:, 1],
-            #                                     array(internal_points_array)[:, 2],
-            #                                     c='black', s=10)
-            #
-            # # If there are external points, plot them
-            # if len(external_points_array) > 0:
-            #     external_points_array = array(external_points_array)
-            #     visualization_plot_3d.scatter3D(array(external_points_array)[:, 0],
-            #                                     array(external_points_array)[:, 1],
-            #                                     array(external_points_array)[:, 2],
-            #                                     c='red', s=25)
+            # Generate lists of the internal and external points of the contour
+            internal_points_array = []
+            external_points_array = []
+            for ii in range(abridged_transformed_contours.shape[0]):
+                if ii in indices_of_external_points_on_contour:
+                    external_points_array.append(abridged_transformed_contours[ii])
+                else:
+                    internal_points_array.append(abridged_transformed_contours[ii])
+
+            # If there are internal points, plot them
+            if len(internal_points_array) > 0:
+                internal_points_array = array(internal_points_array)
+                visualization_plot_3d.scatter3D(array(internal_points_array)[:, 0],
+                                                array(internal_points_array)[:, 1],
+                                                array(internal_points_array)[:, 2],
+                                                c='black', s=10)
+
+            # If there are external points, plot them
+            if len(external_points_array) > 0:
+                external_points_array = array(external_points_array)
+                visualization_plot_3d.scatter3D(array(external_points_array)[:, 0],
+                                                array(external_points_array)[:, 1],
+                                                array(external_points_array)[:, 2],
+                                                c='red', s=25)
 
             # Always plot the centroid
             visualization_plot_3d.scatter3D(array(transformed_centroids)[0, :, 0],
@@ -348,11 +352,11 @@ for current_lobe_data, current_lobe_name in [(left_lobe_data, 'Left Lobe'), (rig
     #  are between two points it looks at all the points but it tries to find mathing pairs within the external points
     #  first
     # Calculate the triangles in the point cloud
-    current_lobe_triangles = create_mesh_triangles_v2(current_lobe_contour_points, visualization_plot_3d,
-                                                      current_lobe_centroids,
-                                                      current_lobe_external_contour_points)
-
-    print("Number of faces: " + str(len(current_lobe_triangles)))
+    # current_lobe_triangles = create_mesh_triangles_v2(current_lobe_contour_points, visualization_plot_3d,
+    #                                                   current_lobe_centroids,
+    #                                                   current_lobe_external_contour_points)
+    #
+    # print("Number of faces: " + str(len(current_lobe_triangles)))
 
 # Convert the triangles to an array
 point_cloud_triangles_as_arrays = array(point_cloud_triangles)

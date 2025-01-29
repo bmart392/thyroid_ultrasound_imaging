@@ -418,7 +418,9 @@ class ImageData:
                                       imaging_depth: float,
                                       image_axis_alignment: str = ZY_ALIGNED,
                                       horizontal_resolution: float = 0.000128,
-                                      vertical_resolution: float = 0.000126):
+                                      vertical_resolution: float = 0.000126,
+                                      horizontal_pixel_offset: float = 0,
+                                      vertical_pixel_offset: float = 0):
 
         # Define the default result
         contours_list = []
@@ -441,7 +443,9 @@ class ImageData:
                 # Define a temporary list to store the vectors from this contour
                 this_vector_list = []
 
-                this_centroid = array(centroid) + array(self.image_crop_coordinates[0])
+                this_centroid = array(centroid) + array([horizontal_pixel_offset * self.down_sampling_rate,
+                                                         vertical_pixel_offset * self.down_sampling_rate])
+                this_centroid = this_centroid + array(self.image_crop_coordinates[0])
                 this_centroid = +this_centroid - array([round(self.ds_image_size_x / 2), 0])
                 this_centroid = this_centroid @ array([[-1, 0], [0, 1]])
                 this_centroid = array([this_centroid[0] * horizontal_resolution,
@@ -452,8 +456,12 @@ class ImageData:
                 # Iterate through every point in the contour
                 for point_in_px, normal_vector_in_px in zip(contour, normal_vector_contour):
 
+                    # Add the horizontal and vertical offsets to the point
+                    point_in_px_with_offsets = point_in_px + array([horizontal_pixel_offset * self.down_sampling_rate,
+                                                                    vertical_pixel_offset * self.down_sampling_rate])
+
                     # Add the crop offset to the point
-                    point_in_px_with_crop_offset = point_in_px + array(self.image_crop_coordinates[0])
+                    point_in_px_with_crop_offset = point_in_px_with_offsets + array(self.image_crop_coordinates[0])
 
                     # Shift all values to be measured from the center of the image X axis
                     point_in_px_from_center = +point_in_px_with_crop_offset - array([round(self.ds_image_size_x / 2), 0])
