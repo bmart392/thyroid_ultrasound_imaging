@@ -9,6 +9,7 @@ from mpl_toolkits import mplot3d
 from mpl_toolkits.mplot3d import Axes3D
 from os.path import abspath
 from copy import deepcopy
+from cv2 import imshow, waitKey
 
 # Import custom packages
 from thyroid_ultrasound_imaging_support.RegisteredData.load_folder_of_saved_registered_data import \
@@ -19,6 +20,7 @@ from thyroid_ultrasound_imaging_support.VolumeGeneration.display_mesh_informatio
 from thyroid_ultrasound_imaging_support.ImageFilter.remove_isolated_pixes import remove_isolated_pixes
 from thyroid_ultrasound_imaging_support.VolumeGeneration.find_external_points_v2 import find_external_points_v2
 from thyroid_ultrasound_imaging_support.VolumeGeneration.set_axes_equal import set_axes_equal
+from thyroid_ultrasound_imaging_support.ImageData.ImageData import ImageData
 
 # TODO - HIGH - Some points are being left out, need to ensure all points are connected. ALso need to compare closest paired points for multiple points at once
 
@@ -56,21 +58,28 @@ INTERNAL_EXTERNAL_POINTS: tuple = (1, 1)
 # ======================================================================================================================
 # Define the parameters of the test
 
+# Define the adjustments required to move the images into the correct position relative to one another
+horizontal_adjustment_as_percent: float = 2.25 / 100
+vertical_adjustment_as_percent: float = 1.0 / 100
+
 # Define the number of data points to remove from each set of registered data
 num_data_points_to_remove: int = 3
 
 # Select if the progress of the test should be plotted in 3D
 plot_3D_progress: bool = True
 
+# Select if the robot transformations should also be plotted
+plot_3D_robot_transforms: bool = False
+
 # Select if the progress for preparing the contours should be plotted in 2D
 plot_2D_progress: bool = False
 slices_to_monitor: list = [0, 5, 15, 20]
 
 # Select which lobe data will be used
-LOBE_OPTION: str = BOTH_LOBES
+LOBE_OPTION: str = LEFT_LOBE_ONLY
 
 # Select if only a subsection of each lobe should be shown
-display_lobe_subsection: bool = False
+display_lobe_subsection: bool = True
 subsection_start: int = 1
 num_slices_to_display: int = 2
 
@@ -167,9 +176,12 @@ this_point_cloud = []
 
 
 # For the data for each lobe,
-for current_lobe_data, current_lobe_name,\
-        horizontal_image_offset, vertical_image_offset in [(left_lobe_data, 'Left Lobe', 288, 0),
-                                                           (right_lobe_data, 'Right Lobe', -288, 0)]:
+for current_lobe_data, current_lobe_name, \
+    horizontal_image_offset, vertical_image_offset, in [(left_lobe_data, 'Left Lobe', -horizontal_adjustment_as_percent,
+                                                         -vertical_adjustment_as_percent),
+                                                        (right_lobe_data, 'Right Lobe',
+                                                         horizontal_adjustment_as_percent,
+                                                         vertical_adjustment_as_percent)]:
 
     # Define lists to hold the data about the current lobe
     current_lobe_centroids = []
@@ -181,14 +193,15 @@ for current_lobe_data, current_lobe_name,\
     for contour_count in range(len(current_lobe_data)):
 
         # Pull out the image data for convenience
-        image_data = current_lobe_data[contour_count].image_data
+        image_data: ImageData = current_lobe_data[contour_count].image_data
 
         # Pull out the robot pose and zero it out for convenience
         robot_pose_at_image_capture_time = current_lobe_data[contour_count].robot_pose.robot_pose - \
                                            robot_position_zeroing_transformation
 
-        # # Plot the robot pose
-        # plot_transformation(robot_pose_at_image_capture_time, visualization_plot_3d)
+        # Plot the robot pose
+        if plot_3D_progress and plot_3D_robot_transforms:
+            plot_transformation(robot_pose_at_image_capture_time, visualization_plot_3d)
 
         # Create the plot to display the progress of the
         if plot_2D_progress and contour_count in slices_to_monitor:
@@ -292,9 +305,9 @@ for current_lobe_data, current_lobe_name,\
         # Generate a transformed list of points for the largest contour
         transformed_contours, transformed_vectors, transformed_centroids = image_data.generate_transformed_contours(
             transformation=robot_pose_at_image_capture_time,
-            imaging_depth=image_data.imaging_depth / 100,
-            horizontal_pixel_offset=horizontal_image_offset,
-            vertical_pixel_offset=vertical_image_offset
+            # imaging_depth=image_data.imaging_depth / 100,
+            horizontal_image_alignment_offset=horizontal_image_offset,
+            vertical_image_alignment_offset=vertical_image_offset
         )
 
         # Select only the first contour and centroid
@@ -351,12 +364,13 @@ for current_lobe_data, current_lobe_name,\
     # TODO - High - The only change I should philosophically need to make is that when it looks to see how many points
     #  are between two points it looks at all the points but it tries to find mathing pairs within the external points
     #  first
-    # Calculate the triangles in the point cloud
-    # current_lobe_triangles = create_mesh_triangles_v2(current_lobe_contour_points, visualization_plot_3d,
-    #                                                   current_lobe_centroids,
-    #                                                   current_lobe_external_contour_points)
-    #
-    # print("Number of faces: " + str(len(current_lobe_triangles)))
+    if len(current_lobe_contour_points) > 0 and len(current_lobe_external_contour_points) > 0 and len(current_lobe_contour_points) > 0:
+        # Calculate the triangles in the point cloud
+        current_lobe_triangles = create_mesh_triangles_v2(current_lobe_contour_points, visualization_plot_3d,
+                                                          current_lobe_centroids,
+                                                          current_lobe_external_contour_points)
+
+        print("Number of faces: " + str(len(current_lobe_triangles)))
 
 # Convert the triangles to an array
 point_cloud_triangles_as_arrays = array(point_cloud_triangles)

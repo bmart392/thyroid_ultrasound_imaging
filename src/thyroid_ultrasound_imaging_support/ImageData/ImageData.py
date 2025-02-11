@@ -392,7 +392,6 @@ class ImageData:
 
                 # If the bisector points forward
                 if sum(bisector_vector) == 0:
-
                     # Calculate the bisector as 90 degrees off of the forward vector
                     bisector_vector = array([-forward_vector[1], forward_vector[0]])
 
@@ -400,7 +399,8 @@ class ImageData:
                 bisector_vector = bisector_vector / norm(bisector_vector)
 
                 # Calculate the modified dot product
-                modified_dot_product = (forward_vector[0] * -bisector_vector[1]) + (forward_vector[1] * bisector_vector[0])
+                modified_dot_product = (forward_vector[0] * -bisector_vector[1]) + (
+                            forward_vector[1] * bisector_vector[0])
 
                 # If the modified dot product is not negative, flip the vector
                 if modified_dot_product > 0:
@@ -414,13 +414,67 @@ class ImageData:
 
         return all_contour_vectors
 
+    def transform_single_pixel_location(self, given_point,
+                                        transformation: ndarray,
+                                        image_axis_alignment: str,
+                                        imaging_depth: float = None,
+                                        horizontal_resolution: float = 0.000128,
+                                        vertical_resolution: float = 0.000126,
+                                        horizontal_image_alignment_offset: float = 0,
+                                        vertical_image_alignment_offset: float = 0):
+        """Convert the location of the centroid from the down-sampled space to the original image space"""
+
+        # Un-down-sample the given point
+        cropped_pt = array([value / self.down_sampling_rate for value in given_point])
+
+        # Account for cropping the image by adding the first crop coordinate back into the point
+        full_resolution_pt = cropped_pt + array(self.image_crop_coordinates[0])
+
+        # Add the horizontal and vertical image alignment offsets to the point
+        aligned_pt = full_resolution_pt + array([horizontal_image_alignment_offset * self.image_size_x,
+                                                 vertical_image_alignment_offset * self.image_size_y])
+
+        # Account for moving the X origin from the left side of the image to the center of the image
+        zeroed_pt = aligned_pt - array([self.image_size_x / 2, 0])
+
+        # Flip the sign of the X axis
+        flipped_pt = zeroed_pt @ array([[-1, 0], [0, 1]])
+
+        # Convert from pixels to meters using the given resolution or imaging depth and image size
+        if horizontal_resolution is not None and vertical_resolution is not None:
+            pt_in_meters = array([flipped_pt[0] * horizontal_resolution,
+                                  flipped_pt[1] * vertical_resolution])
+        else:
+            if imaging_depth is not None:
+                pt_in_meters = flipped_pt * (imaging_depth / self.ds_image_size_y)
+            else:
+                pt_in_meters = flipped_pt * ((self.imaging_depth / 100) / self.ds_image_size_y)
+
+        # Rearrange the points
+        if image_axis_alignment == ZY_ALIGNED:
+            rearranged_point = array([[0],
+                                      [pt_in_meters[0]],
+                                      [pt_in_meters[1]],
+                                      [1]])
+        elif image_axis_alignment == ZX_ALIGNED:
+            rearranged_point = array([[pt_in_meters[0]],
+                                      [0],
+                                      [pt_in_meters[1]],
+                                      [1]])
+        else:
+            raise Exception("Image axis alignment of " + str(image_axis_alignment) + " is not recognized.")
+
+        # Transform the point
+        transformed_point = transformation @ rearranged_point
+        return transformed_point
+
     def generate_transformed_contours(self, transformation: ndarray,
-                                      imaging_depth: float,
+                                      imaging_depth: float = None,
                                       image_axis_alignment: str = ZY_ALIGNED,
                                       horizontal_resolution: float = 0.000128,
                                       vertical_resolution: float = 0.000126,
-                                      horizontal_pixel_offset: float = 0,
-                                      vertical_pixel_offset: float = 0):
+                                      horizontal_image_alignment_offset: float = 0,
+                                      vertical_image_alignment_offset: float = 0):
 
         # Define the default result
         contours_list = []
@@ -443,61 +497,30 @@ class ImageData:
                 # Define a temporary list to store the vectors from this contour
                 this_vector_list = []
 
-                this_centroid = array(centroid) + array([horizontal_pixel_offset * self.down_sampling_rate,
-                                                         vertical_pixel_offset * self.down_sampling_rate])
-                this_centroid = this_centroid + array(self.image_crop_coordinates[0])
-                this_centroid = +this_centroid - array([round(self.ds_image_size_x / 2), 0])
-                this_centroid = this_centroid @ array([[-1, 0], [0, 1]])
-                this_centroid = array([this_centroid[0] * horizontal_resolution,
-                                       this_centroid[1] * vertical_resolution])
-                this_centroid = array([[0], [this_centroid[0]], [this_centroid[1]], [1]])
-                this_centroid = transformation @ this_centroid
+                # Convert the location of the centroid from the down-sampled space to the original image space
+                this_centroid = self.transform_single_pixel_location(centroid, transformation,
+                                                                     imaging_depth=imaging_depth,
+                                                                     image_axis_alignment=image_axis_alignment,
+                                                                     horizontal_resolution=horizontal_resolution,
+                                                                     vertical_resolution=vertical_resolution,
+                                                                     horizontal_image_alignment_offset=horizontal_image_alignment_offset,
+                                                                     vertical_image_alignment_offset=vertical_image_alignment_offset)
+
+
 
                 # Iterate through every point in the contour
                 for point_in_px, normal_vector_in_px in zip(contour, normal_vector_contour):
 
-                    # Add the horizontal and vertical offsets to the point
-                    point_in_px_with_offsets = point_in_px + array([horizontal_pixel_offset * self.down_sampling_rate,
-                                                                    vertical_pixel_offset * self.down_sampling_rate])
-
-                    # Add the crop offset to the point
-                    point_in_px_with_crop_offset = point_in_px_with_offsets + array(self.image_crop_coordinates[0])
-
-                    # Shift all values to be measured from the center of the image X axis
-                    point_in_px_from_center = +point_in_px_with_crop_offset - array([round(self.ds_image_size_x / 2), 0])
-
-                    point_in_px_from_center = point_in_px_from_center @ array([[-1, 0], [0, 1]])
-
-                    # Convert the units
-                    if horizontal_resolution is not None and vertical_resolution is not None:
-                        point_in_m = array([point_in_px_from_center[0] * horizontal_resolution,
-                                            point_in_px_from_center[1] * vertical_resolution])
-                    else:
-                        point_in_m = point_in_px_from_center * (imaging_depth / self.ds_image_size_y)
-                    normal_vector_in_m = normal_vector_in_px * (imaging_depth / self.ds_image_size_y)
-
-                    # Rearrange the points
-                    if image_axis_alignment == ZY_ALIGNED:
-                        rearranged_point = array([[0],
-                                                  [point_in_m[0]],
-                                                  [point_in_m[1]],
-                                                  [1]])
-                        rearranged_vector = array([[0],
-                                                  [normal_vector_in_m[0]],
-                                                  [normal_vector_in_m[1]]])
-                    elif image_axis_alignment == ZX_ALIGNED:
-                        rearranged_point = array([[point_in_m[0]],
-                                                  [0],
-                                                  [point_in_m[1]],
-                                                  [1]])
-                        rearranged_vector = array([[normal_vector_in_m[0]],
-                                                  [0],
-                                                  [normal_vector_in_m[1]]])
-                    else:
-                        raise Exception("Image axis alignment of " + str(image_axis_alignment) + " is not recognized.")
-
                     # Transform the point
-                    transformed_point = transformation @ rearranged_point
+                    # transformed_point = transformation @ rearranged_point
+                    transformed_point = self.transform_single_pixel_location(point_in_px, transformation,
+                                                                             imaging_depth=imaging_depth,
+                                                                     image_axis_alignment=image_axis_alignment,
+                                                                     horizontal_resolution=horizontal_resolution,
+                                                                     vertical_resolution=vertical_resolution,
+                                                                             horizontal_image_alignment_offset=horizontal_image_alignment_offset,
+                                                                             vertical_image_alignment_offset=vertical_image_alignment_offset)
+                    rearranged_vector = array([[0], [0], [0]])
 
                     # Add the transformed point to the list for this contour
                     this_contour_list.append(transformed_point[:3].reshape(3))
@@ -562,7 +585,7 @@ class ImageData:
 
             try:
                 self.image_capture_time = message.image_capture_time
-            except :
+            except:
                 self.image_capture_time = Time.now()
 
             self.image_size_x = message.image_size_x

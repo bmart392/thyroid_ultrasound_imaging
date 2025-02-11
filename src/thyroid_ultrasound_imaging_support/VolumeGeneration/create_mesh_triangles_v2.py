@@ -202,7 +202,7 @@ def create_mesh_triangles_v2(point_cloud: list, progress_plot: Axes3D = None, ce
             action_to_complete = None
 
             # If there is more than one partially available common pair
-            if len(partially_available_common_lines) > 1: # and loop_counter > 5:
+            if len(partially_available_common_lines) > 1:  # and loop_counter > 5:
 
                 # Find the pair of common pairs with the smallest index distance
                 all_pair_combinations_with_index_distance = \
