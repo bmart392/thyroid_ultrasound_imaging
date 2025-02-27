@@ -40,12 +40,19 @@ def wrapping_range(index_1: int, index_2: int, source_list: list) -> list:
     second_best_option = list(range(index_1 - len(source_list), index_2))
 
     # Create the third best option
-    third_best_option = [int(x) for x in linspace(index_2 - (len(source_list) - 1), index_1,
+    third_best_option = [int(x) for x in linspace(index_2 - len(source_list), index_1,
                                                   len(source_list) - abs(index_1 - index_2), endpoint=False)]
+    # third_best_option = [int(x) for x in linspace(index_2 - (len(source_list) - 1), index_1,
+    #                                               len(source_list) - abs(index_1 - index_2), endpoint=False)]
 
     # Return the list that includes fewer points
     options = [best_option, second_best_option, third_best_option]
     option_lengths = [len(option) for option in options]
-    return options[option_lengths.index(min(option_lengths))]
+    shortest_option = options[option_lengths.index(min(option_lengths))]
+    if abs(len(best_option) - len(shortest_option)) < 2:
+        return best_option
+    else:
+        return shortest_option
+    # return options[option_lengths.index(min(option_lengths))]
 
 

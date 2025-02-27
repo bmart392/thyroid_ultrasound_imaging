@@ -21,6 +21,7 @@ from thyroid_ultrasound_imaging_support.ImageFilter.remove_isolated_pixes import
 from thyroid_ultrasound_imaging_support.VolumeGeneration.find_external_points_v2 import find_external_points_v2
 from thyroid_ultrasound_imaging_support.VolumeGeneration.set_axes_equal import set_axes_equal
 from thyroid_ultrasound_imaging_support.ImageData.ImageData import ImageData
+from thyroid_ultrasound_imaging_support.VolumeGeneration.InteractiveProgressPlot3D import InteractiveProgressPlot3D
 
 # TODO - HIGH - Some points are being left out, need to ensure all points are connected. ALso need to compare closest paired points for multiple points at once
 
@@ -80,7 +81,7 @@ LOBE_OPTION: str = LEFT_LOBE_ONLY
 
 # Select if only a subsection of each lobe should be shown
 display_lobe_subsection: bool = True
-subsection_start: int = 1
+subsection_start: int = 2
 num_slices_to_display: int = 2
 
 mesh_name = 'RightLobe'
@@ -154,12 +155,13 @@ plt.ion()
 
 # Create a new plot for visualizing the 3D results
 if plot_3D_progress:
-    fig = plt.figure()
-    visualization_plot_3d = fig.add_subplot(projection='3d')
-    visualization_plot_3d.set_xlabel('X (m)')
-    visualization_plot_3d.set_ylabel('Y (m)')
-    visualization_plot_3d.set_zlabel('Z (m)')
-    visualization_plot_3d.set_proj_type('ortho')
+    # fig = plt.figure()
+    # visualization_plot_3d = fig.add_subplot(projection='3d')
+    # visualization_plot_3d.set_xlabel('X (m)')
+    # visualization_plot_3d.set_ylabel('Y (m)')
+    # visualization_plot_3d.set_zlabel('Z (m)')
+    # visualization_plot_3d.set_proj_type('ortho')
+    visualization_plot_3d = InteractiveProgressPlot3D()
 else:
     visualization_plot_3d = None
 
@@ -201,7 +203,8 @@ for current_lobe_data, current_lobe_name, \
 
         # Plot the robot pose
         if plot_3D_progress and plot_3D_robot_transforms:
-            plot_transformation(robot_pose_at_image_capture_time, visualization_plot_3d)
+            # plot_transformation(robot_pose_at_image_capture_time, visualization_plot_3d)
+            visualization_plot_3d.plot_transformation(robot_pose_at_image_capture_time)
 
         # Create the plot to display the progress of the
         if plot_2D_progress and contour_count in slices_to_monitor:
@@ -331,30 +334,33 @@ for current_lobe_data, current_lobe_name, \
                     internal_points_array.append(abridged_transformed_contours[ii])
 
             # If there are internal points, plot them
-            if len(internal_points_array) > 0:
-                internal_points_array = array(internal_points_array)
-                visualization_plot_3d.scatter3D(array(internal_points_array)[:, 0],
-                                                array(internal_points_array)[:, 1],
-                                                array(internal_points_array)[:, 2],
-                                                c='black', s=10)
-
-            # If there are external points, plot them
-            if len(external_points_array) > 0:
-                external_points_array = array(external_points_array)
-                visualization_plot_3d.scatter3D(array(external_points_array)[:, 0],
-                                                array(external_points_array)[:, 1],
-                                                array(external_points_array)[:, 2],
-                                                c='red', s=25)
+            visualization_plot_3d.plot_internal_and_external_points(internal_points=internal_points_array,
+                                                                    external_points=external_points_array)
+            # if len(internal_points_array) > 0:
+            #     internal_points_array = array(internal_points_array)
+            #     visualization_plot_3d.scatter3D(array(internal_points_array)[:, 0],
+            #                                     array(internal_points_array)[:, 1],
+            #                                     array(internal_points_array)[:, 2],
+            #                                     c='black', s=10)
+            #
+            # # If there are external points, plot them
+            # if len(external_points_array) > 0:
+            #     external_points_array = array(external_points_array)
+            #     visualization_plot_3d.scatter3D(array(external_points_array)[:, 0],
+            #                                     array(external_points_array)[:, 1],
+            #                                     array(external_points_array)[:, 2],
+            #                                     c='red', s=25)
 
             # Always plot the centroid
-            visualization_plot_3d.scatter3D(array(transformed_centroids)[0, :, 0],
-                                            array(transformed_centroids)[0, :, 1],
-                                            array(transformed_centroids)[0, :, 2],
-                                            c='black', s=75
-                                            )
+            visualization_plot_3d.plot_centroids(transformed_centroids)
+            # visualization_plot_3d.scatter3D(array(transformed_centroids)[0, :, 0],
+            #                                 array(transformed_centroids)[0, :, 1],
+            #                                 array(transformed_centroids)[0, :, 2],
+            #                                 c='black', s=75
+            #                                 )
 
             # Adjust the axes of the plot so they are equal
-            set_axes_equal(visualization_plot_3d)
+            set_axes_equal(visualization_plot_3d.axis_object)
 
             # Save the points of the contour, the centroid, and the list of external points
             current_lobe_contour_points.append([tuple(point) for point in abridged_transformed_contours])
